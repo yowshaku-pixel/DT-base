@@ -1,0 +1,7 @@
+{
+  "name": "DT.Base",
+  "description": "Truck maintenance database with AI-powered extraction.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

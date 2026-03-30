@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "MaintenanceRecord": {
+      "title": "Maintenance Record",
+      "description": "A record of truck maintenance extracted from an image.",
+      "type": "object",
+      "properties": {
+        "plateNumber": {
+          "type": "string",
+          "description": "The license plate number of the truck."
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "The date of the maintenance service."
+        },
+        "service": {
+          "type": "string",
+          "description": "Description of the service performed."
+        },
+        "confidence": {
+          "type": "number",
+          "description": "AI confidence score for the extraction."
+        },
+        "originalImage": {
+          "type": "string",
+          "description": "Base64 encoded image or URL."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this record."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the record was created."
+        }
+      },
+      "required": ["plateNumber", "date", "service", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/maintenance_records/{recordId}": {
+      "schema": "MaintenanceRecord",
+      "description": "Collection of maintenance records."
+    }
+  }
+}
