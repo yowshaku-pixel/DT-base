@@ -271,7 +271,7 @@ export default function App() {
             if (shouldStopRef.current) return;
 
             console.log(`Extracting data from: ${file.name}`);
-            if (!process.env.GEMINI_API_KEY) {
+            if (!import.meta.env.VITE_GEMINI_API_KEY) {
               throw new Error("Gemini API key is missing.");
             }
             await new Promise(r => setTimeout(r, 200)); 

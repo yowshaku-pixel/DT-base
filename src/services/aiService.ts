@@ -6,7 +6,7 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
     return { records: [] };
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || "" });
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
   const response = await ai.models.generateContent({
