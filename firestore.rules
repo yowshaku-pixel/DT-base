@@ -10,6 +10,12 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || request.auth.token.email == "yowshaku@gmail.com");
     }
+
+    match /maintenance_record_images/{imageId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || request.auth.token.email == "yowshaku@gmail.com");
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || request.auth.token.email == "yowshaku@gmail.com");
+    }
     
     match /{path=**} {
       allow read, write: if isAuthenticated() && request.auth.token.email == "yowshaku@gmail.com";

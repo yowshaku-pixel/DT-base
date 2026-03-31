@@ -9,13 +9,13 @@
   --color-bg: #0a0a0c;
   --color-ink: #ffffff;
   --color-line: rgba(255, 255, 255, 0.1);
-  --color-accent: #a855f7; /* Purple accent to match truck lights */
+  --color-accent: #a855f7; /* Reverted to original purple accent */
 }
 
 @layer base {
   body {
     @apply bg-[var(--color-bg)] text-[var(--color-ink)] font-sans antialiased min-h-screen relative;
-    background-image: linear-gradient(to bottom, rgba(10, 10, 12, 0.85), rgba(10, 10, 12, 0.95)), url('https://images.unsplash.com/photo-1591768793355-74d7c80b0e17?auto=format&fit=crop&q=80&w=2070');
+    background-image: linear-gradient(to bottom, rgba(10, 10, 12, 0.8), rgba(10, 10, 12, 0.95)), url('https://images.unsplash.com/photo-1586191582151-f73872dfd183?auto=format&fit=crop&q=80&w=2070');
     background-size: cover;
     background-position: center;
     background-attachment: scroll; /* Changed from fixed for better mobile performance */

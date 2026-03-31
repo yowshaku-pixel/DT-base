@@ -1,21 +1,54 @@
 {
   "name": "DT.Base Truck Log",
   "short_name": "DT.Base",
-  "description": "Professional Truck Maintenance & Records Log",
+  "description": "Professional Truck Maintenance & Records Log for drivers and fleet managers.",
+  "id": "/",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0c",
   "theme_color": "#0a0a0c",
+  "orientation": "portrait",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
       "src": "https://picsum.photos/seed/truck/192/192",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://picsum.photos/seed/truck/192/192",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "https://picsum.photos/seed/truck/512/512",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://picsum.photos/seed/truck/512/512",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "https://picsum.photos/seed/truck-app-1/1080/1920",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Maintenance Dashboard"
+    },
+    {
+      "src": "https://picsum.photos/seed/truck-app-2/1920/1080",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Fleet Overview"
     }
   ]
 }

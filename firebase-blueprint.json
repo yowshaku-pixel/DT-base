@@ -37,12 +37,41 @@
         }
       },
       "required": ["plateNumber", "date", "service", "userId", "createdAt"]
+    },
+    "MaintenanceRecordImage": {
+      "title": "Maintenance Record Image",
+      "description": "The original image associated with a maintenance record, stored separately to optimize performance.",
+      "type": "object",
+      "properties": {
+        "recordId": {
+          "type": "string",
+          "description": "The ID of the associated maintenance record."
+        },
+        "image": {
+          "type": "string",
+          "description": "Base64 encoded image."
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this record."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the record was created."
+        }
+      },
+      "required": ["recordId", "image", "userId", "createdAt"]
     }
   },
   "firestore": {
     "/maintenance_records/{recordId}": {
       "schema": "MaintenanceRecord",
       "description": "Collection of maintenance records."
+    },
+    "/maintenance_record_images/{imageId}": {
+      "schema": "MaintenanceRecordImage",
+      "description": "Collection of maintenance record images."
     }
   }
 }

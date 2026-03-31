@@ -5,7 +5,14 @@ import { extractMaintenanceData } from './services/aiService';
 import { cn, resizeImage } from './lib/utils';
 import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType, getFirestoreErrorMessage } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, writeBatch, serverTimestamp, Timestamp, getDocFromServer, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, writeBatch, serverTimestamp, Timestamp, getDocFromServer, getDocs, limit } from 'firebase/firestore';
+
+interface UploadLogEntry {
+  fileName: string;
+  status: 'pending' | 'processing' | 'success' | 'failed';
+  error?: string;
+  timestamp: number;
+}
 
 const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
 
@@ -30,7 +37,33 @@ export default function App() {
   const [expandedPlates, setExpandedPlates] = useState<Record<string, boolean>>({});
   const [showHistory, setShowHistory] = useState(true);
   const [showLatestOnly, setShowLatestOnly] = useState(false);
+  const [uploadLog, setUploadLog] = useState<UploadLogEntry[]>([]);
+  const [latestImage, setLatestImage] = useState<string | null>(null);
+  const [isLoadingLatestImage, setIsLoadingLatestImage] = useState(false);
+  const [viewingImage, setViewingImage] = useState<{ id: string, image: string | null, loading: boolean } | null>(null);
   const wakeLockRef = React.useRef<any>(null);
+
+  // Load upload log from localStorage on mount
+  useEffect(() => {
+    const savedLog = localStorage.getItem('dt_base_upload_log');
+    if (savedLog) {
+      try {
+        setUploadLog(JSON.parse(savedLog));
+      } catch (e) {
+        console.error("Failed to parse upload log", e);
+      }
+    }
+  }, []);
+
+  // Save upload log to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('dt_base_upload_log', JSON.stringify(uploadLog));
+  }, [uploadLog]);
+
+  const clearUploadLog = () => {
+    setUploadLog([]);
+    localStorage.removeItem('dt_base_upload_log');
+  };
 
   // Screen Wake Lock to prevent "crushing" when screen turns off during processing
   useEffect(() => {
@@ -197,6 +230,15 @@ export default function App() {
       setProgress({ current: 0, total: files.length, failed: 0 });
 
       const fileArray = Array.from(files);
+      
+      // Initialize log entries for this batch
+      const newEntries: UploadLogEntry[] = fileArray.map(f => ({
+        fileName: f.name,
+        status: 'pending',
+        timestamp: Date.now()
+      }));
+      setUploadLog(prev => [...newEntries, ...prev].slice(0, 50)); // Keep last 50
+
       let completedCount = 0;
       let failedCount = 0;
 
@@ -209,79 +251,86 @@ export default function App() {
         await Promise.all(batch.map(async (file) => {
           if (shouldStopRef.current) return;
 
+          // Update log to processing
+          setUploadLog(prev => prev.map(entry => 
+            entry.fileName === file.name && entry.status === 'pending' 
+              ? { ...entry, status: 'processing' } 
+              : entry
+          ));
+
           let objectUrl: string | null = null;
           try {
             console.log(`Processing file: ${file.name}`);
-            // 1. Create Object URL (more memory efficient than FileReader)
             objectUrl = URL.createObjectURL(file);
 
             if (shouldStopRef.current) return;
 
-            // 2. Resize image to speed up upload and AI processing
             console.log(`Resizing image: ${file.name}`);
             const resizedBase64 = await resizeImage(objectUrl, 1200);
-            console.log(`Resized image size: ${Math.round(resizedBase64.length / 1024)} KB`);
 
             if (shouldStopRef.current) return;
 
-            // 3. Extract data using AI
             console.log(`Extracting data from: ${file.name}`);
             if (!process.env.GEMINI_API_KEY) {
-              throw new Error("Gemini API key is missing. Please check your environment variables.");
+              throw new Error("Gemini API key is missing.");
             }
             await new Promise(r => setTimeout(r, 200)); 
             if (shouldStopRef.current) return;
             
             const result = await extractMaintenanceData(resizedBase64, 'image/jpeg');
-            console.log(`Extraction result for ${file.name}:`, result);
             
             if (shouldStopRef.current) return;
 
             if (!result || !result.records || result.records.length === 0) {
-              console.log(`No records found in ${file.name}`);
-              failedCount++;
-              if (!shouldStopRef.current) {
-                setFailedFiles(prev => [...prev, file.name]);
-              }
+              throw new Error("No readable records found in this image.");
             } else {
               // Save to Firestore
-              console.log(`Saving ${result.records.length} records for ${file.name}`);
               for (const record of result.records) {
                 if (shouldStopRef.current) break;
-                try {
-                  await addDoc(collection(db, 'maintenance_records'), {
-                    ...record,
-                    userId: user.uid,
-                    fileName: file.name,
-                    originalImage: resizedBase64,
-                    createdAt: serverTimestamp()
-                  });
-                } catch (err) {
-                  if (!shouldStopRef.current) {
-                    console.error("Firestore save error:", err);
-                    try {
-                      handleFirestoreError(err, OperationType.CREATE, 'maintenance_records');
-                    } catch (e: any) {
-                      setError(getFirestoreErrorMessage(e));
-                    }
-                  }
-                }
+                
+                // 1. Save metadata to main collection
+                const recordRef = await addDoc(collection(db, 'maintenance_records'), {
+                  ...record,
+                  userId: user.uid,
+                  fileName: file.name,
+                  // originalImage: resizedBase64, // MOVED to separate collection
+                  createdAt: serverTimestamp()
+                });
+
+                // 2. Save image to separate collection to save memory in list views
+                await addDoc(collection(db, 'maintenance_record_images'), {
+                  recordId: recordRef.id,
+                  image: resizedBase64,
+                  userId: user.uid,
+                  createdAt: serverTimestamp()
+                });
               }
-              console.log(`Successfully saved records for ${file.name}`);
+              
+              // Update log to success
+              setUploadLog(prev => prev.map(entry => 
+                entry.fileName === file.name && entry.status === 'processing' 
+                  ? { ...entry, status: 'success' } 
+                  : entry
+              ));
             }
-          } catch (err) {
+          } catch (err: any) {
             if (!shouldStopRef.current) {
               console.error(`Error processing file ${file.name}:`, err);
               failedCount++;
               setFailedFiles(prev => [...prev, file.name]);
+              
+              // Update log to failed
+              setUploadLog(prev => prev.map(entry => 
+                entry.fileName === file.name && entry.status === 'processing' 
+                  ? { ...entry, status: 'failed', error: err.message || "Unknown error" } 
+                  : entry
+              ));
             }
           } finally {
-            // Clean up Object URL to free memory
             if (objectUrl) URL.revokeObjectURL(objectUrl);
             
             if (!shouldStopRef.current) {
               completedCount++;
-              console.log(`Completed ${completedCount}/${fileArray.length} files`);
               setProgress(prev => ({ ...prev, current: completedCount, failed: failedCount }));
             }
           }
@@ -314,12 +363,48 @@ export default function App() {
       return matchesSearch && matchesService;
     });
 
-    if (showLatestOnly && filtered.length > 0) {
-      return [filtered[0]]; // records are already sorted by date desc in listener
-    }
-
     return filtered;
-  }, [records, searchQuery, serviceFilter, showLatestOnly]);
+  }, [records, searchQuery, serviceFilter]);
+
+  // Fetch image for the latest record when it changes
+  useEffect(() => {
+    const fetchLatestImage = async () => {
+      if (filteredRecords.length > 0) {
+        const latestRecord = filteredRecords[0];
+        // If the record already has an image (legacy), use it
+        if (latestRecord.originalImage) {
+          setLatestImage(latestRecord.originalImage);
+          return;
+        }
+
+        // Otherwise fetch from separate collection
+        setIsLoadingLatestImage(true);
+        try {
+          const q = query(
+            collection(db, 'maintenance_record_images'),
+            where('recordId', '==', latestRecord.id),
+            where('userId', '==', user?.uid),
+            limit(1)
+          );
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty) {
+            setLatestImage(snapshot.docs[0].data().image);
+          } else {
+            setLatestImage(null);
+          }
+        } catch (err) {
+          console.error("Failed to fetch latest image", err);
+          setLatestImage(null);
+        } finally {
+          setIsLoadingLatestImage(false);
+        }
+      } else {
+        setLatestImage(null);
+      }
+    };
+
+    fetchLatestImage();
+  }, [filteredRecords, user]);
 
   const groupedRecords = useMemo(() => {
     const groups: Record<string, MaintenanceRecord[]> = {};
@@ -349,6 +434,32 @@ export default function App() {
       newState[plate] = expand;
     });
     setExpandedPlates(newState);
+  };
+
+  const handleViewImage = async (record: MaintenanceRecord) => {
+    if (record.originalImage) {
+      setViewingImage({ id: record.id, image: record.originalImage, loading: false });
+      return;
+    }
+
+    setViewingImage({ id: record.id, image: null, loading: true });
+    try {
+      const q = query(
+        collection(db, 'maintenance_record_images'),
+        where('recordId', '==', record.id),
+        where('userId', '==', user?.uid),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        setViewingImage({ id: record.id, image: snapshot.docs[0].data().image, loading: false });
+      } else {
+        setViewingImage({ id: record.id, image: null, loading: false });
+      }
+    } catch (err) {
+      console.error("Failed to fetch image", err);
+      setViewingImage(null);
+    }
   };
 
   const handleClearAll = async () => {
@@ -614,66 +725,121 @@ export default function App() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+      {/* Upload Log Section */}
+      {uploadLog.length > 0 && (
+        <div className="mb-12 glass-panel p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <ListFilter className="w-4 h-4 text-purple-400" />
+              <h2 className="font-display font-bold uppercase tracking-[0.2em] text-xs text-white">Recent Upload Activity</h2>
+            </div>
+            <button 
+              onClick={clearUploadLog}
+              className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-red-400 transition-all"
+            >
+              Clear Log
+            </button>
+          </div>
+          
+          <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+            {uploadLog.map((entry, i) => (
+              <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full flex-shrink-0",
+                    entry.status === 'success' ? "bg-green-500" : 
+                    entry.status === 'failed' ? "bg-red-500" : 
+                    entry.status === 'processing' ? "bg-purple-500 animate-pulse" : "bg-white/20"
+                  )} />
+                  <span className="text-[11px] font-mono truncate opacity-80">{entry.fileName}</span>
+                </div>
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <span className={cn(
+                    "text-[9px] font-display font-bold uppercase tracking-widest",
+                    entry.status === 'success' ? "text-green-400" : 
+                    entry.status === 'failed' ? "text-red-400" : 
+                    entry.status === 'processing' ? "text-purple-400" : "text-white/40"
+                  )}>
+                    {entry.status}
+                  </span>
+                  {entry.error && (
+                    <span className="text-[8px] font-mono text-red-400/60 max-w-[150px] truncate" title={entry.error}>
+                      {entry.error}
+                    </span>
+                  )}
+                  <span className="text-[8px] font-mono opacity-20">
+                    {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-[9px] font-display font-medium opacity-40 italic">
+            * This log persists even if the browser crashes. Successful uploads are saved to the cloud.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <div className="relative group">
-          <label className="font-display font-bold uppercase tracking-[0.2em] text-[10px] opacity-50 block mb-2">Filter by Plate</label>
+          <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
             <input 
               type="text"
-              placeholder="SEARCH PLATE..."
-              className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-4 pl-12 pr-12 font-display font-medium text-base md:text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all"
+              placeholder="Plate number..."
+              className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             {searchQuery && (
               <button 
                 onClick={() => setSearchQuery('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-full transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
                 title="Clear Search"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
         </div>
         
         <div className="relative group">
-          <label className="font-display font-bold uppercase tracking-[0.2em] text-[10px] opacity-50 block mb-2">Filter by Service</label>
+          <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Find Maintenance</label>
           <div className="relative">
-            <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" />
+            <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
             <input 
               type="text"
-              placeholder="SEARCH SERVICE..."
-              className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-4 pl-12 pr-12 font-display font-medium text-base md:text-sm focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all"
+              placeholder="Service type..."
+              className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
               value={serviceFilter}
               onChange={(e) => setServiceFilter(e.target.value)}
             />
             {serviceFilter && (
               <button 
                 onClick={() => setServiceFilter('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-full transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
                 title="Clear Filter"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
         </div>
 
         <div className="relative group">
-          <label className="font-display font-bold uppercase tracking-[0.2em] text-[10px] opacity-50 block mb-2">Quick Filter</label>
+          <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Quick View</label>
           <button 
             onClick={() => setShowLatestOnly(!showLatestOnly)}
             className={cn(
-              "w-full flex items-center justify-center gap-3 p-4 border transition-all font-display font-bold text-xs uppercase tracking-[0.2em]",
+              "w-full flex items-center justify-center gap-3 p-2.5 rounded-full border transition-all font-display font-bold text-[11px] uppercase tracking-[0.2em]",
               showLatestOnly 
                 ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/20" 
                 : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white"
             )}
           >
-            <Clock className={cn("w-4 h-4", showLatestOnly ? "animate-pulse" : "")} />
-            {showLatestOnly ? "Showing Latest" : "Show Latest Only"}
+            <Clock className={cn("w-3.5 h-3.5", showLatestOnly ? "animate-pulse" : "")} />
+            {showLatestOnly ? "Latest Active" : "Latest Only"}
           </button>
         </div>
       </div>
@@ -688,14 +854,22 @@ export default function App() {
             </div>
             
             {/* Show image if available */}
-            {filteredRecords[0].originalImage && (
+            {isLoadingLatestImage ? (
+              <div className="w-full max-w-md h-48 flex items-center justify-center bg-white/5 border border-white/10 rounded-lg">
+                <Loader2 className="w-6 h-6 animate-spin opacity-40" />
+              </div>
+            ) : latestImage ? (
               <div className="w-full max-w-md overflow-hidden rounded-lg border border-white/10">
                 <img 
-                  src={filteredRecords[0].originalImage} 
+                  src={latestImage} 
                   alt="Original Record" 
                   className="w-full h-auto object-contain"
                   referrerPolicy="no-referrer"
                 />
+              </div>
+            ) : (
+              <div className="w-full max-w-md h-48 flex items-center justify-center bg-white/5 border border-white/10 rounded-lg border-dashed">
+                <p className="text-[10px] font-display font-bold uppercase tracking-widest opacity-40">No Image Available</p>
               </div>
             )}
 
@@ -748,85 +922,141 @@ export default function App() {
       )}
 
       {/* Maintenance History Header */}
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-4">
-          <h2 className="font-display font-bold uppercase tracking-[0.2em] text-sm text-white">Maintenance History</h2>
-          <button 
-            onClick={() => setShowHistory(!showHistory)}
-            className="text-[10px] font-display font-bold uppercase tracking-[0.2em] px-3 py-1.5 bg-white/5 border border-white/10 rounded-md hover:bg-white/10 transition-all"
-          >
-            {showHistory ? 'Hide All' : 'Show All'}
-          </button>
+      <div className="flex justify-between items-end mb-6 px-2">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-display font-bold uppercase tracking-[0.3em] text-[10px] text-purple-400">Log History</h2>
+          <div className="flex items-center gap-3">
+            <h3 className="font-display font-bold text-lg text-white tracking-tight">Maintenance Records</h3>
+            <button 
+              onClick={() => setShowHistory(!showHistory)}
+              className="text-[9px] font-display font-bold uppercase tracking-[0.2em] px-2.5 py-1 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all text-white/60"
+            >
+              {showHistory ? 'Hide' : 'Show'}
+            </button>
+          </div>
         </div>
         {showHistory && (
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <button 
               onClick={() => toggleAll(true)}
-              className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-purple-400 transition-all"
+              className="text-[9px] font-display font-bold uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-purple-400 transition-all"
             >
-              Expand All
+              Expand
             </button>
             <button 
               onClick={() => toggleAll(false)}
-              className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-purple-400 transition-all"
+              className="text-[9px] font-display font-bold uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-purple-400 transition-all"
             >
-              Collapse All
+              Collapse
             </button>
           </div>
         )}
       </div>
 
       {showHistory && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {Object.keys(groupedRecords).length === 0 ? (
-            <div className="p-12 text-center border border-white/10 border-dashed rounded-xl">
-              <p className="font-display font-bold text-[11px] opacity-40 uppercase tracking-[0.2em]">
-                {isProcessing ? "Processing batch..." : "No records found. Add pictures to begin."}
+            <div className="p-10 text-center border border-white/5 border-dashed rounded-3xl bg-white/[0.02]">
+              <p className="font-display font-bold text-[10px] opacity-30 uppercase tracking-[0.2em]">
+                {isProcessing ? "Processing batch..." : "No records found"}
               </p>
             </div>
           ) : (
             Object.entries(groupedRecords).map(([plate, plateRecords]) => (
-              <div key={plate} className="glass-panel overflow-hidden">
+              <div key={plate} className="bg-white/[0.03] border border-white/5 rounded-3xl overflow-hidden transition-all hover:bg-white/[0.05]">
                 {/* Plate Header */}
                 <button 
                   onClick={() => togglePlate(plate)}
-                  className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 text-white transition-all"
+                  className="w-full flex items-center justify-between p-3.5 px-5 text-white transition-all"
                 >
                   <div className="flex items-center gap-4">
-                    {expandedPlates[plate] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    <span className="font-display text-2xl font-bold tracking-tighter">{plate}</span>
-                    <span className="text-[10px] opacity-50 font-mono uppercase tracking-widest">
-                      {plateRecords.length} {plateRecords.length === 1 ? 'Record' : 'Records'}
-                    </span>
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center bg-white/5 border border-white/10 transition-transform",
+                      expandedPlates[plate] && "rotate-180"
+                    )}>
+                      <ChevronDown className="w-3 h-3 opacity-60" />
+                    </div>
+                    <div className="flex flex-col items-start">
+                      <span className="font-display text-lg font-bold tracking-tight">{plate}</span>
+                      <span className="text-[8px] opacity-40 font-mono uppercase tracking-widest">
+                        {plateRecords.length} {plateRecords.length === 1 ? 'Entry' : 'Entries'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-[10px] font-display font-bold opacity-50 uppercase tracking-[0.2em]">
-                    Last Service: {plateRecords[0].date}
+                  <div className="text-right">
+                    <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5">Last Service</div>
+                    <div className="text-[10px] font-mono font-bold text-purple-400/80">{plateRecords[0].date}</div>
                   </div>
                 </button>
 
                 {/* Records List */}
                 {expandedPlates[plate] && (
-                  <div className="divide-y divide-[var(--color-line)]/10">
-                    {plateRecords.map((record, index) => (
-                      <div key={record.id} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:bg-white/5 transition-colors">
-                        <div className="flex items-start gap-4">
-                          <div className="text-[10px] font-mono opacity-30 mt-1">
-                            {(index + 1).toString().padStart(2, '0')}
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-display font-bold opacity-50 uppercase tracking-[0.2em] mb-1">
-                              {record.date}
+                  <div className="px-3 pb-3">
+                    <div className="bg-black/20 rounded-2xl border border-white/5 divide-y divide-white/5">
+                      {plateRecords.map((record, index) => (
+                        <div key={record.id} className="p-3 px-4 flex items-center justify-between gap-4 group hover:bg-white/[0.02] transition-colors">
+                          <div className="flex items-center gap-4 overflow-hidden">
+                            <div className="text-[9px] font-mono opacity-20 w-4">
+                              {(index + 1).toString().padStart(2, '0')}
                             </div>
-                            <div className="text-sm font-medium text-white">{record.service}</div>
+                            <div className="overflow-hidden">
+                              <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5">
+                                {record.date}
+                              </div>
+                              <div className="text-xs font-medium text-white/90 truncate">{record.service}</div>
+                            </div>
                           </div>
+                          <button 
+                            onClick={() => handleViewImage(record)}
+                            className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full"
+                          >
+                            View
+                          </button>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {viewingImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl bg-[#0a0a0a] border border-white/10 shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-60">Record Image</span>
+              <button 
+                onClick={() => setViewingImage(null)}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-black/20">
+              {viewingImage.loading ? (
+                <div className="flex flex-col items-center gap-4 py-20">
+                  <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                  <span className="text-[10px] font-display font-bold uppercase tracking-widest opacity-40">Loading Image...</span>
+                </div>
+              ) : viewingImage.image ? (
+                <img 
+                  src={viewingImage.image} 
+                  alt="Maintenance Record" 
+                  className="max-w-full h-auto object-contain shadow-2xl"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="py-20 text-center">
+                  <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4 opacity-40" />
+                  <p className="text-[10px] font-display font-bold uppercase tracking-widest opacity-40">Image not found</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
