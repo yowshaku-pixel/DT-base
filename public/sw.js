@@ -1,10 +1,10 @@
-const CACHE_NAME = 'dt-base-v1';
+const CACHE_NAME = 'dt-base-v2';
 const ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  'https://picsum.photos/seed/truck/192/192',
-  'https://picsum.photos/seed/truck/512/512'
+  'https://img.icons8.com/color/192/truck.png',
+  'https://img.icons8.com/color/512/truck.png'
 ];
 
 self.addEventListener('install', (event) => {

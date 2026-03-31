@@ -218,6 +218,14 @@ export default function App() {
       setError("You must be logged in to upload records. Please click the Login button.");
       return;
     }
+
+    // Check for API key before starting
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
+    if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+      setError("AI Key Missing: Please add your Gemini API Key in the 'Secrets' tab and click 'Apply Changes'.");
+      return;
+    }
+
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
