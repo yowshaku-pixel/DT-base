@@ -605,7 +605,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-12 max-w-7xl mx-auto flex flex-col">
+    <div className="min-h-screen bg-[#0a0a0c] text-white p-4 md:p-12 max-w-7xl mx-auto flex flex-col">
       {/* Header */}
       <header className="mb-8 md:mb-12 border-b border-[var(--color-line)] pb-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
