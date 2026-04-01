@@ -1,11 +1,6 @@
-const CACHE_NAME = 'dt-base-v1';
+const CACHE_NAME = 'dt-base-v2';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(['/']);
-    })
-  );
   self.skipWaiting();
 });
 
@@ -14,9 +9,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
-    })
-  );
+  // Simplest possible fetch for localhost PWA compatibility
+  event.respondWith(fetch(event.request));
 });

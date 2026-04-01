@@ -618,10 +618,10 @@ export default function App() {
             {deferredPrompt && (
               <button 
                 onClick={handleInstallClick}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 border border-purple-500/30 rounded text-[10px] text-purple-400 hover:bg-purple-600/30 transition-all font-display font-bold uppercase tracking-[0.2em]"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-purple-600 text-white hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/40 active:scale-95 animate-bounce"
               >
-                <Download className="w-3.5 h-3.5" />
-                Install App
+                <Download className="w-4 h-4" />
+                <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">Install App</span>
               </button>
             )}
             {isProcessing && (
