@@ -42,21 +42,41 @@ export default function App() {
   const [isLoadingLatestImage, setIsLoadingLatestImage] = useState(false);
   const [viewingImage, setViewingImage] = useState<{ id: string, image: string | null, loading: boolean } | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [pwaStatus, setPwaStatus] = useState<string>('Checking...');
   const wakeLockRef = React.useRef<any>(null);
 
   // PWA Install Prompt
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
+      console.log('beforeinstallprompt event fired');
       e.preventDefault();
       setDeferredPrompt(e);
+      setPwaStatus('Ready to Install');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setPwaStatus('Already Installed');
+    }
+
+    // Check Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(() => {
+        console.log('Service Worker is ready');
+        if (!deferredPrompt && !window.matchMedia('(display-mode: standalone)').matches) {
+          setPwaStatus('Waiting for Chrome...');
+        }
+      });
+    } else {
+      setPwaStatus('SW Not Supported');
+    }
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, []);
+  }, [deferredPrompt]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
@@ -624,6 +644,9 @@ export default function App() {
                 <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">Install App</span>
               </button>
             )}
+            <div className="hidden md:block px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/40 font-mono">
+              PWA: {pwaStatus}
+            </div>
             {isProcessing && (
               <div className="flex items-center gap-2 px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-[9px] text-purple-400 animate-pulse">
                 <Clock className="w-3 h-3" />
