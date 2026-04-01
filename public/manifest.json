@@ -2,27 +2,22 @@
   "name": "DT.Base Truck Log",
   "short_name": "DT.Base",
   "description": "Professional Truck Maintenance & Records Log",
-  "start_url": ".",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0a0a0c",
   "theme_color": "#0a0a0c",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/lucide-react/lucide/main/icons/truck.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "https://cdn-icons-png.flaticon.com/512/2554/2554979.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "https://picsum.photos/seed/dtbase/192/192.jpg",
+      "src": "https://cdn-icons-png.flaticon.com/192/2554/2554979.png",
       "sizes": "192x192",
-      "type": "image/jpeg"
-    },
-    {
-      "src": "https://picsum.photos/seed/dtbase/512/512.jpg",
-      "sizes": "512x512",
-      "type": "image/jpeg"
+      "type": "image/png"
     }
   ]
 }
