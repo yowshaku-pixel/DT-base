@@ -41,7 +41,31 @@ export default function App() {
   const [latestImage, setLatestImage] = useState<string | null>(null);
   const [isLoadingLatestImage, setIsLoadingLatestImage] = useState(false);
   const [viewingImage, setViewingImage] = useState<{ id: string, image: string | null, loading: boolean } | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const wakeLockRef = React.useRef<any>(null);
+
+  // PWA Install Prompt
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   // Load upload log from localStorage on mount
   useEffect(() => {
@@ -205,8 +229,10 @@ export default function App() {
       console.error("Login error:", err);
       if (err.code === 'auth/popup-blocked') {
         setError("Login popup was blocked. Please allow popups for this site.");
+      } else if (err.code === 'auth/network-request-failed') {
+        setError("Network error: Please check your internet connection or disable any ad-blockers/VPNs that might be blocking Google Login.");
       } else {
-        setError("Failed to login. Please try again.");
+        setError(`Login failed: ${err.message || "Please try again."}`);
       }
     } finally {
       setIsLoggingIn(false);
@@ -218,14 +244,6 @@ export default function App() {
       setError("You must be logged in to upload records. Please click the Login button.");
       return;
     }
-
-    // Check for API key before starting
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
-    if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-      setError("AI Key Missing: Please add your Gemini API Key in the 'Secrets' tab and click 'Apply Changes'.");
-      return;
-    }
-
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -279,7 +297,7 @@ export default function App() {
             if (shouldStopRef.current) return;
 
             console.log(`Extracting data from: ${file.name}`);
-            if (!import.meta.env.VITE_GEMINI_API_KEY) {
+            if (!process.env.GEMINI_API_KEY) {
               throw new Error("Gemini API key is missing.");
             }
             await new Promise(r => setTimeout(r, 200)); 
@@ -597,6 +615,15 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3 md:gap-4">
+            {deferredPrompt && (
+              <button 
+                onClick={handleInstallClick}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 border border-purple-500/30 rounded text-[10px] text-purple-400 hover:bg-purple-600/30 transition-all font-display font-bold uppercase tracking-[0.2em]"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Install App
+              </button>
+            )}
             {isProcessing && (
               <div className="flex items-center gap-2 px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-[9px] text-purple-400 animate-pulse">
                 <Clock className="w-3 h-3" />
@@ -964,10 +991,30 @@ export default function App() {
       {showHistory && (
         <div className="flex flex-col gap-3">
           {Object.keys(groupedRecords).length === 0 ? (
-            <div className="p-10 text-center border border-white/5 border-dashed rounded-3xl bg-white/[0.02]">
-              <p className="font-display font-bold text-[10px] opacity-30 uppercase tracking-[0.2em]">
-                {isProcessing ? "Processing batch..." : "No records found"}
-              </p>
+            <div className="p-16 text-center border border-white/5 border-dashed rounded-3xl bg-white/[0.02] flex flex-col items-center gap-6">
+              <div className="w-16 h-16 bg-purple-600/10 rounded-full flex items-center justify-center border border-purple-500/20">
+                <Save className="w-8 h-8 text-purple-500/40" />
+              </div>
+              <div className="max-w-xs">
+                <h3 className="font-display font-bold text-lg text-white mb-2">Fresh Start</h3>
+                <p className="text-[11px] font-display font-medium text-white/40 leading-relaxed uppercase tracking-widest">
+                  {isProcessing ? "Processing your uploads..." : "Your maintenance database is empty. Upload pictures of your logs to get started."}
+                </p>
+              </div>
+              {!isProcessing && user && (
+                <label className="flex items-center gap-2 px-8 py-4 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 font-display font-bold uppercase tracking-[0.2em] text-xs">
+                  <Upload className="w-4 h-4" />
+                  Upload First Log
+                  <input 
+                    type="file" 
+                    multiple 
+                    accept="image/*"
+                    className="hidden" 
+                    onChange={handleFileUpload}
+                    disabled={isProcessing}
+                  />
+                </label>
+              )}
             </div>
           ) : (
             Object.entries(groupedRecords).map(([plate, plateRecords]) => (
