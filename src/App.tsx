@@ -644,7 +644,7 @@ export default function App() {
                 <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">Install App</span>
               </button>
             )}
-            <div className="hidden md:block px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/40 font-mono">
+            <div className="px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/40 font-mono">
               PWA: {pwaStatus}
             </div>
             {isProcessing && (
