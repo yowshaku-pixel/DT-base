@@ -629,9 +629,14 @@ export default function App() {
       {/* Header */}
       <header className="mb-8 md:mb-12 border-b border-[var(--color-line)] pb-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
-            <h1 className="text-5xl md:text-7xl font-display font-bold tracking-tighter mb-2">DT.Base</h1>
-            <p className="text-[10px] md:text-sm opacity-60 uppercase tracking-[0.3em] font-display font-medium">Mechanical Issue Extraction & History Log</p>
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-purple-600/20 border border-purple-500/30 rounded-xl">
+              <Truck className="w-8 h-8 text-purple-400" strokeWidth={1.5} />
+            </div>
+            <div>
+              <h1 className="text-5xl md:text-7xl font-display font-bold tracking-tighter mb-2">DT.Base</h1>
+              <p className="text-[10px] md:text-sm opacity-60 uppercase tracking-[0.3em] font-display font-medium">Mechanical Issue Extraction & History Log</p>
+            </div>
           </div>
           
           <div className="flex flex-wrap items-center gap-3 md:gap-4">
