@@ -35,7 +35,7 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [expandedPlates, setExpandedPlates] = useState<Record<string, boolean>>({});
-  const [showHistory, setShowHistory] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
   const [showLatestOnly, setShowLatestOnly] = useState(false);
   const [uploadLog, setUploadLog] = useState<UploadLogEntry[]>([]);
   const [latestImage, setLatestImage] = useState<string | null>(null);
