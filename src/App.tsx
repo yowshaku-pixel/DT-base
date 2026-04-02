@@ -175,6 +175,26 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Test Firestore connection on boot
+  useEffect(() => {
+    if (user) {
+      const testConnection = async () => {
+        try {
+          console.log("[DEBUG] Testing Firestore connection...");
+          // Try to fetch a single document from a non-existent collection to test connectivity
+          await getDocs(query(collection(db, 'maintenance_records'), limit(1)));
+          setIsCloudConnected(true);
+          console.log("[DEBUG] Firestore connection successful");
+        } catch (err: any) {
+          console.error("[DEBUG] Firestore connection test failed:", err);
+          setIsCloudConnected(false);
+          // Don't show error to user yet, as it might just be a slow connection
+        }
+      };
+      testConnection();
+    }
+  }, [user]);
+
   const fetchRecords = useCallback(async () => {
     if (!user) return;
     setIsRefreshing(true);
@@ -282,6 +302,13 @@ export default function App() {
     console.log("[DEBUG] isProcessing state changed:", isProcessing);
   }, [isProcessing]);
 
+  const stopProcessing = () => {
+    console.log("[DEBUG] stopProcessing called");
+    shouldStopRef.current = true;
+    setIsStopping(true);
+    setCurrentStatus("Stopping...");
+  };
+
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     console.log("[DEBUG] handleFileUpload triggered", { 
@@ -385,28 +412,49 @@ export default function App() {
               throw new Error("No readable records found in this image.");
             } else {
               console.log(`[DEBUG] Step 4: Saving ${result.records.length} records to Firestore for ${file.name}`);
-              setCurrentStatus(`Saving ${file.name} to database...`);
+              
               // Save to Firestore
               for (const record of result.records) {
                 if (shouldStopRef.current) break;
                 
-                // 1. Save metadata to main collection
-                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-                const recordRef = await addDoc(collection(db, 'maintenance_records'), {
-                  ...record,
-                  userId: user.uid,
-                  fileName: file.name,
-                  createdAt: serverTimestamp()
-                });
+                // Helper for timeout
+                const withTimeout = (promise: Promise<any>, timeoutMs: number) => {
+                  return Promise.race([
+                    promise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("Database operation timed out. Please check your internet.")), timeoutMs))
+                  ]);
+                };
 
-                // 2. Save image to separate collection
-                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-                await addDoc(collection(db, 'maintenance_record_images'), {
-                  recordId: recordRef.id,
-                  image: resizedBase64,
-                  userId: user.uid,
-                  createdAt: serverTimestamp()
-                });
+                try {
+                  // 1. Save metadata to main collection
+                  setCurrentStatus(`Saving metadata for ${file.name}...`);
+                  setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+                  
+                  const metadataPromise = addDoc(collection(db, 'maintenance_records'), {
+                    ...record,
+                    userId: user.uid,
+                    fileName: file.name,
+                    createdAt: serverTimestamp()
+                  });
+
+                  const recordRef = await withTimeout(metadataPromise, 25000) as any;
+
+                  // 2. Save image to separate collection
+                  setCurrentStatus(`Saving image for ${file.name}...`);
+                  setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+                  
+                  const imagePromise = addDoc(collection(db, 'maintenance_record_images'), {
+                    recordId: recordRef.id,
+                    image: resizedBase64,
+                    userId: user.uid,
+                    createdAt: serverTimestamp()
+                  });
+
+                  await withTimeout(imagePromise, 35000);
+                } catch (dbErr: any) {
+                  console.error(`[DEBUG] Firestore write failed for ${file.name}:`, dbErr);
+                  handleFirestoreError(dbErr, OperationType.WRITE, 'maintenance_records');
+                }
               }
               console.log(`[DEBUG] Step 4 Complete: ${file.name} saved`);
               
@@ -420,13 +468,14 @@ export default function App() {
           } catch (err: any) {
             if (!shouldStopRef.current) {
               console.error(`[DEBUG] Error processing ${file.name}:`, err);
+              const userFriendlyError = getFirestoreErrorMessage(err);
               failedCount++;
               setFailedFiles(prev => [...prev, file.name]);
               
               // Update log to failed
               setUploadLog(prev => prev.map(entry => 
                 entry.fileName === file.name && entry.status === 'processing' 
-                  ? { ...entry, status: 'failed', error: err.message || "Unknown error" } 
+                  ? { ...entry, status: 'failed', error: userFriendlyError } 
                   : entry
               ));
             }
@@ -873,10 +922,19 @@ export default function App() {
           <div className="mt-4 space-y-2">
             <div className="flex justify-between items-center text-[9px] font-display font-bold uppercase tracking-widest text-white/40">
               <span>{currentStatus || `Uploading ${progress.current} of ${progress.total}`}</span>
-              <span className="flex items-center gap-1">
-                <RefreshCw className="w-2.5 h-2.5 animate-spin text-purple-400" />
-                {formatBytes(sessionStats.dataTransferred)} Sent
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1">
+                  <RefreshCw className="w-2.5 h-2.5 animate-spin text-purple-400" />
+                  {formatBytes(sessionStats.dataTransferred)} Sent
+                </span>
+                <button 
+                  onClick={stopProcessing}
+                  className="text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
+                >
+                  <X className="w-2.5 h-2.5" />
+                  STOP
+                </button>
+              </div>
             </div>
             <div className="h-1 w-full bg-white/10 overflow-hidden rounded-full">
               <div 
@@ -894,7 +952,23 @@ export default function App() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <span className="text-sm font-display font-medium">{error}</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-display font-medium">{error}</span>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      setIsProcessing(false);
+                      setIsRefreshing(false);
+                      setCurrentStatus(null);
+                      setError(null);
+                      setFailedFiles([]);
+                    }}
+                    className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-200 text-[10px] uppercase font-bold tracking-widest rounded transition-all"
+                  >
+                    Force Reset App
+                  </button>
+                </div>
+              </div>
             </div>
             <button 
               onClick={() => {
