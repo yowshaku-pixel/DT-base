@@ -20,9 +20,10 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
   const ai = new GoogleGenAI({ apiKey });
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
+  console.log("Starting AI extraction with model: gemini-3-flash-preview");
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-preview",
+      model: "gemini-3-flash-preview",
       contents: [
         {
           parts: [

@@ -278,6 +278,7 @@ export default function App() {
   };
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("[DEBUG] handleFileUpload triggered", { user: user?.email, files: e.target.files?.length });
     if (!user) {
       setError("You must be logged in to upload records. Please click the Login button.");
       return;
@@ -324,13 +325,17 @@ export default function App() {
 
           let objectUrl: string | null = null;
           try {
-            console.log(`Processing file: ${file.name}`);
+            console.log(`[DEBUG] Processing file: ${file.name}`);
             objectUrl = URL.createObjectURL(file);
 
-            if (shouldStopRef.current) return;
+            if (shouldStopRef.current) {
+              console.log(`[DEBUG] Stop requested for ${file.name}`);
+              return;
+            }
 
-            console.log(`Resizing image: ${file.name}`);
+            console.log(`[DEBUG] Resizing image: ${file.name}`);
             const resizedBase64 = await resizeImage(objectUrl, 1200);
+            console.log(`[DEBUG] Resizing complete for ${file.name}, size: ${resizedBase64.length}`);
             
             // Track data transferred (approximate size of base64 string)
             const dataSize = Math.round((resizedBase64.length * 3) / 4);
@@ -338,14 +343,18 @@ export default function App() {
 
             if (shouldStopRef.current) return;
 
-            console.log(`Extracting data from: ${file.name}`);
-            if (!process.env.GEMINI_API_KEY) {
+            console.log(`[DEBUG] Extracting data from: ${file.name}`);
+            const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+              console.error(`[DEBUG] Gemini API key missing!`);
               throw new Error("Gemini API key is missing.");
             }
             await new Promise(r => setTimeout(r, 200)); 
             if (shouldStopRef.current) return;
             
+            console.log(`[DEBUG] Calling AI service for ${file.name}`);
             const result = await extractMaintenanceData(resizedBase64, 'image/jpeg');
+            console.log(`[DEBUG] AI extraction complete for ${file.name}, records found: ${result?.records?.length || 0}`);
             
             if (shouldStopRef.current) return;
 
