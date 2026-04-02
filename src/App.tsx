@@ -43,7 +43,7 @@ export default function App() {
   const [viewingImage, setViewingImage] = useState<{ id: string, image: string | null, loading: boolean } | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [pwaStatus, setPwaStatus] = useState<string>('Checking...');
-  const [sessionStats, setSessionStats] = useState({ reads: 0, writes: 0, deletes: 0 });
+  const [sessionStats, setSessionStats] = useState({ reads: 0, writes: 0, deletes: 0, dataTransferred: 0 });
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [manualEntryData, setManualEntryData] = useState<{
     fileName: string;
@@ -331,6 +331,10 @@ export default function App() {
 
             console.log(`Resizing image: ${file.name}`);
             const resizedBase64 = await resizeImage(objectUrl, 1200);
+            
+            // Track data transferred (approximate size of base64 string)
+            const dataSize = Math.round((resizedBase64.length * 3) / 4);
+            setSessionStats(prev => ({ ...prev, dataTransferred: prev.dataTransferred + dataSize }));
 
             if (shouldStopRef.current) return;
 
@@ -461,6 +465,15 @@ export default function App() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const formatBytes = (bytes: number, decimals = 2) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
   const filteredRecords = useMemo(() => {
@@ -817,11 +830,20 @@ export default function App() {
         
         {/* Progress Bar */}
         {isProcessing && (
-          <div className="mt-4 h-1 w-full bg-white/10 overflow-hidden rounded-full">
-            <div 
-              className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]" 
-              style={{ width: `${(progress.current / progress.total) * 100}%` }}
-            />
+          <div className="mt-4 space-y-2">
+            <div className="flex justify-between items-center text-[9px] font-display font-bold uppercase tracking-widest text-white/40">
+              <span>Uploading {progress.current} of {progress.total}</span>
+              <span className="flex items-center gap-1">
+                <RefreshCw className="w-2.5 h-2.5 animate-spin text-purple-400" />
+                {formatBytes(sessionStats.dataTransferred)} Sent
+              </span>
+            </div>
+            <div className="h-1 w-full bg-white/10 overflow-hidden rounded-full">
+              <div 
+                className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]" 
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
           </div>
         )}
       </header>
@@ -1413,6 +1435,21 @@ export default function App() {
                 </div>
                 <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Daily Limit: 20,000</p>
               </div>
+
+              {/* Data Usage */}
+              <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                <div className="flex justify-between items-end mb-2">
+                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60">Internet Usage (Session)</span>
+                  <span className="text-xl font-mono font-bold text-white">{formatBytes(sessionStats.dataTransferred)}</span>
+                </div>
+                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 transition-all duration-500" 
+                    style={{ width: `${Math.min((sessionStats.dataTransferred / (100 * 1024 * 1024)) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Est. Session Total</p>
+              </div>
             </div>
 
             <div className="mt-8 pt-6 border-t border-white/5">
@@ -1424,7 +1461,7 @@ export default function App() {
                 </p>
               </div>
               <button 
-                onClick={() => setSessionStats({ reads: 0, writes: 0, deletes: 0 })}
+                onClick={() => setSessionStats({ reads: 0, writes: 0, deletes: 0, dataTransferred: 0 })}
                 className="w-full mt-4 py-3 border border-white/10 text-[10px] font-display font-bold uppercase tracking-[0.2em] hover:bg-white/5 transition-all"
               >
                 Reset Session Stats
