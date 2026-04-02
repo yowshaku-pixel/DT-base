@@ -277,24 +277,39 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    console.log("[DEBUG] isProcessing state changed:", isProcessing);
+  }, [isProcessing]);
+
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("[DEBUG] handleFileUpload triggered", { user: user?.email, files: e.target.files?.length });
+    const files = e.target.files;
+    console.log("[DEBUG] handleFileUpload triggered", { 
+      user: user?.email, 
+      filesCount: files?.length,
+      isProcessing 
+    });
+
     if (!user) {
       setError("You must be logged in to upload records. Please click the Login button.");
+      if (e.target) e.target.value = '';
       return;
     }
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    
+    if (!files || files.length === 0) {
+      console.log("[DEBUG] No files selected");
+      return;
+    }
 
     try {
       setIsProcessing(true);
       setIsStopping(false);
       shouldStopRef.current = false;
-      setError(null);
+      setError("Starting upload... please wait.");
       setFailedFiles([]);
       setProgress({ current: 0, total: files.length, failed: 0 });
 
       const fileArray = Array.from(files);
+      console.log("[DEBUG] File array created", fileArray.map(f => ({ name: f.name, size: f.size, type: f.type })));
       
       // Initialize log entries for this batch
       const newEntries: UploadLogEntry[] = fileArray.map(f => ({
@@ -302,16 +317,20 @@ export default function App() {
         status: 'pending',
         timestamp: Date.now()
       }));
-      setUploadLog(prev => [...newEntries, ...prev].slice(0, 50)); // Keep last 50
+      setUploadLog(prev => [...newEntries, ...prev].slice(0, 50)); 
 
       let completedCount = 0;
       let failedCount = 0;
 
       // Process in batches (concurrency control)
       for (let i = 0; i < fileArray.length; i += CONCURRENCY_LIMIT) {
-        if (shouldStopRef.current) break;
+        if (shouldStopRef.current) {
+          console.log("[DEBUG] Loop broken by stop request");
+          break;
+        }
 
         const batch = fileArray.slice(i, i + CONCURRENCY_LIMIT);
+        console.log(`[DEBUG] Processing batch ${Math.floor(i/CONCURRENCY_LIMIT) + 1}, size: ${batch.length}`);
         
         await Promise.all(batch.map(async (file) => {
           if (shouldStopRef.current) return;
@@ -325,17 +344,14 @@ export default function App() {
 
           let objectUrl: string | null = null;
           try {
-            console.log(`[DEBUG] Processing file: ${file.name}`);
+            console.log(`[DEBUG] Step 1: CreateObjectURL for ${file.name}`);
             objectUrl = URL.createObjectURL(file);
 
-            if (shouldStopRef.current) {
-              console.log(`[DEBUG] Stop requested for ${file.name}`);
-              return;
-            }
+            if (shouldStopRef.current) return;
 
-            console.log(`[DEBUG] Resizing image: ${file.name}`);
+            console.log(`[DEBUG] Step 2: Resizing ${file.name}`);
             const resizedBase64 = await resizeImage(objectUrl, 1200);
-            console.log(`[DEBUG] Resizing complete for ${file.name}, size: ${resizedBase64.length}`);
+            console.log(`[DEBUG] Step 2 Complete: ${file.name} resized to ${resizedBase64.length} chars`);
             
             // Track data transferred (approximate size of base64 string)
             const dataSize = Math.round((resizedBase64.length * 3) / 4);
@@ -343,24 +359,26 @@ export default function App() {
 
             if (shouldStopRef.current) return;
 
-            console.log(`[DEBUG] Extracting data from: ${file.name}`);
+            console.log(`[DEBUG] Step 3: AI Extraction for ${file.name}`);
             const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) {
-              console.error(`[DEBUG] Gemini API key missing!`);
+              console.error(`[DEBUG] API Key missing in handleFileUpload`);
               throw new Error("Gemini API key is missing.");
             }
+            
             await new Promise(r => setTimeout(r, 200)); 
             if (shouldStopRef.current) return;
             
-            console.log(`[DEBUG] Calling AI service for ${file.name}`);
             const result = await extractMaintenanceData(resizedBase64, 'image/jpeg');
-            console.log(`[DEBUG] AI extraction complete for ${file.name}, records found: ${result?.records?.length || 0}`);
+            console.log(`[DEBUG] Step 3 Complete: ${file.name} extracted ${result?.records?.length || 0} records`);
             
             if (shouldStopRef.current) return;
 
             if (!result || !result.records || result.records.length === 0) {
+              console.warn(`[DEBUG] No records found for ${file.name}`);
               throw new Error("No readable records found in this image.");
             } else {
+              console.log(`[DEBUG] Step 4: Saving ${result.records.length} records to Firestore for ${file.name}`);
               // Save to Firestore
               for (const record of result.records) {
                 if (shouldStopRef.current) break;
@@ -371,11 +389,10 @@ export default function App() {
                   ...record,
                   userId: user.uid,
                   fileName: file.name,
-                  // originalImage: resizedBase64, // MOVED to separate collection
                   createdAt: serverTimestamp()
                 });
 
-                // 2. Save image to separate collection to save memory in list views
+                // 2. Save image to separate collection
                 setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
                 await addDoc(collection(db, 'maintenance_record_images'), {
                   recordId: recordRef.id,
@@ -384,6 +401,7 @@ export default function App() {
                   createdAt: serverTimestamp()
                 });
               }
+              console.log(`[DEBUG] Step 4 Complete: ${file.name} saved`);
               
               // Update log to success
               setUploadLog(prev => prev.map(entry => 
@@ -394,7 +412,7 @@ export default function App() {
             }
           } catch (err: any) {
             if (!shouldStopRef.current) {
-              console.error(`Error processing file ${file.name}:`, err);
+              console.error(`[DEBUG] Error processing ${file.name}:`, err);
               failedCount++;
               setFailedFiles(prev => [...prev, file.name]);
               
@@ -426,14 +444,16 @@ export default function App() {
         setProgress({ current: 0, total: 0, failed: 0 });
       }
     } catch (err: any) {
-      console.error("Critical upload error:", err);
+      console.error("[DEBUG] Critical upload error:", err);
       setError("A critical error occurred during upload. Please try fewer files at once.");
     } finally {
+      console.log("[DEBUG] handleFileUpload finally block reached");
       setIsProcessing(false);
       setIsStopping(false);
       shouldStopRef.current = false;
+      if (e.target) e.target.value = ''; // Reset input so same file can be selected again
     }
-  }, [user]);
+  }, [user, isProcessing]);
 
   const handleManualAdd = async () => {
     if (!user || !manualEntryData) return;
@@ -815,7 +835,9 @@ export default function App() {
             >
               <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
             </button>
-            <label className={cn(
+            <label 
+              onClick={() => console.log("[DEBUG] Upload label clicked", { isProcessing, user: !!user })}
+              className={cn(
               "flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 active:scale-95",
               (isProcessing || !user) && "opacity-50 cursor-not-allowed"
             )}>

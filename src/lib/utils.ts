@@ -10,17 +10,20 @@ export function cn(...inputs: ClassValue[]) {
  * This significantly speeds up AI processing and reduces upload time.
  */
 export async function resizeImage(url: string, maxDimension: number = 1200): Promise<string> {
+  console.log(`[DEBUG] resizeImage started for ${url.substring(0, 50)}...`);
   return new Promise((resolve, reject) => {
     const img = new Image();
     
     // Add a timeout to prevent hanging
     const timeout = setTimeout(() => {
+      console.error(`[DEBUG] resizeImage timeout for ${url.substring(0, 50)}...`);
       img.onload = null;
       img.onerror = null;
       reject(new Error("Image load timeout"));
     }, 15000);
 
     img.onload = () => {
+      console.log(`[DEBUG] resizeImage: Image loaded, dimensions: ${img.width}x${img.height}`);
       clearTimeout(timeout);
       const canvas = document.createElement('canvas');
       let width = img.width;
@@ -38,18 +41,23 @@ export async function resizeImage(url: string, maxDimension: number = 1200): Pro
         }
       }
 
+      console.log(`[DEBUG] resizeImage: New dimensions: ${width}x${height}`);
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
+        console.warn(`[DEBUG] resizeImage: Could not get canvas context`);
         resolve(url);
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
       // Use lower quality for better stability and faster uploads
-      resolve(canvas.toDataURL('image/jpeg', 0.7)); 
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      console.log(`[DEBUG] resizeImage: Success, dataUrl length: ${dataUrl.length}`);
+      resolve(dataUrl); 
     };
     img.onerror = (e) => {
+      console.error(`[DEBUG] resizeImage: Image error`, e);
       clearTimeout(timeout);
       reject(e);
     };
