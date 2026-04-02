@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus } from 'lucide-react';
 import { MaintenanceRecord } from './types';
 import { extractMaintenanceData } from './services/aiService';
 import { cn, resizeImage } from './lib/utils';
@@ -45,6 +45,12 @@ export default function App() {
   const [pwaStatus, setPwaStatus] = useState<string>('Checking...');
   const [sessionStats, setSessionStats] = useState({ reads: 0, writes: 0, deletes: 0 });
   const [showUsageModal, setShowUsageModal] = useState(false);
+  const [manualEntryData, setManualEntryData] = useState<{
+    fileName: string;
+    plateNumber: string;
+    date: string;
+    service: string;
+  } | null>(null);
   const wakeLockRef = React.useRef<any>(null);
 
   // PWA Install Prompt
@@ -415,6 +421,47 @@ export default function App() {
       shouldStopRef.current = false;
     }
   }, [user]);
+
+  const handleManualAdd = async () => {
+    if (!user || !manualEntryData) return;
+    if (!manualEntryData.plateNumber || !manualEntryData.date || !manualEntryData.service) {
+      setError("Please fill in all fields for manual entry.");
+      return;
+    }
+    
+    try {
+      setIsProcessing(true);
+      setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+      
+      await addDoc(collection(db, 'maintenance_records'), {
+        plateNumber: manualEntryData.plateNumber.toUpperCase().trim(),
+        date: manualEntryData.date,
+        service: manualEntryData.service.trim(),
+        confidence: 1.0,
+        userId: user.uid,
+        fileName: manualEntryData.fileName,
+        createdAt: serverTimestamp()
+      });
+      
+      // Update log to success
+      setUploadLog(prev => prev.map(entry => 
+        entry.fileName === manualEntryData.fileName && entry.status === 'failed' 
+          ? { ...entry, status: 'success', error: undefined } 
+          : entry
+      ));
+      
+      setManualEntryData(null);
+      setError(null);
+    } catch (err) {
+      try {
+        handleFirestoreError(err, OperationType.WRITE, 'maintenance_records');
+      } catch (e: any) {
+        setError(getFirestoreErrorMessage(e));
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const filteredRecords = useMemo(() => {
     const filtered = records.filter(record => {
@@ -853,6 +900,20 @@ export default function App() {
                     <span className="text-[8px] font-mono text-red-400/60 max-w-[150px] truncate" title={entry.error}>
                       {entry.error}
                     </span>
+                  )}
+                  {entry.status === 'failed' && (
+                    <button 
+                      onClick={() => setManualEntryData({ 
+                        fileName: entry.fileName, 
+                        plateNumber: '', 
+                        date: new Date().toISOString().split('T')[0], 
+                        service: '' 
+                      })}
+                      className="text-[9px] font-display font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 underline flex items-center gap-1"
+                    >
+                      <Plus className="w-2.5 h-2.5" />
+                      Add Manually
+                    </button>
                   )}
                   <span className="text-[8px] font-mono opacity-20">
                     {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1367,6 +1428,78 @@ export default function App() {
                 className="w-full mt-4 py-3 border border-white/10 text-[10px] font-display font-bold uppercase tracking-[0.2em] hover:bg-white/5 transition-all"
               >
                 Reset Session Stats
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Entry Modal */}
+      {manualEntryData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="w-full max-w-md glass-panel p-8 relative animate-in fade-in zoom-in duration-300">
+            <button 
+              onClick={() => setManualEntryData(null)}
+              className="absolute right-6 top-6 p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-2">
+                <Plus className="w-5 h-5 text-purple-400" />
+                <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase">Manual Entry</h2>
+              </div>
+              <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em] truncate">
+                File: {manualEntryData.fileName}
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Plate Number</label>
+                <input 
+                  type="text"
+                  value={manualEntryData.plateNumber}
+                  onChange={(e) => setManualEntryData({ ...manualEntryData, plateNumber: e.target.value.toUpperCase() })}
+                  className="w-full bg-white/5 border border-white/10 p-4 rounded-xl font-display font-bold text-lg focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  placeholder="E.G. ABC-1234"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Service Date</label>
+                <input 
+                  type="date"
+                  value={manualEntryData.date}
+                  onChange={(e) => setManualEntryData({ ...manualEntryData, date: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 p-4 rounded-xl font-display font-bold text-lg focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Service Description</label>
+                <textarea 
+                  value={manualEntryData.service}
+                  onChange={(e) => setManualEntryData({ ...manualEntryData, service: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 p-4 rounded-xl font-display font-bold text-base focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all min-h-[100px]"
+                  placeholder="E.G. Oil Change, Tire Rotation..."
+                />
+              </div>
+
+              <button 
+                onClick={handleManualAdd}
+                disabled={isProcessing}
+                className="w-full py-5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-display font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-lg shadow-purple-600/20 flex items-center justify-center gap-3"
+              >
+                {isProcessing ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Save Record
+                  </>
+                )}
               </button>
             </div>
           </div>
