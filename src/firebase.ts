@@ -7,7 +7,9 @@ import firebaseConfig from '../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore with the specific database ID from the config
+console.log("[DEBUG] Initializing Firestore with databaseId:", firebaseConfig.firestoreDatabaseId);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+console.log("[DEBUG] Firestore initialized:", db.type);
 
 // Enable offline persistence for better performance and reduced reads
 if (typeof window !== 'undefined') {

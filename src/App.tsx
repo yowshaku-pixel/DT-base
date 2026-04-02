@@ -169,6 +169,7 @@ export default function App() {
   // Auth listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.log("[DEBUG] Auth state changed:", currentUser?.email);
       setUser(currentUser);
       setIsAuthReady(true);
     });
@@ -180,20 +181,41 @@ export default function App() {
     if (user && isCloudConnected === null) {
       const testConnection = async () => {
         try {
-          console.log("[DEBUG] Testing Firestore connection...");
-          // Try to fetch a single document from a non-existent collection to test connectivity
-          await getDocs(query(collection(db, 'maintenance_records'), limit(1)));
+          console.log("[DEBUG] Testing Firestore connection for user:", user.email);
+          // Use getDocFromServer to bypass cache and force a network request
+          // We use a random ID that likely doesn't exist
+          const testDocRef = doc(db, 'maintenance_records', 'connection_test_' + Date.now());
+          await getDocFromServer(testDocRef);
+          
+          // If it doesn't throw, it means we reached the server (even if doc doesn't exist)
+          console.log("[DEBUG] Firestore connection successful (doc found or reachable)");
           setIsCloudConnected(true);
-          console.log("[DEBUG] Firestore connection successful");
         } catch (err: any) {
-          console.error("[DEBUG] Firestore connection test failed:", err);
-          setIsCloudConnected(false);
-          // Don't show error to user yet, as it might just be a slow connection
+          console.log("[DEBUG] Firestore connection test error:", err);
+          console.log("[DEBUG] Firestore connection test error code:", err.code);
+          
+          // These error codes mean we successfully reached the Firestore servers
+          const reachedServer = [
+            'permission-denied',
+            'not-found',
+            'already-exists',
+            'failed-precondition',
+            'resource-exhausted',
+            'unauthenticated'
+          ].includes(err.code);
+
+          if (reachedServer) {
+            console.log("[DEBUG] Firestore server is reachable (returned code: " + err.code + ")");
+            setIsCloudConnected(true);
+          } else {
+            console.error("[DEBUG] Firestore server unreachable or network error:", err);
+            setIsCloudConnected(false);
+          }
         }
       };
       testConnection();
     }
-  }, [user]);
+  }, [user, isCloudConnected]);
 
   const fetchRecords = useCallback(async () => {
     if (!user) return;
@@ -833,6 +855,15 @@ export default function App() {
                 {isCloudConnected === true ? "CLOUD CONNECTED" : 
                  isCloudConnected === false ? "CLOUD OFFLINE" : "CHECKING CLOUD..."}
               </span>
+              {isCloudConnected === false && (
+                <button 
+                  onClick={() => setIsCloudConnected(null)}
+                  className="ml-1 p-0.5 hover:bg-white/10 rounded transition-colors"
+                  title="Retry Connection"
+                >
+                  <RefreshCw className="w-2.5 h-2.5 text-purple-400" />
+                </button>
+              )}
             </div>
             <button 
               onClick={() => setShowUsageModal(true)}
