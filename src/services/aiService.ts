@@ -3,7 +3,7 @@ import { ExtractionResult } from "../types";
 
 // Use the API key from environment variables (Vite or process.env)
 const getApiKey = () => {
-  const key = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
+  const key = (import.meta as any).env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
   return key && key !== 'MY_GEMINI_API_KEY' ? key : null;
 };
 

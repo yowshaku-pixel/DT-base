@@ -43,6 +43,8 @@ export default function App() {
   const [viewingImage, setViewingImage] = useState<{ id: string, image: string | null, loading: boolean } | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [pwaStatus, setPwaStatus] = useState<string>('Checking...');
+  const [sessionStats, setSessionStats] = useState({ reads: 0, writes: 0, deletes: 0 });
+  const [showUsageModal, setShowUsageModal] = useState(false);
   const wakeLockRef = React.useRef<any>(null);
 
   // PWA Install Prompt
@@ -175,6 +177,7 @@ export default function App() {
         where('userId', '==', user.uid)
       );
       const snapshot = await getDocs(q);
+      setSessionStats(prev => ({ ...prev, reads: prev.reads + snapshot.docs.length }));
       const fetchedRecords = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -207,6 +210,15 @@ export default function App() {
 
     const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
       setIsCloudConnected(true);
+      
+      // Track reads: Initial load counts all docs, updates count changed docs
+      if (!snapshot.metadata.fromCache) {
+        setSessionStats(prev => ({
+          ...prev,
+          reads: prev.reads + snapshot.docChanges().length
+        }));
+      }
+
       const fetchedRecords = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -335,6 +347,7 @@ export default function App() {
                 if (shouldStopRef.current) break;
                 
                 // 1. Save metadata to main collection
+                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
                 const recordRef = await addDoc(collection(db, 'maintenance_records'), {
                   ...record,
                   userId: user.uid,
@@ -344,6 +357,7 @@ export default function App() {
                 });
 
                 // 2. Save image to separate collection to save memory in list views
+                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
                 await addDoc(collection(db, 'maintenance_record_images'), {
                   recordId: recordRef.id,
                   image: resizedBase64,
@@ -497,6 +511,7 @@ export default function App() {
         limit(1)
       );
       const snapshot = await getDocs(q);
+      setSessionStats(prev => ({ ...prev, reads: prev.reads + snapshot.docs.length }));
       if (!snapshot.empty) {
         setViewingImage({ id: record.id, image: snapshot.docs[0].data().image, loading: false });
       } else {
@@ -518,6 +533,7 @@ export default function App() {
           const batch = writeBatch(db);
           const chunk = records.slice(i, i + BATCH_SIZE);
           chunk.forEach(record => {
+            setSessionStats(prev => ({ ...prev, deletes: prev.deletes + 1 }));
             batch.delete(doc(db, 'maintenance_records', record.id));
           });
           await batch.commit();
@@ -575,6 +591,7 @@ export default function App() {
           const batch = writeBatch(db);
           const chunk = duplicates.slice(i, i + BATCH_SIZE);
           chunk.forEach(id => {
+            setSessionStats(prev => ({ ...prev, deletes: prev.deletes + 1 }));
             batch.delete(doc(db, 'maintenance_records', id));
           });
           await batch.commit();
@@ -640,6 +657,13 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3 md:gap-4">
+            <button 
+              onClick={() => setShowUsageModal(true)}
+              className="px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/60 font-mono hover:bg-white/10 transition-colors flex items-center gap-2"
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              USAGE STATS
+            </button>
             {deferredPrompt && (
               <button 
                 onClick={handleInstallClick}
@@ -1264,6 +1288,90 @@ export default function App() {
           </div>
         )}
       </footer>
+
+      {/* Usage Stats Modal */}
+      {showUsageModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-8 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500" />
+            
+            <button 
+              onClick={() => setShowUsageModal(false)}
+              className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-8">
+              <h2 className="text-2xl font-display font-black tracking-tighter italic mb-2">USAGE DASHBOARD</h2>
+              <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em]">Session Monitoring & Quota Estimates</p>
+            </div>
+
+            <div className="space-y-6">
+              {/* Reads */}
+              <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                <div className="flex justify-between items-end mb-2">
+                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60">Reads (Session)</span>
+                  <span className="text-xl font-mono font-bold text-white">{sessionStats.reads.toLocaleString()}</span>
+                </div>
+                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 transition-all duration-500" 
+                    style={{ width: `${Math.min((sessionStats.reads / 50000) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Daily Limit: 50,000</p>
+              </div>
+
+              {/* Writes */}
+              <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                <div className="flex justify-between items-end mb-2">
+                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60">Writes (Session)</span>
+                  <span className="text-xl font-mono font-bold text-white">{sessionStats.writes.toLocaleString()}</span>
+                </div>
+                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-purple-500 transition-all duration-500" 
+                    style={{ width: `${Math.min((sessionStats.writes / 20000) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Daily Limit: 20,000</p>
+              </div>
+
+              {/* Deletes */}
+              <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                <div className="flex justify-between items-end mb-2">
+                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60">Deletes (Session)</span>
+                  <span className="text-xl font-mono font-bold text-white">{sessionStats.deletes.toLocaleString()}</span>
+                </div>
+                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-red-500 transition-all duration-500" 
+                    style={{ width: `${Math.min((sessionStats.deletes / 20000) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Daily Limit: 20,000</p>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-white/5">
+              <div className="flex items-start gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded">
+                <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-[9px] text-blue-200/70 leading-relaxed uppercase tracking-wider">
+                  These stats track your current session. Firebase counts total usage across all devices. 
+                  Check the Firebase Console for official monthly billing totals.
+                </p>
+              </div>
+              <button 
+                onClick={() => setSessionStats({ reads: 0, writes: 0, deletes: 0 })}
+                className="w-full mt-4 py-3 border border-white/10 text-[10px] font-display font-bold uppercase tracking-[0.2em] hover:bg-white/5 transition-all"
+              >
+                Reset Session Stats
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
