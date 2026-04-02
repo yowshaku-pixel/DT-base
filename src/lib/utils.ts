@@ -51,8 +51,8 @@ export async function resizeImage(url: string, maxDimension: number = 1200): Pro
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
-      // Use lower quality for better stability and faster uploads
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      // Use lower quality and smaller size for better stability on mobile networks
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
       console.log(`[DEBUG] resizeImage: Success, dataUrl length: ${dataUrl.length}`);
       resolve(dataUrl); 
     };

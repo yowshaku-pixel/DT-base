@@ -177,7 +177,7 @@ export default function App() {
 
   // Test Firestore connection on boot
   useEffect(() => {
-    if (user) {
+    if (user && isCloudConnected === null) {
       const testConnection = async () => {
         try {
           console.log("[DEBUG] Testing Firestore connection...");
@@ -197,6 +197,9 @@ export default function App() {
 
   const fetchRecords = useCallback(async () => {
     if (!user) return;
+    if (isCloudConnected === false) {
+      console.warn("Cloud disconnected, using local cache if available.");
+    }
     setIsRefreshing(true);
     try {
       const q = query(
@@ -322,6 +325,18 @@ export default function App() {
       if (e.target) e.target.value = '';
       return;
     }
+
+    if (!navigator.onLine) {
+      setError("You are currently offline. Please check your internet connection and try again.");
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    if (isCloudConnected === false) {
+      setError("The database is currently unreachable. Please try again in a few minutes.");
+      if (e.target) e.target.value = '';
+      return;
+    }
     
     if (!files || files.length === 0) {
       console.log("[DEBUG] No files selected");
@@ -362,7 +377,7 @@ export default function App() {
         console.log(`[DEBUG] Processing batch ${Math.floor(i/CONCURRENCY_LIMIT) + 1}, size: ${batch.length}`);
         
         await Promise.all(batch.map(async (file) => {
-          if (shouldStopRef.current) return;
+          if (shouldStopRef.current || !user) return;
 
           setCurrentStatus(`Processing ${file.name}...`);
           // Update log to processing
@@ -382,7 +397,7 @@ export default function App() {
 
             console.log(`[DEBUG] Step 2: Resizing ${file.name}`);
             setCurrentStatus(`Resizing ${file.name}...`);
-            const resizedBase64 = await resizeImage(objectUrl, 1200);
+            const resizedBase64 = await resizeImage(objectUrl, 800);
             console.log(`[DEBUG] Step 2 Complete: ${file.name} resized to ${resizedBase64.length} chars`);
             
             // Track data transferred (approximate size of base64 string)
@@ -441,8 +456,12 @@ export default function App() {
 
                   // 2. Save image to separate collection
                   setCurrentStatus(`Saving image for ${file.name}...`);
+                  console.log(`[DEBUG] Sending image to Firestore, size: ${resizedBase64.length} chars`);
                   setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
                   
+                  // Small delay to let the network breathe
+                  await new Promise(r => setTimeout(r, 500));
+
                   const imagePromise = addDoc(collection(db, 'maintenance_record_images'), {
                     recordId: recordRef.id,
                     image: resizedBase64,
@@ -450,7 +469,7 @@ export default function App() {
                     createdAt: serverTimestamp()
                   });
 
-                  await withTimeout(imagePromise, 35000);
+                  await withTimeout(imagePromise, 60000);
                 } catch (dbErr: any) {
                   console.error(`[DEBUG] Firestore write failed for ${file.name}:`, dbErr);
                   handleFirestoreError(dbErr, OperationType.WRITE, 'maintenance_records');
@@ -804,6 +823,17 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3 md:gap-4">
+            <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] font-mono">
+              <div className={cn(
+                "w-1.5 h-1.5 rounded-full",
+                isCloudConnected === true ? "bg-green-500" : 
+                isCloudConnected === false ? "bg-red-500" : "bg-yellow-500 animate-pulse"
+              )} />
+              <span className="text-white/60">
+                {isCloudConnected === true ? "CLOUD CONNECTED" : 
+                 isCloudConnected === false ? "CLOUD OFFLINE" : "CHECKING CLOUD..."}
+              </span>
+            </div>
             <button 
               onClick={() => setShowUsageModal(true)}
               className="px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/60 font-mono hover:bg-white/10 transition-colors flex items-center gap-2"
@@ -966,6 +996,17 @@ export default function App() {
                     className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-200 text-[10px] uppercase font-bold tracking-widest rounded transition-all"
                   >
                     Force Reset App
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (user) {
+                        setIsCloudConnected(null);
+                        // The useEffect will re-trigger
+                      }
+                    }}
+                    className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-[10px] uppercase font-bold tracking-widest rounded transition-all"
+                  >
+                    Check Connection
                   </button>
                 </div>
               </div>

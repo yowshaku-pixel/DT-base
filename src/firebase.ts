@@ -11,7 +11,9 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 // Enable offline persistence for better performance and reduced reads
 if (typeof window !== 'undefined') {
-  enableIndexedDbPersistence(db).catch((err) => {
+  enableIndexedDbPersistence(db).then(() => {
+    console.log("[DEBUG] Firestore persistence enabled");
+  }).catch((err) => {
     if (err.code === 'failed-precondition') {
       console.warn("Firestore persistence failed: Multiple tabs open.");
     } else if (err.code === 'unimplemented') {
