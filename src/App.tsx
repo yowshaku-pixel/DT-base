@@ -23,6 +23,7 @@ export default function App() {
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState<string | null>(null);
   const [isStopping, setIsStopping] = useState(false);
   const shouldStopRef = React.useRef(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, failed: 0 });
@@ -304,7 +305,8 @@ export default function App() {
       setIsProcessing(true);
       setIsStopping(false);
       shouldStopRef.current = false;
-      setError("Starting upload... please wait.");
+      setError(null);
+      setCurrentStatus("Initializing upload...");
       setFailedFiles([]);
       setProgress({ current: 0, total: files.length, failed: 0 });
 
@@ -335,6 +337,7 @@ export default function App() {
         await Promise.all(batch.map(async (file) => {
           if (shouldStopRef.current) return;
 
+          setCurrentStatus(`Processing ${file.name}...`);
           // Update log to processing
           setUploadLog(prev => prev.map(entry => 
             entry.fileName === file.name && entry.status === 'pending' 
@@ -345,11 +348,13 @@ export default function App() {
           let objectUrl: string | null = null;
           try {
             console.log(`[DEBUG] Step 1: CreateObjectURL for ${file.name}`);
+            setCurrentStatus(`Preparing ${file.name}...`);
             objectUrl = URL.createObjectURL(file);
 
             if (shouldStopRef.current) return;
 
             console.log(`[DEBUG] Step 2: Resizing ${file.name}`);
+            setCurrentStatus(`Resizing ${file.name}...`);
             const resizedBase64 = await resizeImage(objectUrl, 1200);
             console.log(`[DEBUG] Step 2 Complete: ${file.name} resized to ${resizedBase64.length} chars`);
             
@@ -360,6 +365,7 @@ export default function App() {
             if (shouldStopRef.current) return;
 
             console.log(`[DEBUG] Step 3: AI Extraction for ${file.name}`);
+            setCurrentStatus(`Analyzing ${file.name} with AI...`);
             const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
             if (!apiKey) {
               console.error(`[DEBUG] API Key missing in handleFileUpload`);
@@ -379,6 +385,7 @@ export default function App() {
               throw new Error("No readable records found in this image.");
             } else {
               console.log(`[DEBUG] Step 4: Saving ${result.records.length} records to Firestore for ${file.name}`);
+              setCurrentStatus(`Saving ${file.name} to database...`);
               // Save to Firestore
               for (const record of result.records) {
                 if (shouldStopRef.current) break;
@@ -443,9 +450,11 @@ export default function App() {
       if (failedCount === 0) {
         setProgress({ current: 0, total: 0, failed: 0 });
       }
+      setCurrentStatus(null);
     } catch (err: any) {
       console.error("[DEBUG] Critical upload error:", err);
       setError("A critical error occurred during upload. Please try fewer files at once.");
+      setCurrentStatus(null);
     } finally {
       console.log("[DEBUG] handleFileUpload finally block reached");
       setIsProcessing(false);
@@ -863,7 +872,7 @@ export default function App() {
         {isProcessing && (
           <div className="mt-4 space-y-2">
             <div className="flex justify-between items-center text-[9px] font-display font-bold uppercase tracking-widest text-white/40">
-              <span>Uploading {progress.current} of {progress.total}</span>
+              <span>{currentStatus || `Uploading ${progress.current} of ${progress.total}`}</span>
               <span className="flex items-center gap-1">
                 <RefreshCw className="w-2.5 h-2.5 animate-spin text-purple-400" />
                 {formatBytes(sessionStats.dataTransferred)} Sent
