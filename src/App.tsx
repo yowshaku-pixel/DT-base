@@ -3,9 +3,9 @@ import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, 
 import { MaintenanceRecord } from './types';
 import { extractMaintenanceData } from './services/aiService';
 import { cn, resizeImage } from './lib/utils';
-import { auth, db, loginWithGoogle, logout, handleFirestoreError, OperationType, getFirestoreErrorMessage } from './firebase';
+import { auth, db, loginWithGoogle, loginWithGoogleRedirect, logout, handleFirestoreError, OperationType, getFirestoreErrorMessage } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, writeBatch, serverTimestamp, Timestamp, getDocFromServer, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, writeBatch, serverTimestamp, Timestamp, getDocFromServer, getDocs, limit, getCountFromServer, orderBy, startAfter } from 'firebase/firestore';
 
 interface UploadLogEntry {
   fileName: string;
@@ -21,6 +21,10 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const [totalRecordsCount, setTotalRecordsCount] = useState<number | null>(null);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const recordsRef = useRef<MaintenanceRecord[]>([]);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean | null>(null);
   const [lastCloudError, setLastCloudError] = useState<string | null>(null);
@@ -183,7 +187,7 @@ export default function App() {
     if (user && isCloudConnected === null) {
       const testConnection = async () => {
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('timeout')), 10000)
+          setTimeout(() => reject(new Error('timeout')), 30000)
         );
         
         try {
@@ -204,7 +208,12 @@ export default function App() {
           console.log("[DEBUG] Firestore connection test error:", err);
           const errorCode = err.code || (err.message === 'timeout' ? 'timeout' : 'unknown');
           const errorMessage = err.message || 'Unknown error';
-          setLastCloudError(`${errorCode}: ${errorMessage}`);
+          
+          if (errorCode === 'timeout') {
+            setLastCloudError("Connection timeout. Retrying...");
+          } else {
+            setLastCloudError(`${errorCode}: ${errorMessage}`);
+          }
           
           // These error codes mean we successfully reached the Firestore servers
           const reachedServer = ![
@@ -227,6 +236,18 @@ export default function App() {
     }
   }, [user, isCloudConnected]);
 
+  const fetchTotalCount = useCallback(async () => {
+    if (!user) return;
+    try {
+      const q = query(collection(db, 'maintenance_records'), where('userId', '==', user.uid));
+      const snapshot = await getCountFromServer(q);
+      setTotalRecordsCount(snapshot.data().count);
+      setSessionStats(prev => ({ ...prev, reads: prev.reads + 1 }));
+    } catch (err) {
+      console.error("Failed to fetch total count:", err);
+    }
+  }, [user]);
+
   const fetchRecords = useCallback(async () => {
     if (!user) return;
     if (isCloudConnected === false) {
@@ -234,20 +255,28 @@ export default function App() {
     }
     setIsRefreshing(true);
     try {
+      // Fetch total count first
+      await fetchTotalCount();
+
       const q = query(
         collection(db, 'maintenance_records'),
         where('userId', '==', user.uid),
+        orderBy('date', 'desc'),
         limit(100)
       );
       const snapshot = await getDocs(q);
       setSessionStats(prev => ({ ...prev, reads: prev.reads + snapshot.docs.length }));
+      
       const fetchedRecords = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as MaintenanceRecord[];
-      const sorted = fetchedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setRecords(sorted);
-      recordsRef.current = sorted;
+      
+      setRecords(fetchedRecords);
+      recordsRef.current = fetchedRecords;
+      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+      setHasMore(snapshot.docs.length === 100);
+      
       setIsCloudConnected(true);
       setError(null);
     } catch (err: any) {
@@ -259,7 +288,40 @@ export default function App() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [user]);
+  }, [user, fetchTotalCount]);
+
+  const loadMore = async () => {
+    if (!user || !lastVisible || isLoadingMore || !hasMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const q = query(
+        collection(db, 'maintenance_records'),
+        where('userId', '==', user.uid),
+        orderBy('date', 'desc'),
+        startAfter(lastVisible),
+        limit(100)
+      );
+      
+      const snapshot = await getDocs(q);
+      setSessionStats(prev => ({ ...prev, reads: prev.reads + snapshot.docs.length }));
+      
+      const moreRecords = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as MaintenanceRecord[];
+      
+      const updatedRecords = [...records, ...moreRecords];
+      setRecords(updatedRecords);
+      recordsRef.current = updatedRecords;
+      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+      setHasMore(snapshot.docs.length === 100);
+    } catch (err: any) {
+      console.error("Failed to load more records:", err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   // Firestore listener
   useEffect(() => {
@@ -271,10 +333,11 @@ export default function App() {
     const q = query(
       collection(db, 'maintenance_records'),
       where('userId', '==', user.uid),
+      orderBy('date', 'desc'),
       limit(100)
     );
 
-    const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
+    const unsubscribe = onSnapshot(q, { includeMetadataChanges: false }, (snapshot) => {
       setIsCloudConnected(true);
       
       // Track reads: Initial load counts all docs, updates count changed docs
@@ -285,15 +348,22 @@ export default function App() {
         }));
       }
 
-      const fetchedRecords = snapshot.docs.map(doc => ({
+      // Merge onSnapshot updates with existing records
+      // This is tricky because onSnapshot only has the latest 100
+      // If we have more than 100, we need to merge carefully
+      const latest100 = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as MaintenanceRecord[];
-      
-      // Sort by date descending
-      const sorted = fetchedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setRecords(sorted);
-      recordsRef.current = sorted;
+
+      setRecords(prev => {
+        // Find records that are NOT in the latest 100 (older records)
+        const olderRecords = prev.filter(p => !latest100.some(l => l.id === p.id));
+        // Merge and sort
+        const merged = [...latest100, ...olderRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        recordsRef.current = merged;
+        return merged;
+      });
       
       // If we got data from cache, it's fine, but we might still be "offline" relative to the server
       if (snapshot.metadata.fromCache) {
@@ -328,17 +398,23 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  const handleLogin = async () => {
+  const handleLogin = async (useRedirect = false) => {
     setIsLoggingIn(true);
     setError(null);
     try {
-      await loginWithGoogle();
+      if (useRedirect) {
+        await loginWithGoogleRedirect();
+      } else {
+        await loginWithGoogle();
+      }
     } catch (err: any) {
       console.error("Login error:", err);
       if (err.code === 'auth/popup-blocked') {
-        setError("Login popup was blocked. Please allow popups for this site.");
+        setError("Login popup was blocked. Please allow popups or try the redirect login below.");
       } else if (err.code === 'auth/network-request-failed') {
         setError("Network error: Please check your internet connection or disable any ad-blockers/VPNs that might be blocking Google Login.");
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        // Ignore, user just closed the popup
       } else {
         setError(`Login failed: ${err.message || "Please try again."}`);
       }
@@ -643,6 +719,14 @@ export default function App() {
     const fetchLatestImage = async () => {
       if (filteredRecords.length > 0) {
         const latestRecord = filteredRecords[0];
+        
+        // If we already have this image loaded, don't fetch again
+        if (latestImage && latestRecord.id === (recordsRef.current[0]?.id)) {
+          // Check if the current latestImage corresponds to the current latestRecord
+          // This is a bit loose but helps avoid redundant fetches
+          return;
+        }
+
         // If the record already has an image (legacy), use it
         if (latestRecord.originalImage) {
           setLatestImage(latestRecord.originalImage);
@@ -660,7 +744,9 @@ export default function App() {
           );
           const snapshot = await getDocs(q);
           if (!snapshot.empty) {
-            setLatestImage(snapshot.docs[0].data().image);
+            const imageData = snapshot.docs[0].data().image;
+            setLatestImage(imageData);
+            setSessionStats(prev => ({ ...prev, reads: prev.reads + 1 }));
           } else {
             setLatestImage(null);
           }
@@ -676,7 +762,7 @@ export default function App() {
     };
 
     fetchLatestImage();
-  }, [filteredRecords, user]);
+  }, [filteredRecords[0]?.id, user?.uid]);
 
   const groupedRecords = useMemo(() => {
     const groups: Record<string, MaintenanceRecord[]> = {};
@@ -942,14 +1028,32 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <button 
-                onClick={handleLogin}
-                disabled={isLoggingIn}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-white text-black hover:bg-gray-200 transition-all shadow-lg active:scale-95 disabled:opacity-50"
-              >
-                {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-                <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">{isLoggingIn ? "Logging in..." : "Login"}</span>
-              </button>
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={() => handleLogin(false)}
+                  disabled={isLoggingIn}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-white text-black hover:bg-gray-200 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                >
+                  {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+                  <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">{isLoggingIn ? "Logging in..." : "Login"}</span>
+                </button>
+                {error && error.includes("popup") && (
+                  <button 
+                    onClick={() => handleLogin(true)}
+                    className="text-[10px] text-white/40 hover:text-white underline font-display font-bold uppercase tracking-[0.1em]"
+                  >
+                    Try Redirect Login
+                  </button>
+                )}
+                <a 
+                  href={window.location.href} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-center text-white/40 hover:text-white underline font-display font-bold uppercase tracking-[0.1em]"
+                >
+                  Open in New Tab
+                </a>
+              </div>
             )}
 
             {!isProcessing && records.length > 0 && (
@@ -1427,6 +1531,26 @@ export default function App() {
               </div>
             ))
           )}
+
+          {hasMore && (
+            <div className="mt-8 flex flex-col items-center gap-4">
+              <button 
+                onClick={loadMore}
+                disabled={isLoadingMore}
+                className="px-8 py-4 bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all rounded-2xl font-display font-bold uppercase tracking-[0.2em] text-[10px] flex items-center gap-3 disabled:opacity-50"
+              >
+                {isLoadingMore ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                {isLoadingMore ? "Loading More..." : `Load More (Showing ${records.length} of ${totalRecordsCount || '...'})`}
+              </button>
+              <p className="text-[9px] font-display font-bold uppercase tracking-widest opacity-30 text-center max-w-xs">
+                We're showing the latest 100 records to save data and prevent quota limits. Click above to load more.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1471,7 +1595,8 @@ export default function App() {
       <footer className="mt-8 flex flex-col gap-8 font-display font-bold text-[10px] uppercase tracking-[0.2em] opacity-40">
         <div className="flex justify-between items-center">
           <div className="flex gap-4 font-display font-bold">
-            <span>Total Records: {records.length}</span>
+            <span>Total Records: {totalRecordsCount !== null ? totalRecordsCount : records.length}</span>
+            <span>Loaded: {records.length}</span>
             <span>Filtered: {filteredRecords.length}</span>
           </div>
           <div className="flex items-center gap-4">
@@ -1502,6 +1627,7 @@ export default function App() {
             </div>
           </div>
         </div>
+      </footer>
 
         {/* Danger Zone */}
         {!isProcessing && records.length > 0 && (
@@ -1587,7 +1713,6 @@ export default function App() {
             </div>
           </div>
         )}
-      </footer>
 
       {/* Usage Stats Modal */}
       {showUsageModal && (
