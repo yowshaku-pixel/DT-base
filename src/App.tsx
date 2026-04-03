@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus } from 'lucide-react';
 import { MaintenanceRecord } from './types';
 import { extractMaintenanceData } from './services/aiService';
@@ -21,7 +21,9 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const recordsRef = useRef<MaintenanceRecord[]>([]);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean | null>(null);
+  const [lastCloudError, setLastCloudError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<string | null>(null);
   const [isStopping, setIsStopping] = useState(false);
@@ -180,32 +182,40 @@ export default function App() {
   useEffect(() => {
     if (user && isCloudConnected === null) {
       const testConnection = async () => {
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('timeout')), 10000)
+        );
+        
         try {
           console.log("[DEBUG] Testing Firestore connection for user:", user.email);
-          // Use getDocFromServer to bypass cache and force a network request
-          // We use a random ID that likely doesn't exist
-          const testDocRef = doc(db, 'maintenance_records', 'connection_test_' + Date.now());
-          await getDocFromServer(testDocRef);
+          setLastCloudError(null);
           
-          // If it doesn't throw, it means we reached the server (even if doc doesn't exist)
-          console.log("[DEBUG] Firestore connection successful (doc found or reachable)");
+          // Try a simple query instead of getDocFromServer which can be finicky with rules
+          const q = query(collection(db, 'maintenance_records'), where('userId', '==', user.uid), limit(1));
+          
+          await Promise.race([
+            getDocs(q),
+            timeoutPromise
+          ]);
+          
+          console.log("[DEBUG] Firestore connection successful");
           setIsCloudConnected(true);
         } catch (err: any) {
           console.log("[DEBUG] Firestore connection test error:", err);
-          console.log("[DEBUG] Firestore connection test error code:", err.code);
+          const errorCode = err.code || (err.message === 'timeout' ? 'timeout' : 'unknown');
+          const errorMessage = err.message || 'Unknown error';
+          setLastCloudError(`${errorCode}: ${errorMessage}`);
           
           // These error codes mean we successfully reached the Firestore servers
-          const reachedServer = [
-            'permission-denied',
-            'not-found',
-            'already-exists',
-            'failed-precondition',
-            'resource-exhausted',
-            'unauthenticated'
-          ].includes(err.code);
+          const reachedServer = ![
+            'unavailable',
+            'deadline-exceeded',
+            'network-error',
+            'timeout'
+          ].includes(errorCode);
 
           if (reachedServer) {
-            console.log("[DEBUG] Firestore server is reachable (returned code: " + err.code + ")");
+            console.log("[DEBUG] Firestore server is reachable (returned code: " + errorCode + ")");
             setIsCloudConnected(true);
           } else {
             console.error("[DEBUG] Firestore server unreachable or network error:", err);
@@ -226,7 +236,8 @@ export default function App() {
     try {
       const q = query(
         collection(db, 'maintenance_records'),
-        where('userId', '==', user.uid)
+        where('userId', '==', user.uid),
+        limit(100)
       );
       const snapshot = await getDocs(q);
       setSessionStats(prev => ({ ...prev, reads: prev.reads + snapshot.docs.length }));
@@ -234,7 +245,9 @@ export default function App() {
         id: doc.id,
         ...doc.data()
       })) as MaintenanceRecord[];
-      setRecords(fetchedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      const sorted = fetchedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setRecords(sorted);
+      recordsRef.current = sorted;
       setIsCloudConnected(true);
       setError(null);
     } catch (err: any) {
@@ -257,7 +270,8 @@ export default function App() {
 
     const q = query(
       collection(db, 'maintenance_records'),
-      where('userId', '==', user.uid)
+      where('userId', '==', user.uid),
+      limit(100)
     );
 
     const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
@@ -277,7 +291,9 @@ export default function App() {
       })) as MaintenanceRecord[];
       
       // Sort by date descending
-      setRecords(fetchedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      const sorted = fetchedRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setRecords(sorted);
+      recordsRef.current = sorted;
       
       // If we got data from cache, it's fine, but we might still be "offline" relative to the server
       if (snapshot.metadata.fromCache) {
@@ -289,7 +305,11 @@ export default function App() {
       }
       // Only set the error if it's NOT a quota error, or if we don't have any records yet
       // This prevents the annoying popup if we already have cached data to show
-      if (!err.message.includes('quota exceeded') && !err.message.includes('Quota limit exceeded')) {
+      const isQuotaError = err.message.includes('quota exceeded') || 
+                          err.message.includes('Quota limit exceeded') ||
+                          err.code === 'resource-exhausted';
+
+      if (!isQuotaError) {
         try {
           handleFirestoreError(err, OperationType.GET, 'maintenance_records');
         } catch (e: any) {
@@ -298,6 +318,10 @@ export default function App() {
       } else {
         console.warn("Firestore Quota Exceeded - using cached data if available.");
         setIsCloudConnected(false);
+        // If we have no records, we should probably show the error so the user knows why it's empty
+        if (recordsRef.current.length === 0) {
+          setError("Daily free database limit reached. Access will be restored tomorrow.");
+        }
       }
     });
 
@@ -856,13 +880,20 @@ export default function App() {
                  isCloudConnected === false ? "CLOUD OFFLINE" : "CHECKING CLOUD..."}
               </span>
               {isCloudConnected === false && (
-                <button 
-                  onClick={() => setIsCloudConnected(null)}
-                  className="ml-1 p-0.5 hover:bg-white/10 rounded transition-colors"
-                  title="Retry Connection"
-                >
-                  <RefreshCw className="w-2.5 h-2.5 text-purple-400" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => setIsCloudConnected(null)}
+                    className="p-0.5 hover:bg-white/10 rounded transition-colors"
+                    title="Retry Connection"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5 text-purple-400" />
+                  </button>
+                  {lastCloudError && (
+                    <span className="text-[6px] text-red-500/70 max-w-[80px] truncate" title={lastCloudError}>
+                      {lastCloudError}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
             <button 

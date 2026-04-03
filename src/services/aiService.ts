@@ -3,7 +3,17 @@ import { ExtractionResult } from "../types";
 
 // Use the API key from environment variables (Vite or process.env)
 const getApiKey = () => {
-  const key = (import.meta as any).env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
+  // In AI Studio Build, the key is usually available as process.env.GEMINI_API_KEY
+  // but for client-side apps, Vite doesn't automatically expose process.env.
+  // We check both Vite's import.meta.env and a global process.env if it exists.
+  
+  const viteKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
+  const processKey = typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '';
+  
+  console.log("[DEBUG] getApiKey: viteKey exists:", !!viteKey);
+  console.log("[DEBUG] getApiKey: processKey exists:", !!processKey);
+  
+  const key = viteKey || processKey;
   return key && key !== 'MY_GEMINI_API_KEY' ? key : null;
 };
 
@@ -14,7 +24,7 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
 
   const apiKey = getApiKey();
   if (!apiKey) {
-    throw new Error("Gemini API Key is missing. Please add 'VITE_GEMINI_API_KEY' to your Secrets in AI Studio and click 'Apply Changes'.");
+    throw new Error("Gemini API Key is missing. Please go to the 'Settings' menu (gear icon), then 'Secrets', and add a secret named 'VITE_GEMINI_API_KEY' with your Gemini API key.");
   }
 
   const ai = new GoogleGenAI({ apiKey });

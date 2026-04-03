@@ -88,10 +88,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   
   // If it's a quota error, we might want to throw a more descriptive error for the UI to catch
-  if (errorMessage.includes('Quota limit exceeded') || errorMessage.includes('quota exceeded')) {
+  if (errorMessage.includes('Quota limit exceeded') || errorMessage.includes('quota exceeded') || error instanceof Error && (error as any).code === 'resource-exhausted') {
     throw new Error(JSON.stringify({
       ...errInfo,
-      userMessage: "Daily free database limit reached. Access will be restored tomorrow. Please check back then."
+      userMessage: "Daily free database limit reached. This happens on the free plan if you have many records or open the app frequently. Access will reset at midnight Pacific Time."
     }));
   }
 
@@ -99,6 +99,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 export function getFirestoreErrorMessage(error: any): string {
+  if (error?.code === 'resource-exhausted') {
+    return "Daily free database limit reached. This happens on the free plan if you have many records or open the app frequently. Access will reset at midnight Pacific Time.";
+  }
   try {
     const parsed = JSON.parse(error.message);
     if (parsed.userMessage) return parsed.userMessage;
@@ -107,6 +110,10 @@ export function getFirestoreErrorMessage(error: any): string {
     }
     return `Database error: ${parsed.error}`;
   } catch {
-    return error.message || "An unexpected database error occurred.";
+    const msg = error.message || String(error);
+    if (msg.includes('quota exceeded') || msg.includes('Quota limit exceeded')) {
+      return "Daily free database limit reached. This happens on the free plan if you have many records or open the app frequently. Access will reset at midnight Pacific Time.";
+    }
+    return msg || "An unexpected database error occurred.";
   }
 }
