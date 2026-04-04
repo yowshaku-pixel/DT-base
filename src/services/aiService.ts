@@ -38,23 +38,24 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
         {
           parts: [
             {
-              text: `Extract truck maintenance records from this image. 
+              text: `You are an expert at reading hand-written maintenance logs for trucks. 
               
-              This image may be a digital screenshot with a script/cursive font or a photo of a notebook.
+              Task: Extract all maintenance entries from the provided image.
               
-              Layout Recognition:
-              - Date & Plate: Usually on the left side (e.g., "27 April 2021", "KCL 054T").
-              - Service Description: Often on the far right side (e.g., "Air bag", "Bushes", "Sump oil pan").
+              Context:
+              - The image is likely a photo of a notebook or a digital log.
+              - Handwriting may be in script or cursive.
+              - Look for dates, truck plate numbers, and descriptions of mechanical work or parts.
               
-              Strictly look for:
-              1. Plate Number: (e.g., KCL 054T).
-              2. Date: (e.g., 27 April 2021).
-              3. Service Description: The mechanical issue or part replaced.
+              Data Structure:
+              - Plate Number: Identify the truck (e.g., "KCL 054T", "ZEB 123").
+              - Date: The date the work was done (e.g., "27/04/21", "May 5th"). Convert to YYYY-MM-DD if possible, otherwise keep as is.
+              - Service Description: What was fixed or replaced (e.g., "Oil change", "Brake pads", "New tire").
               
-              Guidelines:
-              - Handle script/cursive fonts carefully.
-              - If one date/plate has multiple items listed on the right, create a separate record for each item.
-              - Ignore phone UI elements (status bar, navigation).
+              Important:
+              - If multiple items are listed under one date/plate, create a separate record for each item.
+              - If the handwriting is messy, do your best to guess based on context.
+              - If you are absolutely sure there are no maintenance records, return an empty array.
               
               Return the data in a structured JSON format.`,
             },
@@ -78,7 +79,7 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
                 type: Type.OBJECT,
                 properties: {
                   plate_number: { type: Type.STRING, description: "The truck's plate number" },
-                  service_date: { type: Type.STRING, description: "The date of service (YYYY-MM-DD if possible)" },
+                  service_date: { type: Type.STRING, description: "The date of service" },
                   service_description: { type: Type.STRING, description: "Description of the work done" },
                   confidence: { type: Type.NUMBER, description: "Confidence score from 0 to 1" },
                 },
@@ -92,13 +93,30 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
     });
 
     const text = response.text;
-    if (!text) throw new Error("No response from AI");
-    return JSON.parse(text);
+    if (!text) {
+      const finishReason = response.candidates?.[0]?.finishReason;
+      if (finishReason === 'SAFETY') {
+        throw new Error("AI blocked the image due to safety filters. Please ensure the photo only contains log text.");
+      }
+      throw new Error(`No response from AI (Reason: ${finishReason || 'Unknown'})`);
+    }
+    
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      console.error("JSON Parse Error. Raw text:", text);
+      throw new Error("AI returned an invalid data format. Please try again.");
+    }
   } catch (e: any) {
     console.error("AI Extraction Error:", e);
+    
     if (e.message?.includes("API_KEY_INVALID")) {
       throw new Error("Invalid API Key: Please check your Gemini API Key in the 'Secrets' tab.");
     }
-    throw new Error(`AI Extraction Failed: ${e.message || "Unknown error"}`);
+    if (e.message?.includes("quota") || e.message?.includes("429") || e.message?.includes("RESOURCE_EXHAUSTED")) {
+      throw new Error("AI Rate Limit Exceeded (429): Please wait a minute before trying again.");
+    }
+    
+    throw new Error(e.message || "AI Extraction Failed");
   }
 }

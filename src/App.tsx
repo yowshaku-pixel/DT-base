@@ -149,7 +149,12 @@ export default function App() {
         try {
           wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
         } catch (err: any) {
-          console.error("Wake Lock error:", err);
+          // Gracefully handle permission policy errors
+          if (err.name === 'NotAllowedError' || err.message?.includes('permissions policy')) {
+            console.warn("Wake Lock disallowed by policy, skipping.");
+          } else {
+            console.error("Wake Lock error:", err);
+          }
         }
       }
     };
@@ -334,153 +339,168 @@ export default function App() {
         status: 'pending',
         timestamp: Date.now()
       }));
-      setUploadLog(prev => [...newEntries, ...prev].slice(0, 50)); // Keep last 50
+      setUploadLog(prev => [...newEntries, ...prev].slice(0, 50));
 
-      let completedCount = 0;
-      let failedCount = 0;
+      let localCompletedCount = 0;
+      let localFailedCount = 0;
 
-      // Process in batches (concurrency control)
-      for (let i = 0; i < fileArray.length; i += CONCURRENCY_LIMIT) {
+      // Process files one by one for maximum stability on mobile
+      for (const file of fileArray) {
         if (shouldStopRef.current) break;
 
-        const batch = fileArray.slice(i, i + CONCURRENCY_LIMIT);
-        
-        await Promise.all(batch.map(async (file) => {
-          if (shouldStopRef.current) return;
+        // Update log to processing
+        setUploadLog(prev => prev.map(entry => 
+          entry.fileName === file.name && entry.status === 'pending' 
+            ? { ...entry, status: 'processing' } 
+            : entry
+        ));
 
-          // Add a small delay between files to allow mobile browsers to breathe and GC to run
-          await new Promise(r => setTimeout(r, 500));
-          if (shouldStopRef.current) return;
+        let objectUrl: string | null = null;
+        let resizedBase64: string | null = null;
 
-          // Update log to processing
-          setUploadLog(prev => prev.map(entry => 
-            entry.fileName === file.name && entry.status === 'pending' 
-              ? { ...entry, status: 'processing' } 
-              : entry
-          ));
+        try {
+          console.log(`[UPLOAD] Starting: ${file.name}`);
+          objectUrl = URL.createObjectURL(file);
 
-          let objectUrl: string | null = null;
-          try {
-            console.log(`Processing file: ${file.name}`);
-            objectUrl = URL.createObjectURL(file);
+          console.log(`[UPLOAD] Resizing: ${file.name}`);
+          resizedBase64 = await resizeImage(objectUrl, 1000);
 
-            if (shouldStopRef.current) return;
+          if (shouldStopRef.current) throw new Error("Upload stopped by user");
 
-            console.log(`Resizing image: ${file.name}`);
-            const resizedBase64 = await resizeImage(objectUrl, 1000); // Reduced from 1200 for better mobile stability
-
-            if (shouldStopRef.current) return;
-
-            console.log(`Extracting data from: ${file.name}`);
-            if (!process.env.GEMINI_API_KEY) {
-              throw new Error("Gemini API key is missing.");
-            }
-            await new Promise(r => setTimeout(r, 200)); 
-            if (shouldStopRef.current) return;
-            
-            // Add a timeout to the AI extraction to prevent hanging
-            const extractionPromise = extractMaintenanceData(resizedBase64, 'image/jpeg');
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow.")), 45000)
-            );
-            
-            const result = await Promise.race([extractionPromise, timeoutPromise]) as any;
-            
-            if (shouldStopRef.current) return;
-
-            if (!result || !result.records || result.records.length === 0) {
-              throw new Error("No readable records found in this image.");
-            } else {
-              // Save to Supabase
-              for (const record of result.records) {
-                if (shouldStopRef.current) break;
+          console.log(`[UPLOAD] Extracting: ${file.name}`);
+          if (!process.env.GEMINI_API_KEY) {
+            throw new Error("Gemini API key is missing.");
+          }
+          
+          // AI Extraction with retry logic for rate limits (429)
+          const extractWithRetry = async (base64: string, mime: string, retries = 3, initialDelay = 3000): Promise<any> => {
+            let currentDelay = initialDelay;
+            for (let i = 0; i < retries; i++) {
+              try {
+                const extractionPromise = extractMaintenanceData(base64, mime);
+                const timeoutPromise = new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error("AI extraction timed out. Try a clearer photo.")), 60000)
+                );
+                return await Promise.race([extractionPromise, timeoutPromise]);
+              } catch (err: any) {
+                const isRateLimit = err.message?.toLowerCase().includes("429") || 
+                                   err.message?.toLowerCase().includes("quota") || 
+                                   err.message?.toLowerCase().includes("resource_exhausted") ||
+                                   err.message?.toLowerCase().includes("rate limit");
                 
-                // 1. Save metadata to main table
-                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-                const { data: recordData, error: recordError } = await supabase
-                  .from('maintenance_records')
-                  .insert({
-                    plate_number: record.plate_number,
-                    service_date: record.service_date,
-                    service_description: record.service_description,
-                    confidence: record.confidence,
-                    user_id: user.id,
-                    file_name: file.name,
-                    created_at: new Date().toISOString()
-                  })
-                  .select()
-                  .single();
-
-                if (recordError) throw recordError;
-
-                // 2. Save image to separate table to save memory in list views
-                if (recordData) {
-                  setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-                  const { error: imageError } = await supabase
-                    .from('maintenance_record_images')
-                    .insert({
-                      record_id: recordData.id,
-                      image_data: resizedBase64,
-                      user_id: user.id,
-                      created_at: new Date().toISOString()
-                    });
+                if (isRateLimit && i < retries - 1) {
+                  console.warn(`[UPLOAD] Rate limit hit for ${file.name}, retrying in ${currentDelay}ms... (Attempt ${i + 1}/${retries})`);
                   
-                  if (imageError) throw imageError;
+                  // Update log to show retry status
+                  setUploadLog(prev => prev.map(entry => 
+                    entry.fileName === file.name && entry.status === 'processing' 
+                      ? { ...entry, error: `Rate limit hit, retrying in ${Math.round(currentDelay/1000)}s...` } 
+                      : entry
+                  ));
+
+                  await new Promise(r => setTimeout(r, currentDelay));
+                  currentDelay *= 2; // Exponential backoff
+                  continue;
                 }
+                throw err;
               }
-              
-              // Update log to success
-              setUploadLog(prev => prev.map(entry => 
-                entry.fileName === file.name && entry.status === 'processing' 
-                  ? { ...entry, status: 'success' } 
-                  : entry
-              ));
-              
-              // Explicitly clear large string to help GC
-              (resizedBase64 as any) = null;
             }
-          } catch (err: any) {
-            if (!shouldStopRef.current) {
-              console.error(`Error processing file ${file.name}:`, err);
-              failedCount++;
-              setFailedFiles(prev => [...prev, file.name]);
-              
-              // Update log to failed
-              setUploadLog(prev => prev.map(entry => 
-                entry.fileName === file.name && entry.status === 'processing' 
-                  ? { ...entry, status: 'failed', error: err.message || "Unknown error" } 
-                  : entry
-              ));
-            }
-          } finally {
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
+          };
+
+          const result = await extractWithRetry(resizedBase64, 'image/jpeg') as any;
+          
+          if (shouldStopRef.current) throw new Error("Upload stopped by user");
+
+          if (!result || !result.records || result.records.length === 0) {
+            throw new Error("No readable records found in this image.");
+          }
+
+          console.log(`[UPLOAD] Saving to Supabase: ${file.name} (${result.records.length} records)`);
+          for (const record of result.records) {
+            if (shouldStopRef.current) break;
             
-            if (!shouldStopRef.current) {
-              completedCount++;
-              setProgress(prev => ({ ...prev, current: completedCount, failed: failedCount }));
+            const { data: recordData, error: recordError } = await supabase
+              .from('maintenance_records')
+              .insert({
+                plate_number: record.plate_number,
+                service_date: record.service_date,
+                service_description: record.service_description,
+                confidence: record.confidence,
+                user_id: user.id,
+                file_name: file.name,
+                created_at: new Date().toISOString()
+              })
+              .select()
+              .single();
+
+            if (recordError) throw recordError;
+            setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+
+            if (recordData) {
+              const { error: imageError } = await supabase
+                .from('maintenance_record_images')
+                .insert({
+                  record_id: recordData.id,
+                  image_data: resizedBase64,
+                  user_id: user.id,
+                  created_at: new Date().toISOString()
+                });
+              
+              if (imageError) throw imageError;
+              setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
             }
           }
-        }));
+          
+          // Success!
+          setUploadLog(prev => prev.map(entry => 
+            entry.fileName === file.name && entry.status === 'processing' 
+              ? { ...entry, status: 'success' } 
+              : entry
+          ));
+          console.log(`[UPLOAD] Success: ${file.name}`);
+
+        } catch (err: any) {
+          console.error(`[UPLOAD] Failed: ${file.name}`, err);
+          localFailedCount++;
+          setFailedFiles(prev => [...prev, file.name]);
+          
+          setUploadLog(prev => prev.map(entry => 
+            entry.fileName === file.name && entry.status === 'processing' 
+              ? { ...entry, status: 'failed', error: err.message || "Unknown error" } 
+              : entry
+          ));
+        } finally {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          resizedBase64 = null; // Clear memory
+          localCompletedCount++;
+          setProgress(prev => ({ ...prev, current: localCompletedCount, failed: localFailedCount }));
+          
+          // Small breathing room for mobile UI
+          await new Promise(r => setTimeout(r, 300));
+        }
       }
 
       if (shouldStopRef.current) return;
 
-      if (failedCount > 0) {
-        setError(`Processed ${completedCount} files, but ${failedCount} files had no readable records or failed.`);
+      if (localFailedCount > 0) {
+        setError(`Processed ${localCompletedCount} files, but ${localFailedCount} failed. Check the log below for details.`);
+      } else {
+        // Clear progress on total success
+        setTimeout(() => setProgress({ current: 0, total: 0, failed: 0 }), 2000);
       }
 
-      if (failedCount === 0) {
-        setProgress({ current: 0, total: 0, failed: 0 });
-      }
+      // Refresh records after batch
+      fetchRecords();
+
     } catch (err: any) {
       console.error("Critical upload error:", err);
-      setError("A critical error occurred during upload. Please try fewer files at once.");
+      setError("A critical error occurred. Please try uploading one image at a time.");
     } finally {
       setIsProcessing(false);
       setIsStopping(false);
       shouldStopRef.current = false;
     }
-  }, [user]);
+  }, [user, fetchRecords]);
 
   const handleManualAdd = async () => {
     if (!user || !manualEntryData || !supabase) return;
