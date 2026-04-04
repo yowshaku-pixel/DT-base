@@ -794,6 +794,27 @@ export default function App() {
             <div className="px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/40 font-mono">
               PWA: {pwaStatus}
             </div>
+            <div className="flex items-center gap-3 px-3 py-1 bg-white/5 border border-white/10 rounded">
+              <div className="flex items-center gap-1.5">
+                <Database className={cn(
+                  "w-2.5 h-2.5",
+                  isCloudConnected === true ? "text-green-500" : 
+                  isCloudConnected === false ? "text-red-500" : 
+                  "text-white/20"
+                )} />
+                <span className="text-[8px] font-mono text-white/40 uppercase tracking-wider">
+                  {isQuotaExceeded ? "Quota Exceeded" :
+                   isCloudConnected === true ? "Connected" : 
+                   isCloudConnected === false ? "Offline" : 
+                   "Connecting..."}
+                </span>
+              </div>
+              <div className="w-px h-2.5 bg-white/10" />
+              <div className="flex items-center gap-1.5">
+                <Zap className={cn("w-2.5 h-2.5 text-emerald-400", isProcessing && "animate-pulse")} />
+                <span className="text-[8px] font-mono text-white/40 uppercase tracking-wider">Sync</span>
+              </div>
+            </div>
             {isProcessing && (
               <div className="flex items-center gap-2 px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-[9px] text-purple-400 animate-pulse">
                 <Clock className="w-3 h-3" />
@@ -1369,32 +1390,14 @@ export default function App() {
             </button>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Database className={cn(
-                "w-3.5 h-3.5",
-                isCloudConnected === true ? "text-green-500" : 
-                isCloudConnected === false ? "text-red-500" : 
-                "text-white/20"
-              )} />
-              <span className="font-display font-bold">
-                {isQuotaExceeded ? "Quota Exceeded" :
-                 isCloudConnected === true ? "Supabase Connected" : 
-                 isCloudConnected === false ? "Supabase Offline" : 
-                 "Connecting..."}
-              </span>
-            </div>
             {isCloudConnected === false && (
               <button 
                 onClick={() => window.location.reload()}
-                className="text-purple-400 hover:text-purple-300 transition-colors"
+                className="text-purple-400 hover:text-purple-300 transition-colors text-[10px] font-display font-bold uppercase tracking-widest"
               >
-                Retry
+                Retry Connection
               </button>
             )}
-            <div className="flex items-center gap-2">
-              <Zap className={cn("w-3 h-3 text-emerald-400", isProcessing && "animate-pulse")} />
-              <span className="font-display font-bold">Supabase Sync</span>
-            </div>
           </div>
         </div>
 
