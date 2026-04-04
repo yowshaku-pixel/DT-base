@@ -123,6 +123,10 @@ export default function App() {
     localStorage.removeItem('dt_base_upload_log');
   };
 
+  const removeLogEntry = (fileName: string, timestamp: number) => {
+    setUploadLog(prev => prev.filter(entry => !(entry.fileName === fileName && entry.timestamp === timestamp)));
+  };
+
   // Debounce search and filter to prevent excessive re-renders and Firestore reads
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -344,6 +348,10 @@ export default function App() {
         await Promise.all(batch.map(async (file) => {
           if (shouldStopRef.current) return;
 
+          // Add a small delay between files to allow mobile browsers to breathe and GC to run
+          await new Promise(r => setTimeout(r, 500));
+          if (shouldStopRef.current) return;
+
           // Update log to processing
           setUploadLog(prev => prev.map(entry => 
             entry.fileName === file.name && entry.status === 'pending' 
@@ -359,7 +367,7 @@ export default function App() {
             if (shouldStopRef.current) return;
 
             console.log(`Resizing image: ${file.name}`);
-            const resizedBase64 = await resizeImage(objectUrl, 1200);
+            const resizedBase64 = await resizeImage(objectUrl, 1000); // Reduced from 1200 for better mobile stability
 
             if (shouldStopRef.current) return;
 
@@ -370,7 +378,13 @@ export default function App() {
             await new Promise(r => setTimeout(r, 200)); 
             if (shouldStopRef.current) return;
             
-            const result = await extractMaintenanceData(resizedBase64, 'image/jpeg');
+            // Add a timeout to the AI extraction to prevent hanging
+            const extractionPromise = extractMaintenanceData(resizedBase64, 'image/jpeg');
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow.")), 45000)
+            );
+            
+            const result = await Promise.race([extractionPromise, timeoutPromise]) as any;
             
             if (shouldStopRef.current) return;
 
@@ -421,6 +435,9 @@ export default function App() {
                   ? { ...entry, status: 'success' } 
                   : entry
               ));
+              
+              // Explicitly clear large string to help GC
+              (resizedBase64 as any) = null;
             }
           } catch (err: any) {
             if (!shouldStopRef.current) {
@@ -1022,7 +1039,7 @@ export default function App() {
           
           <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
             {uploadLog.map((entry, i) => (
-              <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded">
+              <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded group/log">
                 <div className="flex items-center gap-3 overflow-hidden">
                   <div className={cn(
                     "w-2 h-2 rounded-full flex-shrink-0",
@@ -1030,7 +1047,14 @@ export default function App() {
                     entry.status === 'failed' ? "bg-red-500" : 
                     entry.status === 'processing' ? "bg-purple-500 animate-pulse" : "bg-white/20"
                   )} />
-                  <span className="text-[11px] font-mono truncate opacity-80">{entry.fileName}</span>
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="text-[11px] font-mono truncate opacity-80" title={entry.fileName}>{entry.fileName}</span>
+                    {entry.status === 'failed' && entry.error && (
+                      <span className="text-[8px] font-mono text-red-400/60 truncate" title={entry.error}>
+                        {entry.error}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-4 flex-shrink-0">
                   <span className={cn(
@@ -1041,11 +1065,7 @@ export default function App() {
                   )}>
                     {entry.status}
                   </span>
-                  {entry.error && (
-                    <span className="text-[8px] font-mono text-red-400/60 max-w-[150px] truncate" title={entry.error}>
-                      {entry.error}
-                    </span>
-                  )}
+                  
                   {entry.status === 'failed' && (
                     <button 
                       onClick={() => setManualEntryData({ 
@@ -1060,16 +1080,26 @@ export default function App() {
                       Add Manually
                     </button>
                   )}
-                  <span className="text-[8px] font-mono opacity-20">
-                    {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+
+                  <button 
+                    onClick={() => removeLogEntry(entry.fileName, entry.timestamp)}
+                    className="p-1.5 hover:bg-white/10 rounded-full transition-all text-white/20 hover:text-white active:scale-90"
+                    title="Remove from log"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
-          <p className="mt-4 text-[9px] font-display font-medium opacity-40 italic">
-            * This log persists even if the browser crashes. Successful uploads are saved to the cloud.
-          </p>
+          <div className="mt-4 flex flex-col gap-1">
+            <p className="text-[9px] font-display font-medium opacity-40 italic">
+              * This log persists even if the browser crashes. Successful uploads are saved to the cloud.
+            </p>
+            <p className="text-[9px] font-display font-medium opacity-40 italic">
+              * Note: Mobile browsers may rename files (e.g., "image.jpg") when selecting from the gallery.
+            </p>
+          </div>
         </div>
       )}
 
