@@ -1,11 +1,13 @@
 export interface MaintenanceRecord {
   id: string;
-  plateNumber: string;
-  date: string;
-  service: string;
+  plate_number: string;
+  service_date: string;
+  service_description: string;
   confidence: number;
   originalImage?: string;
-  fileName?: string;
+  file_name?: string;
+  user_id: string;
+  created_at: string;
 }
 
 export interface ExtractionResult {

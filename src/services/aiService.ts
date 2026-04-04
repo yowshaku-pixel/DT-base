@@ -77,12 +77,12 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  plateNumber: { type: Type.STRING, description: "The truck's plate number" },
-                  date: { type: Type.STRING, description: "The date of service (YYYY-MM-DD if possible)" },
-                  service: { type: Type.STRING, description: "Description of the work done" },
+                  plate_number: { type: Type.STRING, description: "The truck's plate number" },
+                  service_date: { type: Type.STRING, description: "The date of service (YYYY-MM-DD if possible)" },
+                  service_description: { type: Type.STRING, description: "Description of the work done" },
                   confidence: { type: Type.NUMBER, description: "Confidence score from 0 to 1" },
                 },
-                required: ["plateNumber", "date", "service"],
+                required: ["plate_number", "service_date", "service_description"],
               },
             },
           },

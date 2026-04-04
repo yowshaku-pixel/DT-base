@@ -1,11 +1,10 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap } from 'lucide-react';
 import { MaintenanceRecord } from './types';
 import { extractMaintenanceData } from './services/aiService';
 import { cn, resizeImage } from './lib/utils';
-import { auth, db, loginWithGoogle, loginWithGoogleRedirect, logout, handleFirestoreError, OperationType, getFirestoreErrorMessage } from './firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, writeBatch, serverTimestamp, Timestamp, getDocFromServer, getDocs, limit, getCountFromServer, orderBy, startAfter } from 'firebase/firestore';
+import { supabase, getSupabaseErrorMessage } from './supabase';
+import { User } from '@supabase/supabase-js';
 
 interface UploadLogEntry {
   fileName: string;
@@ -15,27 +14,26 @@ interface UploadLogEntry {
 }
 
 const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
+// No limit - fetch all records for the user
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
-  const [totalRecordsCount, setTotalRecordsCount] = useState<number | null>(null);
-  const [lastVisible, setLastVisible] = useState<any>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const recordsRef = useRef<MaintenanceRecord[]>([]);
   const [isCloudConnected, setIsCloudConnected] = useState<boolean | null>(null);
-  const [lastCloudError, setLastCloudError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState<string | null>(null);
   const [isStopping, setIsStopping] = useState(false);
   const shouldStopRef = React.useRef(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, failed: 0 });
   const [failedFiles, setFailedFiles] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [serviceFilter, setServiceFilter] = useState('');
+  const [debouncedService, setDebouncedService] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [dangerAction, setDangerAction] = useState<'clearAll' | 'clearDuplicates' | null>(null);
@@ -47,10 +45,11 @@ export default function App() {
   const [uploadLog, setUploadLog] = useState<UploadLogEntry[]>([]);
   const [latestImage, setLatestImage] = useState<string | null>(null);
   const [isLoadingLatestImage, setIsLoadingLatestImage] = useState(false);
+  const lastFetchedRecordIdRef = React.useRef<string | null>(null);
   const [viewingImage, setViewingImage] = useState<{ id: string, image: string | null, loading: boolean } | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [pwaStatus, setPwaStatus] = useState<string>('Checking...');
-  const [sessionStats, setSessionStats] = useState({ reads: 0, writes: 0, deletes: 0, dataTransferred: 0 });
+  const [sessionStats, setSessionStats] = useState({ reads: 0, writes: 0, deletes: 0 });
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [manualEntryData, setManualEntryData] = useState<{
     fileName: string;
@@ -124,6 +123,21 @@ export default function App() {
     localStorage.removeItem('dt_base_upload_log');
   };
 
+  // Debounce search and filter to prevent excessive re-renders and Firestore reads
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedService(serviceFilter);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [serviceFilter]);
+
   // Screen Wake Lock to prevent "crushing" when screen turns off during processing
   useEffect(() => {
     const requestWakeLock = async () => {
@@ -171,311 +185,144 @@ export default function App() {
   const MASTER_PASSWORD = 'adminjo'; // Updated password
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
 
-  // Auth listener
+  // Auth Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.log("[DEBUG] Auth state changed:", currentUser?.email);
-      setUser(currentUser);
+    if (!supabase) {
+      setIsAuthReady(true);
+      setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
+      return;
+    }
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
       setIsAuthReady(true);
     });
-    return () => unsubscribe();
+
+    // Listen for changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setIsAuthReady(true);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Test Firestore connection on boot
-  useEffect(() => {
-    if (user && isCloudConnected === null) {
-      const testConnection = async () => {
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('timeout')), 30000)
-        );
-        
-        try {
-          console.log("[DEBUG] Testing Firestore connection for user:", user.email);
-          setLastCloudError(null);
-          
-          // Try a simple query instead of getDocFromServer which can be finicky with rules
-          const q = query(collection(db, 'maintenance_records'), where('userId', '==', user.uid), limit(1));
-          
-          await Promise.race([
-            getDocs(q),
-            timeoutPromise
-          ]);
-          
-          console.log("[DEBUG] Firestore connection successful");
-          setIsCloudConnected(true);
-        } catch (err: any) {
-          console.log("[DEBUG] Firestore connection test error:", err);
-          const errorCode = err.code || (err.message === 'timeout' ? 'timeout' : 'unknown');
-          const errorMessage = err.message || 'Unknown error';
-          
-          if (errorCode === 'timeout') {
-            setLastCloudError("Connection timeout. Retrying...");
-          } else {
-            setLastCloudError(`${errorCode}: ${errorMessage}`);
-          }
-          
-          // These error codes mean we successfully reached the Firestore servers
-          const reachedServer = ![
-            'unavailable',
-            'deadline-exceeded',
-            'network-error',
-            'timeout'
-          ].includes(errorCode);
-
-          if (reachedServer) {
-            console.log("[DEBUG] Firestore server is reachable (returned code: " + errorCode + ")");
-            setIsCloudConnected(true);
-          } else {
-            console.error("[DEBUG] Firestore server unreachable or network error:", err);
-            setIsCloudConnected(false);
-          }
-        }
-      };
-      testConnection();
-    }
-  }, [user, isCloudConnected]);
-
-  const fetchTotalCount = useCallback(async () => {
-    if (!user) return;
-    try {
-      const q = query(collection(db, 'maintenance_records'), where('userId', '==', user.uid));
-      const snapshot = await getCountFromServer(q);
-      setTotalRecordsCount(snapshot.data().count);
-      setSessionStats(prev => ({ ...prev, reads: prev.reads + 1 }));
-    } catch (err) {
-      console.error("Failed to fetch total count:", err);
-    }
-  }, [user]);
+  const logout = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setRecords([]);
+    localStorage.removeItem(`records_${user?.id}`);
+  };
 
   const fetchRecords = useCallback(async () => {
-    if (!user) return;
-    if (isCloudConnected === false) {
-      console.warn("Cloud disconnected, using local cache if available.");
-    }
+    if (!user || !supabase) return;
     setIsRefreshing(true);
     try {
-      // Fetch total count first
-      await fetchTotalCount();
+      const { data, error } = await supabase
+        .from('maintenance_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('service_date', { ascending: false });
 
-      const q = query(
-        collection(db, 'maintenance_records'),
-        where('userId', '==', user.uid),
-        orderBy('date', 'desc'),
-        limit(100)
-      );
-      const snapshot = await getDocs(q);
-      setSessionStats(prev => ({ ...prev, reads: prev.reads + snapshot.docs.length }));
-      
-      const fetchedRecords = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as MaintenanceRecord[];
-      
-      setRecords(fetchedRecords);
-      recordsRef.current = fetchedRecords;
-      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-      setHasMore(snapshot.docs.length === 100);
-      
+      if (error) throw error;
+
+      setRecords(data as MaintenanceRecord[]);
       setIsCloudConnected(true);
       setError(null);
+      setIsQuotaExceeded(false);
+      
+      // Cache in localStorage for offline access
+      localStorage.setItem(`records_${user.id}`, JSON.stringify(data));
     } catch (err: any) {
-      try {
-        handleFirestoreError(err, OperationType.GET, 'maintenance_records');
-      } catch (e: any) {
-        setError(getFirestoreErrorMessage(e));
+      console.warn("Fetch failed:", err);
+      setIsCloudConnected(false);
+      
+      // Check for quota/rate limit (Supabase uses standard HTTP codes)
+      if (err.status === 429) {
+        setIsQuotaExceeded(true);
+      }
+
+      // Fallback to localStorage
+      const cached = localStorage.getItem(`records_${user.id}`);
+      if (cached) {
+        setRecords(JSON.parse(cached));
+        setError(null);
+      } else {
+        setError(getSupabaseErrorMessage(err));
       }
     } finally {
       setIsRefreshing(false);
     }
-  }, [user, fetchTotalCount]);
-
-  const loadMore = async () => {
-    if (!user || !lastVisible || isLoadingMore || !hasMore) return;
-    
-    setIsLoadingMore(true);
-    try {
-      const q = query(
-        collection(db, 'maintenance_records'),
-        where('userId', '==', user.uid),
-        orderBy('date', 'desc'),
-        startAfter(lastVisible),
-        limit(100)
-      );
-      
-      const snapshot = await getDocs(q);
-      setSessionStats(prev => ({ ...prev, reads: prev.reads + snapshot.docs.length }));
-      
-      const moreRecords = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as MaintenanceRecord[];
-      
-      const updatedRecords = [...records, ...moreRecords];
-      setRecords(updatedRecords);
-      recordsRef.current = updatedRecords;
-      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-      setHasMore(snapshot.docs.length === 100);
-    } catch (err: any) {
-      console.error("Failed to load more records:", err);
-    } finally {
-      setIsLoadingMore(false);
-    }
-  };
-
-  // Firestore listener
-  useEffect(() => {
-    if (!user) {
-      setRecords([]);
-      return;
-    }
-
-    const q = query(
-      collection(db, 'maintenance_records'),
-      where('userId', '==', user.uid),
-      orderBy('date', 'desc'),
-      limit(100)
-    );
-
-    const unsubscribe = onSnapshot(q, { includeMetadataChanges: false }, (snapshot) => {
-      setIsCloudConnected(true);
-      
-      // Track reads: Initial load counts all docs, updates count changed docs
-      if (!snapshot.metadata.fromCache) {
-        setSessionStats(prev => ({
-          ...prev,
-          reads: prev.reads + snapshot.docChanges().length
-        }));
-      }
-
-      // Merge onSnapshot updates with existing records
-      // This is tricky because onSnapshot only has the latest 100
-      // If we have more than 100, we need to merge carefully
-      const latest100 = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as MaintenanceRecord[];
-
-      setRecords(prev => {
-        // Find records that are NOT in the latest 100 (older records)
-        const olderRecords = prev.filter(p => !latest100.some(l => l.id === p.id));
-        // Merge and sort
-        const merged = [...latest100, ...olderRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        recordsRef.current = merged;
-        return merged;
-      });
-      
-      // If we got data from cache, it's fine, but we might still be "offline" relative to the server
-      if (snapshot.metadata.fromCache) {
-        console.log("Data loaded from cache");
-      }
-    }, (err) => {
-      if (err.message.includes('the client is offline')) {
-        setIsCloudConnected(false);
-      }
-      // Only set the error if it's NOT a quota error, or if we don't have any records yet
-      // This prevents the annoying popup if we already have cached data to show
-      const isQuotaError = err.message.includes('quota exceeded') || 
-                          err.message.includes('Quota limit exceeded') ||
-                          err.code === 'resource-exhausted';
-
-      if (!isQuotaError) {
-        try {
-          handleFirestoreError(err, OperationType.GET, 'maintenance_records');
-        } catch (e: any) {
-          setError(getFirestoreErrorMessage(e));
-        }
-      } else {
-        console.warn("Firestore Quota Exceeded - using cached data if available.");
-        setIsCloudConnected(false);
-        // If we have no records, we should probably show the error so the user knows why it's empty
-        if (recordsRef.current.length === 0) {
-          setError("Daily free database limit reached. Access will be restored tomorrow.");
-        }
-      }
-    });
-
-    return () => unsubscribe();
   }, [user]);
 
-  const handleLogin = async (useRedirect = false) => {
+  // Initial fetch
+  useEffect(() => {
+    if (user && isAuthReady) {
+      fetchRecords();
+    }
+  }, [user, isAuthReady, fetchRecords]);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase) {
+      setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
+      return;
+    }
+    if (!email || !password) {
+      setError("Please enter both email and password.");
+      return;
+    }
+    
     setIsLoggingIn(true);
     setError(null);
     try {
-      if (useRedirect) {
-        await loginWithGoogleRedirect();
+      if (authMode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
       } else {
-        await loginWithGoogle();
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (error) throw error;
+        setError("Account created! You can now log in.");
+        setAuthMode('login');
       }
     } catch (err: any) {
-      console.error("Login error:", err);
-      if (err.code === 'auth/popup-blocked') {
-        setError("Login popup was blocked. Please allow popups or try the redirect login below.");
-      } else if (err.code === 'auth/network-request-failed') {
-        setError("Network error: Please check your internet connection or disable any ad-blockers/VPNs that might be blocking Google Login.");
-      } else if (err.code === 'auth/cancelled-popup-request') {
-        // Ignore, user just closed the popup
-      } else {
-        setError(`Login failed: ${err.message || "Please try again."}`);
-      }
+      console.error("Auth error:", err);
+      setError(err.message || "Authentication failed. Please try again.");
     } finally {
       setIsLoggingIn(false);
     }
   };
 
-  useEffect(() => {
-    console.log("[DEBUG] isProcessing state changed:", isProcessing);
-  }, [isProcessing]);
-
-  const stopProcessing = () => {
-    console.log("[DEBUG] stopProcessing called");
-    shouldStopRef.current = true;
-    setIsStopping(true);
-    setCurrentStatus("Stopping...");
-  };
-
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    console.log("[DEBUG] handleFileUpload triggered", { 
-      user: user?.email, 
-      filesCount: files?.length,
-      isProcessing 
-    });
-
+    if (!supabase) {
+      setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
+      return;
+    }
     if (!user) {
       setError("You must be logged in to upload records. Please click the Login button.");
-      if (e.target) e.target.value = '';
       return;
     }
-
-    if (!navigator.onLine) {
-      setError("You are currently offline. Please check your internet connection and try again.");
-      if (e.target) e.target.value = '';
-      return;
-    }
-
-    if (isCloudConnected === false) {
-      setError("The database is currently unreachable. Please try again in a few minutes.");
-      if (e.target) e.target.value = '';
-      return;
-    }
-    
-    if (!files || files.length === 0) {
-      console.log("[DEBUG] No files selected");
-      return;
-    }
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     try {
       setIsProcessing(true);
       setIsStopping(false);
       shouldStopRef.current = false;
       setError(null);
-      setCurrentStatus("Initializing upload...");
       setFailedFiles([]);
       setProgress({ current: 0, total: files.length, failed: 0 });
 
       const fileArray = Array.from(files);
-      console.log("[DEBUG] File array created", fileArray.map(f => ({ name: f.name, size: f.size, type: f.type })));
       
       // Initialize log entries for this batch
       const newEntries: UploadLogEntry[] = fileArray.map(f => ({
@@ -483,25 +330,20 @@ export default function App() {
         status: 'pending',
         timestamp: Date.now()
       }));
-      setUploadLog(prev => [...newEntries, ...prev].slice(0, 50)); 
+      setUploadLog(prev => [...newEntries, ...prev].slice(0, 50)); // Keep last 50
 
       let completedCount = 0;
       let failedCount = 0;
 
       // Process in batches (concurrency control)
       for (let i = 0; i < fileArray.length; i += CONCURRENCY_LIMIT) {
-        if (shouldStopRef.current) {
-          console.log("[DEBUG] Loop broken by stop request");
-          break;
-        }
+        if (shouldStopRef.current) break;
 
         const batch = fileArray.slice(i, i + CONCURRENCY_LIMIT);
-        console.log(`[DEBUG] Processing batch ${Math.floor(i/CONCURRENCY_LIMIT) + 1}, size: ${batch.length}`);
         
         await Promise.all(batch.map(async (file) => {
-          if (shouldStopRef.current || !user) return;
+          if (shouldStopRef.current) return;
 
-          setCurrentStatus(`Processing ${file.name}...`);
           // Update log to processing
           setUploadLog(prev => prev.map(entry => 
             entry.fileName === file.name && entry.status === 'pending' 
@@ -511,93 +353,67 @@ export default function App() {
 
           let objectUrl: string | null = null;
           try {
-            console.log(`[DEBUG] Step 1: CreateObjectURL for ${file.name}`);
-            setCurrentStatus(`Preparing ${file.name}...`);
+            console.log(`Processing file: ${file.name}`);
             objectUrl = URL.createObjectURL(file);
 
             if (shouldStopRef.current) return;
 
-            console.log(`[DEBUG] Step 2: Resizing ${file.name}`);
-            setCurrentStatus(`Resizing ${file.name}...`);
-            const resizedBase64 = await resizeImage(objectUrl, 800);
-            console.log(`[DEBUG] Step 2 Complete: ${file.name} resized to ${resizedBase64.length} chars`);
-            
-            // Track data transferred (approximate size of base64 string)
-            const dataSize = Math.round((resizedBase64.length * 3) / 4);
-            setSessionStats(prev => ({ ...prev, dataTransferred: prev.dataTransferred + dataSize }));
+            console.log(`Resizing image: ${file.name}`);
+            const resizedBase64 = await resizeImage(objectUrl, 1200);
 
             if (shouldStopRef.current) return;
 
-            console.log(`[DEBUG] Step 3: AI Extraction for ${file.name}`);
-            setCurrentStatus(`Analyzing ${file.name} with AI...`);
-            const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-            if (!apiKey) {
-              console.error(`[DEBUG] API Key missing in handleFileUpload`);
+            console.log(`Extracting data from: ${file.name}`);
+            if (!process.env.GEMINI_API_KEY) {
               throw new Error("Gemini API key is missing.");
             }
-            
             await new Promise(r => setTimeout(r, 200)); 
             if (shouldStopRef.current) return;
             
             const result = await extractMaintenanceData(resizedBase64, 'image/jpeg');
-            console.log(`[DEBUG] Step 3 Complete: ${file.name} extracted ${result?.records?.length || 0} records`);
             
             if (shouldStopRef.current) return;
 
             if (!result || !result.records || result.records.length === 0) {
-              console.warn(`[DEBUG] No records found for ${file.name}`);
               throw new Error("No readable records found in this image.");
             } else {
-              console.log(`[DEBUG] Step 4: Saving ${result.records.length} records to Firestore for ${file.name}`);
-              
-              // Save to Firestore
+              // Save to Supabase
               for (const record of result.records) {
                 if (shouldStopRef.current) break;
                 
-                // Helper for timeout
-                const withTimeout = (promise: Promise<any>, timeoutMs: number) => {
-                  return Promise.race([
-                    promise,
-                    new Promise((_, reject) => setTimeout(() => reject(new Error("Database operation timed out. Please check your internet.")), timeoutMs))
-                  ]);
-                };
+                // 1. Save metadata to main table
+                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+                const { data: recordData, error: recordError } = await supabase
+                  .from('maintenance_records')
+                  .insert({
+                    plate_number: record.plate_number,
+                    service_date: record.service_date,
+                    service_description: record.service_description,
+                    confidence: record.confidence,
+                    user_id: user.id,
+                    file_name: file.name,
+                    created_at: new Date().toISOString()
+                  })
+                  .select()
+                  .single();
 
-                try {
-                  // 1. Save metadata to main collection
-                  setCurrentStatus(`Saving metadata for ${file.name}...`);
+                if (recordError) throw recordError;
+
+                // 2. Save image to separate table to save memory in list views
+                if (recordData) {
                   setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+                  const { error: imageError } = await supabase
+                    .from('maintenance_record_images')
+                    .insert({
+                      record_id: recordData.id,
+                      image_data: resizedBase64,
+                      user_id: user.id,
+                      created_at: new Date().toISOString()
+                    });
                   
-                  const metadataPromise = addDoc(collection(db, 'maintenance_records'), {
-                    ...record,
-                    userId: user.uid,
-                    fileName: file.name,
-                    createdAt: serverTimestamp()
-                  });
-
-                  const recordRef = await withTimeout(metadataPromise, 25000) as any;
-
-                  // 2. Save image to separate collection
-                  setCurrentStatus(`Saving image for ${file.name}...`);
-                  console.log(`[DEBUG] Sending image to Firestore, size: ${resizedBase64.length} chars`);
-                  setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-                  
-                  // Small delay to let the network breathe
-                  await new Promise(r => setTimeout(r, 500));
-
-                  const imagePromise = addDoc(collection(db, 'maintenance_record_images'), {
-                    recordId: recordRef.id,
-                    image: resizedBase64,
-                    userId: user.uid,
-                    createdAt: serverTimestamp()
-                  });
-
-                  await withTimeout(imagePromise, 60000);
-                } catch (dbErr: any) {
-                  console.error(`[DEBUG] Firestore write failed for ${file.name}:`, dbErr);
-                  handleFirestoreError(dbErr, OperationType.WRITE, 'maintenance_records');
+                  if (imageError) throw imageError;
                 }
               }
-              console.log(`[DEBUG] Step 4 Complete: ${file.name} saved`);
               
               // Update log to success
               setUploadLog(prev => prev.map(entry => 
@@ -608,15 +424,14 @@ export default function App() {
             }
           } catch (err: any) {
             if (!shouldStopRef.current) {
-              console.error(`[DEBUG] Error processing ${file.name}:`, err);
-              const userFriendlyError = getFirestoreErrorMessage(err);
+              console.error(`Error processing file ${file.name}:`, err);
               failedCount++;
               setFailedFiles(prev => [...prev, file.name]);
               
               // Update log to failed
               setUploadLog(prev => prev.map(entry => 
                 entry.fileName === file.name && entry.status === 'processing' 
-                  ? { ...entry, status: 'failed', error: userFriendlyError } 
+                  ? { ...entry, status: 'failed', error: err.message || "Unknown error" } 
                   : entry
               ));
             }
@@ -640,22 +455,18 @@ export default function App() {
       if (failedCount === 0) {
         setProgress({ current: 0, total: 0, failed: 0 });
       }
-      setCurrentStatus(null);
     } catch (err: any) {
-      console.error("[DEBUG] Critical upload error:", err);
+      console.error("Critical upload error:", err);
       setError("A critical error occurred during upload. Please try fewer files at once.");
-      setCurrentStatus(null);
     } finally {
-      console.log("[DEBUG] handleFileUpload finally block reached");
       setIsProcessing(false);
       setIsStopping(false);
       shouldStopRef.current = false;
-      if (e.target) e.target.value = ''; // Reset input so same file can be selected again
     }
-  }, [user, isProcessing]);
+  }, [user]);
 
   const handleManualAdd = async () => {
-    if (!user || !manualEntryData) return;
+    if (!user || !manualEntryData || !supabase) return;
     if (!manualEntryData.plateNumber || !manualEntryData.date || !manualEntryData.service) {
       setError("Please fill in all fields for manual entry.");
       return;
@@ -665,15 +476,19 @@ export default function App() {
       setIsProcessing(true);
       setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
       
-      await addDoc(collection(db, 'maintenance_records'), {
-        plateNumber: manualEntryData.plateNumber.toUpperCase().trim(),
-        date: manualEntryData.date,
-        service: manualEntryData.service.trim(),
-        confidence: 1.0,
-        userId: user.uid,
-        fileName: manualEntryData.fileName,
-        createdAt: serverTimestamp()
-      });
+      const { error } = await supabase
+        .from('maintenance_records')
+        .insert({
+          plate_number: manualEntryData.plateNumber.toUpperCase().trim(),
+          service_date: manualEntryData.date,
+          service_description: manualEntryData.service.trim(),
+          confidence: 1.0,
+          user_id: user.id,
+          file_name: manualEntryData.fileName,
+          created_at: new Date().toISOString()
+        });
+      
+      if (error) throw error;
       
       // Update log to success
       setUploadLog(prev => prev.map(entry => 
@@ -684,93 +499,84 @@ export default function App() {
       
       setManualEntryData(null);
       setError(null);
-    } catch (err) {
-      try {
-        handleFirestoreError(err, OperationType.WRITE, 'maintenance_records');
-      } catch (e: any) {
-        setError(getFirestoreErrorMessage(e));
-      }
+      fetchRecords(); // Refresh list
+    } catch (err: any) {
+      setError(getSupabaseErrorMessage(err));
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const formatBytes = (bytes: number, decimals = 2) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-  };
-
   const filteredRecords = useMemo(() => {
     const filtered = records.filter(record => {
-      const matchesSearch = record.plateNumber.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesService = record.service.toLowerCase().includes(serviceFilter.toLowerCase());
+      const matchesSearch = record.plate_number.toLowerCase().includes(debouncedSearch.toLowerCase());
+      const matchesService = record.service_description.toLowerCase().includes(debouncedService.toLowerCase());
       return matchesSearch && matchesService;
     });
 
     return filtered;
-  }, [records, searchQuery, serviceFilter]);
+  }, [records, debouncedSearch, debouncedService]);
 
   // Fetch image for the latest record when it changes
   useEffect(() => {
     const fetchLatestImage = async () => {
-      if (filteredRecords.length > 0) {
-        const latestRecord = filteredRecords[0];
+      if (!showLatestOnly || filteredRecords.length === 0 || !user || !supabase) {
+        if (latestImage) setLatestImage(null);
+        lastFetchedRecordIdRef.current = null;
+        return;
+      }
+
+      const latestRecord = filteredRecords[0];
+      
+      // Avoid redundant fetches if the record hasn't changed
+      if (latestRecord.id === lastFetchedRecordIdRef.current) return;
+
+      // If the record already has an image (legacy), use it
+      if (latestRecord.originalImage) {
+        setLatestImage(latestRecord.originalImage);
+        lastFetchedRecordIdRef.current = latestRecord.id;
+        return;
+      }
+
+      // Otherwise fetch from separate table
+      setIsLoadingLatestImage(true);
+      try {
+        const { data, error } = await supabase
+          .from('maintenance_record_images')
+          .select('image_data')
+          .eq('record_id', latestRecord.id)
+          .eq('user_id', user.id)
+          .limit(1)
+          .single();
         
-        // If we already have this image loaded, don't fetch again
-        if (latestImage && latestRecord.id === (recordsRef.current[0]?.id)) {
-          // Check if the current latestImage corresponds to the current latestRecord
-          // This is a bit loose but helps avoid redundant fetches
-          return;
-        }
-
-        // If the record already has an image (legacy), use it
-        if (latestRecord.originalImage) {
-          setLatestImage(latestRecord.originalImage);
-          return;
-        }
-
-        // Otherwise fetch from separate collection
-        setIsLoadingLatestImage(true);
-        try {
-          const q = query(
-            collection(db, 'maintenance_record_images'),
-            where('recordId', '==', latestRecord.id),
-            where('userId', '==', user?.uid),
-            limit(1)
-          );
-          const snapshot = await getDocs(q);
-          if (!snapshot.empty) {
-            const imageData = snapshot.docs[0].data().image;
-            setLatestImage(imageData);
-            setSessionStats(prev => ({ ...prev, reads: prev.reads + 1 }));
-          } else {
-            setLatestImage(null);
-          }
-        } catch (err) {
-          console.error("Failed to fetch latest image", err);
+        if (error && error.code !== 'PGRST116') throw error;
+        
+        setSessionStats(prev => ({ ...prev, reads: prev.reads + 1 }));
+        
+        if (data) {
+          setLatestImage(data.image_data);
+        } else {
           setLatestImage(null);
-        } finally {
-          setIsLoadingLatestImage(false);
         }
-      } else {
+        lastFetchedRecordIdRef.current = latestRecord.id;
+      } catch (err) {
+        console.error("Failed to fetch latest image", err);
         setLatestImage(null);
+      } finally {
+        setIsLoadingLatestImage(false);
       }
     };
 
     fetchLatestImage();
-  }, [filteredRecords[0]?.id, user?.uid]);
+  }, [filteredRecords, user, showLatestOnly]);
 
   const groupedRecords = useMemo(() => {
     const groups: Record<string, MaintenanceRecord[]> = {};
     // Sort records by date descending within groups
-    const sorted = [...filteredRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sorted = [...filteredRecords].sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime());
     
     sorted.forEach(record => {
-      const plate = record.plateNumber || 'UNKNOWN';
+      const plate = record.plate_number || 'UNKNOWN';
       if (!groups[plate]) {
         groups[plate] = [];
       }
@@ -795,6 +601,7 @@ export default function App() {
   };
 
   const handleViewImage = async (record: MaintenanceRecord) => {
+    if (!supabase) return;
     if (record.originalImage) {
       setViewingImage({ id: record.id, image: record.originalImage, loading: false });
       return;
@@ -802,16 +609,19 @@ export default function App() {
 
     setViewingImage({ id: record.id, image: null, loading: true });
     try {
-      const q = query(
-        collection(db, 'maintenance_record_images'),
-        where('recordId', '==', record.id),
-        where('userId', '==', user?.uid),
-        limit(1)
-      );
-      const snapshot = await getDocs(q);
-      setSessionStats(prev => ({ ...prev, reads: prev.reads + snapshot.docs.length }));
-      if (!snapshot.empty) {
-        setViewingImage({ id: record.id, image: snapshot.docs[0].data().image, loading: false });
+      const { data, error } = await supabase
+        .from('maintenance_record_images')
+        .select('image_data')
+        .eq('record_id', record.id)
+        .eq('user_id', user?.id)
+        .limit(1)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      setSessionStats(prev => ({ ...prev, reads: prev.reads + 1 }));
+      if (data) {
+        setViewingImage({ id: record.id, image: data.image_data, loading: false });
       } else {
         setViewingImage({ id: record.id, image: null, loading: false });
       }
@@ -822,31 +632,25 @@ export default function App() {
   };
 
   const handleClearAll = async () => {
-    if (!user || records.length === 0) return;
+    if (!user || records.length === 0 || !supabase) return;
     if (passwordInput === MASTER_PASSWORD) {
       try {
-        // Firestore batches have a limit of 500 operations
-        const BATCH_SIZE = 400;
-        for (let i = 0; i < records.length; i += BATCH_SIZE) {
-          const batch = writeBatch(db);
-          const chunk = records.slice(i, i + BATCH_SIZE);
-          chunk.forEach(record => {
-            setSessionStats(prev => ({ ...prev, deletes: prev.deletes + 1 }));
-            batch.delete(doc(db, 'maintenance_records', record.id));
-          });
-          await batch.commit();
-        }
+        const { error } = await supabase
+          .from('maintenance_records')
+          .delete()
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        setSessionStats(prev => ({ ...prev, deletes: prev.deletes + records.length }));
+        setRecords([]);
         
         setShowPasswordPrompt(false);
         setPasswordInput('');
         setPasswordError(false);
         setDangerAction(null);
-      } catch (err) {
-        try {
-          handleFirestoreError(err, OperationType.WRITE, 'maintenance_records');
-        } catch (e: any) {
-          setError(getFirestoreErrorMessage(e));
-        }
+      } catch (err: any) {
+        setError(getSupabaseErrorMessage(err));
       }
     } else {
       setPasswordError(true);
@@ -854,7 +658,7 @@ export default function App() {
   };
 
   const handleClearDuplicates = async () => {
-    if (!user || records.length === 0) return;
+    if (!user || records.length === 0 || !supabase) return;
     if (passwordInput === MASTER_PASSWORD) {
       try {
         const seen = new Set<string>();
@@ -862,13 +666,13 @@ export default function App() {
         
         // Sort by createdAt descending to keep the most recent one
         const sortedRecords = [...records].sort((a, b) => {
-          const timeA = (a as any).createdAt?.seconds || 0;
-          const timeB = (b as any).createdAt?.seconds || 0;
+          const timeA = new Date(a.created_at).getTime();
+          const timeB = new Date(b.created_at).getTime();
           return timeB - timeA;
         });
 
         sortedRecords.forEach(record => {
-          const key = `${record.plateNumber}-${record.date}-${record.service}`.toLowerCase().trim();
+          const key = `${record.plate_number}-${record.service_date}-${record.service_description}`.toLowerCase().trim();
           if (seen.has(key)) {
             duplicates.push(record.id);
           } else {
@@ -884,27 +688,22 @@ export default function App() {
           return;
         }
 
-        const BATCH_SIZE = 400;
-        for (let i = 0; i < duplicates.length; i += BATCH_SIZE) {
-          const batch = writeBatch(db);
-          const chunk = duplicates.slice(i, i + BATCH_SIZE);
-          chunk.forEach(id => {
-            setSessionStats(prev => ({ ...prev, deletes: prev.deletes + 1 }));
-            batch.delete(doc(db, 'maintenance_records', id));
-          });
-          await batch.commit();
-        }
+        const { error } = await supabase
+          .from('maintenance_records')
+          .delete()
+          .in('id', duplicates);
+
+        if (error) throw error;
+
+        setSessionStats(prev => ({ ...prev, deletes: prev.deletes + duplicates.length }));
+        fetchRecords(); // Refresh list
         
         setShowPasswordPrompt(false);
         setPasswordInput('');
         setPasswordError(false);
         setDangerAction(null);
-      } catch (err) {
-        try {
-          handleFirestoreError(err, OperationType.DELETE, 'maintenance_records/batch');
-        } catch (e: any) {
-          setError(getFirestoreErrorMessage(e));
-        }
+      } catch (err: any) {
+        setError(getSupabaseErrorMessage(err));
       }
     } else {
       setPasswordError(true);
@@ -920,9 +719,9 @@ export default function App() {
       headers.join(','),
       ...records.map(r => {
         // Escape quotes and wrap in quotes
-        const plate = `"${r.plateNumber.replace(/"/g, '""')}"`;
-        const date = `"${r.date.replace(/"/g, '""')}"`;
-        const service = `"${r.service.replace(/"/g, '""')}"`;
+        const plate = `"${r.plate_number.replace(/"/g, '""')}"`;
+        const date = `"${r.service_date.replace(/"/g, '""')}"`;
+        const service = `"${r.service_description.replace(/"/g, '""')}"`;
         return [plate, date, service].join(',');
       })
     ];
@@ -941,6 +740,27 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0c] text-white p-4 md:p-12 max-w-7xl mx-auto flex flex-col">
+      {/* Quota Warning Banner */}
+      {isQuotaExceeded && (
+        <div className="mb-8 p-4 bg-blue-600/20 border border-blue-500/40 rounded-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="p-2 bg-blue-500/20 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-blue-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xs font-display font-bold uppercase tracking-widest text-blue-200 mb-1">Daily Read Limit Reached</h3>
+            <p className="text-[10px] text-blue-200/60 leading-relaxed uppercase tracking-wider">
+              The app is currently in <span className="text-white font-bold">Offline Cache Mode</span>. You can still view and search your existing records, but new data might not sync until the quota resets at midnight.
+            </p>
+          </div>
+          <button 
+            onClick={() => setIsQuotaExceeded(false)}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <X className="w-4 h-4 text-blue-400" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="mb-8 md:mb-12 border-b border-[var(--color-line)] pb-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -955,33 +775,6 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3 md:gap-4">
-            <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] font-mono">
-              <div className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                isCloudConnected === true ? "bg-green-500" : 
-                isCloudConnected === false ? "bg-red-500" : "bg-yellow-500 animate-pulse"
-              )} />
-              <span className="text-white/60">
-                {isCloudConnected === true ? "CLOUD CONNECTED" : 
-                 isCloudConnected === false ? "CLOUD OFFLINE" : "CHECKING CLOUD..."}
-              </span>
-              {isCloudConnected === false && (
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={() => setIsCloudConnected(null)}
-                    className="p-0.5 hover:bg-white/10 rounded transition-colors"
-                    title="Retry Connection"
-                  >
-                    <RefreshCw className="w-2.5 h-2.5 text-purple-400" />
-                  </button>
-                  {lastCloudError && (
-                    <span className="text-[6px] text-red-500/70 max-w-[80px] truncate" title={lastCloudError}>
-                      {lastCloudError}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
             <button 
               onClick={() => setShowUsageModal(true)}
               className="px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/60 font-mono hover:bg-white/10 transition-colors flex items-center gap-2"
@@ -1016,7 +809,7 @@ export default function App() {
             ) : user ? (
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <span className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-purple-400 block">Active</span>
+                  <span className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-purple-400">Active</span>
                   <span className="text-[8px] opacity-40 font-mono truncate max-w-[100px] block">{user.email}</span>
                 </div>
                 <button 
@@ -1027,34 +820,7 @@ export default function App() {
                   <LogOut className="w-3 h-3" />
                 </button>
               </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <button 
-                  onClick={() => handleLogin(false)}
-                  disabled={isLoggingIn}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-white text-black hover:bg-gray-200 transition-all shadow-lg active:scale-95 disabled:opacity-50"
-                >
-                  {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-                  <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">{isLoggingIn ? "Logging in..." : "Login"}</span>
-                </button>
-                {error && error.includes("popup") && (
-                  <button 
-                    onClick={() => handleLogin(true)}
-                    className="text-[10px] text-white/40 hover:text-white underline font-display font-bold uppercase tracking-[0.1em]"
-                  >
-                    Try Redirect Login
-                  </button>
-                )}
-                <a 
-                  href={window.location.href} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-center text-white/40 hover:text-white underline font-display font-bold uppercase tracking-[0.1em]"
-                >
-                  Open in New Tab
-                </a>
-              </div>
-            )}
+            ) : null}
 
             {!isProcessing && records.length > 0 && (
               <button 
@@ -1082,16 +848,14 @@ export default function App() {
               </button>
             )}
             <button 
-              onClick={fetchRecords}
+              onClick={() => fetchRecords()}
               disabled={isRefreshing || !user}
               className="p-2 hover:bg-white/10 rounded-full transition-all active:scale-95 disabled:opacity-50"
-              title="Sync with Cloud"
+              title="Sync with Supabase"
             >
-              <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
+              <Zap className={cn("w-4 h-4 text-emerald-400", isRefreshing && "animate-pulse")} />
             </button>
-            <label 
-              onClick={() => console.log("[DEBUG] Upload label clicked", { isProcessing, user: !!user })}
-              className={cn(
+            <label className={cn(
               "flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 active:scale-95",
               (isProcessing || !user) && "opacity-50 cursor-not-allowed"
             )}>
@@ -1115,29 +879,11 @@ export default function App() {
         
         {/* Progress Bar */}
         {isProcessing && (
-          <div className="mt-4 space-y-2">
-            <div className="flex justify-between items-center text-[9px] font-display font-bold uppercase tracking-widest text-white/40">
-              <span>{currentStatus || `Uploading ${progress.current} of ${progress.total}`}</span>
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <RefreshCw className="w-2.5 h-2.5 animate-spin text-purple-400" />
-                  {formatBytes(sessionStats.dataTransferred)} Sent
-                </span>
-                <button 
-                  onClick={stopProcessing}
-                  className="text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
-                >
-                  <X className="w-2.5 h-2.5" />
-                  STOP
-                </button>
-              </div>
-            </div>
-            <div className="h-1 w-full bg-white/10 overflow-hidden rounded-full">
-              <div 
-                className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]" 
-                style={{ width: `${(progress.current / progress.total) * 100}%` }}
-              />
-            </div>
+          <div className="mt-4 h-1 w-full bg-white/10 overflow-hidden rounded-full">
+            <div 
+              className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]" 
+              style={{ width: `${(progress.current / progress.total) * 100}%` }}
+            />
           </div>
         )}
       </header>
@@ -1148,34 +894,7 @@ export default function App() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-display font-medium">{error}</span>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => {
-                      setIsProcessing(false);
-                      setIsRefreshing(false);
-                      setCurrentStatus(null);
-                      setError(null);
-                      setFailedFiles([]);
-                    }}
-                    className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-200 text-[10px] uppercase font-bold tracking-widest rounded transition-all"
-                  >
-                    Force Reset App
-                  </button>
-                  <button 
-                    onClick={() => {
-                      if (user) {
-                        setIsCloudConnected(null);
-                        // The useEffect will re-trigger
-                      }
-                    }}
-                    className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-[10px] uppercase font-bold tracking-widest rounded transition-all"
-                  >
-                    Check Connection
-                  </button>
-                </div>
-              </div>
+              <span className="text-sm font-display font-medium">{error}</span>
             </div>
             <button 
               onClick={() => {
@@ -1202,7 +921,69 @@ export default function App() {
         </div>
       )}
 
-      {/* Upload Log Section */}
+      {/* Auth Section */}
+      {!user && isAuthReady && (
+        <div className="flex-1 flex items-center justify-center py-12">
+          <div className="w-full max-w-md p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl">
+            <div className="mb-8 text-center">
+              <h2 className="text-3xl font-display font-bold tracking-tight mb-2">
+                {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
+              </h2>
+              <p className="text-sm text-white/40 uppercase tracking-widest">
+                {authMode === 'login' ? 'Sign in to access your records' : 'Join DT.Base to start tracking'}
+              </p>
+            </div>
+
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-white/40 mb-2">Email Address</label>
+                <input 
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors text-white"
+                  placeholder="name@example.com"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-white/40 mb-2">Password</label>
+                <input 
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors text-white"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <button 
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full py-4 bg-white text-black font-display font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-200 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+                {authMode === 'login' ? 'Sign In' : 'Sign Up'}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button 
+                onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
+                className="text-[10px] font-display font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                {authMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content (Only if logged in) */}
+      {user && (
+        <>
+          {/* Upload Log Section */}
       {uploadLog.length > 0 && (
         <div className="mb-12 glass-panel p-6">
           <div className="flex items-center justify-between mb-4">
@@ -1369,26 +1150,26 @@ export default function App() {
                 On the date of <span className="text-white font-bold">
                   {(() => {
                     try {
-                      const d = new Date(filteredRecords[0].date);
-                      if (isNaN(d.getTime())) return filteredRecords[0].date;
+                      const d = new Date(filteredRecords[0].service_date);
+                      if (isNaN(d.getTime())) return filteredRecords[0].service_date;
                       const day = d.getDate().toString().padStart(2, '0');
                       const month = (d.getMonth() + 1).toString().padStart(2, '0');
                       const year = d.getFullYear().toString().slice(-2);
                       return `${day}/${month}/${year}`;
                     } catch {
-                      return filteredRecords[0].date;
+                      return filteredRecords[0].service_date;
                     }
                   })()}
                 </span>
               </p>
-              <p className="font-display text-4xl md:text-6xl font-bold tracking-tighter text-white">Truck {filteredRecords[0].plateNumber}</p>
-              <p className="font-display text-xl md:text-2xl font-medium text-purple-200">Work has been done with : {filteredRecords[0].service}</p>
+              <p className="font-display text-4xl md:text-6xl font-bold tracking-tighter text-white">Truck {filteredRecords[0].plate_number}</p>
+              <p className="font-display text-xl md:text-2xl font-medium text-purple-200">Work has been done with : {filteredRecords[0].service_description}</p>
             </div>
 
             <div className="pt-4 border-t border-white/5">
               <p className="font-display font-bold text-3xl text-white/80">
                 {(() => {
-                  const recordDate = new Date(filteredRecords[0].date);
+                  const recordDate = new Date(filteredRecords[0].service_date);
                   const now = new Date();
                   const diffTime = Math.abs(now.getTime() - recordDate.getTime());
                   const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30.4375));
@@ -1402,9 +1183,9 @@ export default function App() {
               <p className="text-[11px] font-display font-medium text-white/60 italic">
                 Note : Check the detailed picture of info above doesn't appear to satisfy your request
               </p>
-              {filteredRecords[0].fileName && (
+              {filteredRecords[0].file_name && (
                 <p className="text-[10px] font-mono opacity-40 uppercase tracking-widest">
-                  File name : {filteredRecords[0].fileName}
+                  File name : {filteredRecords[0].file_name}
                 </p>
               )}
             </div>
@@ -1496,7 +1277,7 @@ export default function App() {
                   </div>
                   <div className="text-right">
                     <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5">Last Service</div>
-                    <div className="text-[10px] font-mono font-bold text-purple-400/80">{plateRecords[0].date}</div>
+                    <div className="text-[10px] font-mono font-bold text-purple-400/80">{plateRecords[0].service_date}</div>
                   </div>
                 </button>
 
@@ -1512,9 +1293,9 @@ export default function App() {
                             </div>
                             <div className="overflow-hidden">
                               <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5">
-                                {record.date}
+                                {record.service_date}
                               </div>
-                              <div className="text-xs font-medium text-white/90 truncate">{record.service}</div>
+                              <div className="text-xs font-medium text-white/90 truncate">{record.service_description}</div>
                             </div>
                           </div>
                           <button 
@@ -1530,26 +1311,6 @@ export default function App() {
                 )}
               </div>
             ))
-          )}
-
-          {hasMore && (
-            <div className="mt-8 flex flex-col items-center gap-4">
-              <button 
-                onClick={loadMore}
-                disabled={isLoadingMore}
-                className="px-8 py-4 bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all rounded-2xl font-display font-bold uppercase tracking-[0.2em] text-[10px] flex items-center gap-3 disabled:opacity-50"
-              >
-                {isLoadingMore ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Plus className="w-4 h-4" />
-                )}
-                {isLoadingMore ? "Loading More..." : `Load More (Showing ${records.length} of ${totalRecordsCount || '...'})`}
-              </button>
-              <p className="text-[9px] font-display font-bold uppercase tracking-widest opacity-30 text-center max-w-xs">
-                We're showing the latest 100 records to save data and prevent quota limits. Click above to load more.
-              </p>
-            </div>
           )}
         </div>
       )}
@@ -1595,21 +1356,30 @@ export default function App() {
       <footer className="mt-8 flex flex-col gap-8 font-display font-bold text-[10px] uppercase tracking-[0.2em] opacity-40">
         <div className="flex justify-between items-center">
           <div className="flex gap-4 font-display font-bold">
-            <span>Total Records: {totalRecordsCount !== null ? totalRecordsCount : records.length}</span>
-            <span>Loaded: {records.length}</span>
+            <span>Total Records: {records.length}</span>
             <span>Filtered: {filteredRecords.length}</span>
+            <button 
+              onClick={() => fetchRecords()}
+              disabled={isRefreshing}
+              className="ml-4 text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1.5 active:scale-95 disabled:opacity-30"
+              title="Bypass cache and fetch directly from server"
+            >
+              <RefreshCw className={cn("w-2.5 h-2.5", isRefreshing && "animate-spin")} />
+              <span>Force Sync</span>
+            </button>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-1.5 h-1.5 rounded-full",
-                isCloudConnected === true ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : 
-                isCloudConnected === false ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : 
-                "bg-white/20"
+              <Database className={cn(
+                "w-3.5 h-3.5",
+                isCloudConnected === true ? "text-green-500" : 
+                isCloudConnected === false ? "text-red-500" : 
+                "text-white/20"
               )} />
               <span className="font-display font-bold">
-                {isCloudConnected === true ? "Cloud Connected" : 
-                 isCloudConnected === false ? "Cloud Offline" : 
+                {isQuotaExceeded ? "Quota Exceeded" :
+                 isCloudConnected === true ? "Supabase Connected" : 
+                 isCloudConnected === false ? "Supabase Offline" : 
                  "Connecting..."}
               </span>
             </div>
@@ -1622,12 +1392,11 @@ export default function App() {
               </button>
             )}
             <div className="flex items-center gap-2">
-              <RefreshCw className={cn("w-3 h-3", isProcessing && "animate-spin")} />
-              <span className="font-display font-bold">Firebase Sync</span>
+              <Zap className={cn("w-3 h-3 text-emerald-400", isProcessing && "animate-pulse")} />
+              <span className="font-display font-bold">Supabase Sync</span>
             </div>
           </div>
         </div>
-      </footer>
 
         {/* Danger Zone */}
         {!isProcessing && records.length > 0 && (
@@ -1713,6 +1482,7 @@ export default function App() {
             </div>
           </div>
         )}
+      </footer>
 
       {/* Usage Stats Modal */}
       {showUsageModal && (
@@ -1777,33 +1547,18 @@ export default function App() {
                 </div>
                 <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Daily Limit: 20,000</p>
               </div>
-
-              {/* Data Usage */}
-              <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
-                <div className="flex justify-between items-end mb-2">
-                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60">Internet Usage (Session)</span>
-                  <span className="text-xl font-mono font-bold text-white">{formatBytes(sessionStats.dataTransferred)}</span>
-                </div>
-                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-500 transition-all duration-500" 
-                    style={{ width: `${Math.min((sessionStats.dataTransferred / (100 * 1024 * 1024)) * 100, 100)}%` }}
-                  />
-                </div>
-                <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Est. Session Total</p>
-              </div>
             </div>
 
             <div className="mt-8 pt-6 border-t border-white/5">
               <div className="flex items-start gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded">
                 <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                 <p className="text-[9px] text-blue-200/70 leading-relaxed uppercase tracking-wider">
-                  These stats track your current session. Firebase counts total usage across all devices. 
-                  Check the Firebase Console for official monthly billing totals.
+                  These stats track your current session. Supabase counts total usage across all devices. 
+                  Check the Supabase Dashboard for official monthly billing totals.
                 </p>
               </div>
               <button 
-                onClick={() => setSessionStats({ reads: 0, writes: 0, deletes: 0, dataTransferred: 0 })}
+                onClick={() => setSessionStats({ reads: 0, writes: 0, deletes: 0 })}
                 className="w-full mt-4 py-3 border border-white/10 text-[10px] font-display font-bold uppercase tracking-[0.2em] hover:bg-white/5 transition-all"
               >
                 Reset Session Stats
@@ -1883,6 +1638,8 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
