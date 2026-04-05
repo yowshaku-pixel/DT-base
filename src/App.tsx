@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye } from 'lucide-react';
 import { MaintenanceRecord } from './types';
 import { extractMaintenanceData } from './services/aiService';
 import { cn, resizeImage } from './lib/utils';
@@ -11,6 +11,7 @@ interface UploadLogEntry {
   status: 'pending' | 'processing' | 'success' | 'failed';
   error?: string;
   timestamp: number;
+  imageData?: string; // Base64 image data for viewing
 }
 
 const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
@@ -113,9 +114,10 @@ export default function App() {
     }
   }, []);
 
-  // Save upload log to localStorage whenever it changes
+  // Save upload log to localStorage whenever it changes (strip image data to avoid 5MB limit)
   useEffect(() => {
-    localStorage.setItem('dt_base_upload_log', JSON.stringify(uploadLog));
+    const logToSave = uploadLog.map(({ imageData, ...rest }) => rest);
+    localStorage.setItem('dt_base_upload_log', JSON.stringify(logToSave));
   }, [uploadLog]);
 
   const clearUploadLog = () => {
@@ -364,6 +366,13 @@ export default function App() {
 
           console.log(`[UPLOAD] Resizing: ${file.name}`);
           resizedBase64 = await resizeImage(objectUrl, 1000);
+
+          // Update log with image data for viewing
+          setUploadLog(prev => prev.map(entry => 
+            entry.fileName === file.name && entry.status === 'processing' 
+              ? { ...entry, imageData: resizedBase64! } 
+              : entry
+          ));
 
           if (shouldStopRef.current) throw new Error("Upload stopped by user");
 
@@ -1087,17 +1096,39 @@ export default function App() {
                   </span>
                   
                   {entry.status === 'failed' && (
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setManualEntryData({ 
+                          fileName: entry.fileName, 
+                          plateNumber: '', 
+                          date: new Date().toISOString().split('T')[0], 
+                          service: '' 
+                        })}
+                        className="text-[9px] font-display font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 underline flex items-center gap-1"
+                      >
+                        <Plus className="w-2.5 h-2.5" />
+                        Add Manually
+                      </button>
+                      
+                      {entry.imageData && (
+                        <button 
+                          onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
+                          className="text-[9px] font-display font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-white flex items-center gap-1 transition-colors"
+                        >
+                          <Eye className="w-2.5 h-2.5" />
+                          View Image
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {entry.status !== 'failed' && entry.imageData && (
                     <button 
-                      onClick={() => setManualEntryData({ 
-                        fileName: entry.fileName, 
-                        plateNumber: '', 
-                        date: new Date().toISOString().split('T')[0], 
-                        service: '' 
-                      })}
-                      className="text-[9px] font-display font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 underline flex items-center gap-1"
+                      onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
+                      className="text-[9px] font-display font-bold uppercase tracking-widest text-white/40 hover:text-white underline flex items-center gap-1"
                     >
-                      <Plus className="w-2.5 h-2.5" />
-                      Add Manually
+                      <Eye className="w-2.5 h-2.5" />
+                      View
                     </button>
                   )}
 
@@ -1118,6 +1149,9 @@ export default function App() {
             </p>
             <p className="text-[9px] font-display font-medium opacity-40 italic">
               * Note: Mobile browsers may rename files (e.g., "image.jpg") when selecting from the gallery.
+            </p>
+            <p className="text-[9px] font-display font-medium opacity-40 italic">
+              * The "View" button is only available for the current session to save storage space.
             </p>
           </div>
         </div>

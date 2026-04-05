@@ -38,23 +38,22 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
         {
           parts: [
             {
-              text: `You are an expert at reading hand-written maintenance logs for trucks. 
+              text: `You are an expert at reading maintenance logs for trucks (both hand-written and digital). 
               
               Task: Extract all maintenance entries from the provided image.
               
               Context:
-              - The image is likely a photo of a notebook or a digital log.
-              - Handwriting may be in script or cursive.
+              - The image could be a photo of a notebook, a digital log, or a screenshot.
               - Look for dates, truck plate numbers, and descriptions of mechanical work or parts.
               
               Data Structure:
-              - Plate Number: Identify the truck (e.g., "KCL 054T", "ZEB 123").
-              - Date: The date the work was done (e.g., "27/04/21", "May 5th"). Convert to YYYY-MM-DD if possible, otherwise keep as is.
-              - Service Description: What was fixed or replaced (e.g., "Oil change", "Brake pads", "New tire").
+              - Plate Number: Identify the truck. If multiple plate numbers are listed together (e.g., "UBA824F / UBA033K"), include the full string.
+              - Date: The date the work was done. Convert to YYYY-MM-DD format. If the date is missing or marked as "—", use the current date: ${new Date().toISOString().split('T')[0]}.
+              - Service Description: What was fixed or replaced. Include the general log description, specific spare parts, and any metadata like "Garage", "Supervisor", or "Fundi" (mechanic).
               
               Important:
-              - If multiple items are listed under one date/plate, create a separate record for each item.
-              - If the handwriting is messy, do your best to guess based on context.
+              - If multiple distinct entries are found in one image, create a separate record for each.
+              - Combine all related information (Maintenance log, Spare parts, Garage, Supervisor, Fundi) into a single detailed Service Description.
               - If you are absolutely sure there are no maintenance records, return an empty array.
               
               Return the data in a structured JSON format.`,
