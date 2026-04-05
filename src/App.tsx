@@ -381,29 +381,39 @@ export default function App() {
             throw new Error("Gemini API key is missing.");
           }
           
-          // AI Extraction with retry logic for rate limits (429)
-          const extractWithRetry = async (base64: string, mime: string, retries = 3, initialDelay = 3000): Promise<any> => {
+          // AI Extraction with robust retry logic for rate limits (429) and server errors (500)
+          const extractWithRetry = async (base64: string, mime: string, retries = 5, initialDelay = 5000): Promise<any> => {
             let currentDelay = initialDelay;
             for (let i = 0; i < retries; i++) {
               try {
                 const extractionPromise = extractMaintenanceData(base64, mime);
                 const timeoutPromise = new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error("AI extraction timed out. Try a clearer photo.")), 60000)
+                  setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow. Try again or use a clearer photo.")), 90000)
                 );
                 return await Promise.race([extractionPromise, timeoutPromise]);
               } catch (err: any) {
-                const isRateLimit = err.message?.toLowerCase().includes("429") || 
-                                   err.message?.toLowerCase().includes("quota") || 
-                                   err.message?.toLowerCase().includes("resource_exhausted") ||
-                                   err.message?.toLowerCase().includes("rate limit");
+                const errorMessage = err.message?.toLowerCase() || "";
+                const isRateLimit = errorMessage.includes("429") || 
+                                   errorMessage.includes("quota") || 
+                                   errorMessage.includes("resource_exhausted") ||
+                                   errorMessage.includes("rate limit");
                 
-                if (isRateLimit && i < retries - 1) {
-                  console.warn(`[UPLOAD] Rate limit hit for ${file.name}, retrying in ${currentDelay}ms... (Attempt ${i + 1}/${retries})`);
+                const isServerError = errorMessage.includes("500") || 
+                                     errorMessage.includes("internal error") || 
+                                     errorMessage.includes("xhr error") ||
+                                     errorMessage.includes("rpc failed");
+
+                const isTimeout = errorMessage.includes("timed out");
+
+                // Retry on rate limit, server error, or timeout
+                if ((isRateLimit || isServerError || isTimeout) && i < retries - 1) {
+                  const reason = isRateLimit ? "Rate limit" : isServerError ? "Server error" : "Timeout";
+                  console.warn(`[UPLOAD] ${reason} hit for ${file.name}, retrying in ${currentDelay}ms... (Attempt ${i + 1}/${retries})`);
                   
                   // Update log to show retry status
                   setUploadLog(prev => prev.map(entry => 
                     entry.fileName === file.name && entry.status === 'processing' 
-                      ? { ...entry, error: `Rate limit hit, retrying in ${Math.round(currentDelay/1000)}s...` } 
+                      ? { ...entry, error: `${reason} hit, retrying in ${Math.round(currentDelay/1000)}s... (Attempt ${i + 1}/${retries})` } 
                       : entry
                   ));
 
@@ -508,6 +518,113 @@ export default function App() {
       setIsProcessing(false);
       setIsStopping(false);
       shouldStopRef.current = false;
+    }
+  }, [user, fetchRecords]);
+
+  const handleRetry = useCallback(async (entry: UploadLogEntry) => {
+    if (!supabase || !user || !entry.imageData) return;
+
+    try {
+      // Update log to processing
+      setUploadLog(prev => prev.map(e => 
+        e.timestamp === entry.timestamp ? { ...e, status: 'processing', error: undefined } : e
+      ));
+
+      // AI Extraction with robust retry logic for rate limits (429) and server errors (500)
+      const extractWithRetry = async (base64: string, mime: string, retries = 5, initialDelay = 5000): Promise<any> => {
+        let currentDelay = initialDelay;
+        for (let i = 0; i < retries; i++) {
+          try {
+            const extractionPromise = extractMaintenanceData(base64, mime);
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow. Try again or use a clearer photo.")), 90000)
+            );
+            return await Promise.race([extractionPromise, timeoutPromise]);
+          } catch (err: any) {
+            const errorMessage = err.message?.toLowerCase() || "";
+            const isRateLimit = errorMessage.includes("429") || 
+                               errorMessage.includes("quota") || 
+                               errorMessage.includes("resource_exhausted") ||
+                               errorMessage.includes("rate limit");
+            
+            const isServerError = errorMessage.includes("500") || 
+                                 errorMessage.includes("internal error") || 
+                                 errorMessage.includes("xhr error") ||
+                                 errorMessage.includes("rpc failed");
+
+            const isTimeout = errorMessage.includes("timed out");
+
+            // Retry on rate limit, server error, or timeout
+            if ((isRateLimit || isServerError || isTimeout) && i < retries - 1) {
+              const reason = isRateLimit ? "Rate limit" : isServerError ? "Server error" : "Timeout";
+              console.warn(`[RETRY] ${reason} hit for ${entry.fileName}, retrying in ${currentDelay}ms... (Attempt ${i + 1}/${retries})`);
+              
+              // Update log to show retry status
+              setUploadLog(prev => prev.map(e => 
+                e.timestamp === entry.timestamp ? { ...e, error: `${reason} hit, retrying in ${Math.round(currentDelay/1000)}s... (Attempt ${i + 1}/${retries})` } : e
+              ));
+
+              await new Promise(r => setTimeout(r, currentDelay));
+              currentDelay *= 2; // Exponential backoff
+              continue;
+            }
+            throw err;
+          }
+        }
+      };
+
+      const result = await extractWithRetry(entry.imageData, 'image/jpeg') as any;
+
+      if (!result || !result.records || result.records.length === 0) {
+        throw new Error("No readable records found in this image.");
+      }
+
+      for (const record of result.records) {
+        const { data: recordData, error: recordError } = await supabase
+          .from('maintenance_records')
+          .insert({
+            plate_number: record.plate_number,
+            service_date: record.service_date,
+            service_description: record.service_description,
+            confidence: record.confidence,
+            user_id: user.id,
+            file_name: entry.fileName,
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (recordError) throw recordError;
+        setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+
+        if (recordData) {
+          const { error: imageError } = await supabase
+            .from('maintenance_record_images')
+            .insert({
+              record_id: recordData.id,
+              image_data: entry.imageData,
+              user_id: user.id,
+              created_at: new Date().toISOString()
+            });
+          
+          if (imageError) throw imageError;
+          setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+        }
+      }
+      
+      // Success!
+      setUploadLog(prev => prev.map(e => 
+        e.timestamp === entry.timestamp ? { ...e, status: 'success', error: undefined } : e
+      ));
+      
+      // Refresh records
+      fetchRecords();
+
+    } catch (err: any) {
+      console.error(`[RETRY] Failed: ${entry.fileName}`, err);
+      setUploadLog(prev => prev.map(e => 
+        e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: err.message || "Unknown error" } : e
+      ));
     }
   }, [user, fetchRecords]);
 
@@ -1111,13 +1228,23 @@ export default function App() {
                       </button>
                       
                       {entry.imageData && (
-                        <button 
-                          onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
-                          className="text-[9px] font-display font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-white flex items-center gap-1 transition-colors"
-                        >
-                          <Eye className="w-2.5 h-2.5" />
-                          View Image
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => handleRetry(entry)}
+                            className="text-[9px] font-display font-bold uppercase tracking-widest bg-purple-500/20 hover:bg-purple-500/40 px-2 py-1 rounded text-purple-300 flex items-center gap-1 transition-colors"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" />
+                            Retry
+                          </button>
+                          
+                          <button 
+                            onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
+                            className="text-[9px] font-display font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-white flex items-center gap-1 transition-colors"
+                          >
+                            <Eye className="w-2.5 h-2.5" />
+                            View Image
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}

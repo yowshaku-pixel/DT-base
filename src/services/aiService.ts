@@ -115,6 +115,9 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
     if (e.message?.includes("quota") || e.message?.includes("429") || e.message?.includes("RESOURCE_EXHAUSTED")) {
       throw new Error("AI Rate Limit Exceeded (429): Please wait a minute before trying again.");
     }
+    if (e.message?.includes("500") || e.message?.includes("internal error") || e.message?.includes("xhr error") || e.message?.includes("rpc failed")) {
+      throw new Error(`AI Server Error (500): ${e.message || "Internal server error"}`);
+    }
     
     throw new Error(e.message || "AI Extraction Failed");
   }
