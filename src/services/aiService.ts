@@ -109,14 +109,35 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
   } catch (e: any) {
     console.error("AI Extraction Error:", e);
     
-    if (e.message?.includes("API_KEY_INVALID")) {
+    // Extract error message from various possible formats
+    let errorMessage = e.message || "";
+    if (typeof e === 'object' && e !== null) {
+      // Handle structured error objects from the SDK
+      if (e.status === "RESOURCE_EXHAUSTED" || e.code === 429) {
+        errorMessage = "quota_exceeded";
+      } else if (e.error?.status === "RESOURCE_EXHAUSTED" || e.error?.code === 429) {
+        errorMessage = "quota_exceeded";
+      } else if (errorMessage.toLowerCase().includes("quota") || errorMessage.includes("429") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
+        errorMessage = "quota_exceeded";
+      }
+    }
+
+    if (errorMessage === "quota_exceeded") {
+      throw new Error("AI Rate Limit Exceeded (429): You have reached your Gemini API quota. Please wait a minute or check your billing details at ai.google.dev.");
+    }
+    
+    if (errorMessage.includes("API_KEY_INVALID")) {
       throw new Error("Invalid API Key: Please check your Gemini API Key in the 'Secrets' tab.");
     }
-    if (e.message?.includes("quota") || e.message?.includes("429") || e.message?.includes("RESOURCE_EXHAUSTED")) {
-      throw new Error("AI Rate Limit Exceeded (429): Please wait a minute before trying again.");
-    }
-    if (e.message?.includes("500") || e.message?.includes("internal error") || e.message?.includes("xhr error") || e.message?.includes("rpc failed")) {
-      throw new Error(`AI Server Error (500): ${e.message || "Internal server error"}`);
+    
+    const isNetworkError = errorMessage.toLowerCase().includes("failed to fetch") || 
+                           errorMessage.toLowerCase().includes("xhr error") || 
+                           errorMessage.toLowerCase().includes("rpc failed") ||
+                           errorMessage.includes("500") ||
+                           errorMessage.toLowerCase().includes("internal error");
+
+    if (isNetworkError) {
+      throw new Error(`AI Network/Server Error: ${e.message || "Failed to connect to AI service. Please check your internet connection."}`);
     }
     
     throw new Error(e.message || "AI Extraction Failed");

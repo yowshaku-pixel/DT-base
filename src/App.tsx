@@ -313,6 +313,60 @@ export default function App() {
     }
   };
 
+  // Helper for AI extraction with robust retry logic
+  const performExtractionWithRetry = useCallback(async (
+    base64: string, 
+    fileName: string, 
+    logId: string | number, // timestamp or fileName
+    isBatch: boolean = true
+  ): Promise<any> => {
+    const retries = 7;
+    let currentDelay = 5000;
+    
+    for (let i = 0; i < retries; i++) {
+      try {
+        const extractionPromise = extractMaintenanceData(base64, 'image/jpeg');
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow.")), 90000)
+        );
+        return await Promise.race([extractionPromise, timeoutPromise]);
+      } catch (err: any) {
+        const errorMessage = err.message?.toLowerCase() || "";
+        const isRateLimit = errorMessage.includes("429") || 
+                           errorMessage.includes("quota") || 
+                           errorMessage.includes("resource_exhausted") ||
+                           errorMessage.includes("rate limit");
+        
+        const isServerError = errorMessage.includes("500") || 
+                             errorMessage.includes("internal error") || 
+                             errorMessage.includes("xhr error") ||
+                             errorMessage.includes("rpc failed") ||
+                             errorMessage.includes("failed to fetch");
+
+        const isTimeout = errorMessage.includes("timed out");
+
+        // Retry on rate limit, server error, or timeout
+        if ((isRateLimit || isServerError || isTimeout) && i < retries - 1) {
+          const reason = isRateLimit ? "Rate limit" : isServerError ? "Network/Server error" : "Timeout";
+          console.warn(`[AI] ${reason} hit for ${fileName}, retrying in ${currentDelay}ms... (Attempt ${i + 1}/${retries})`);
+          
+          // Update log to show retry status
+          setUploadLog(prev => prev.map(entry => {
+            const match = isBatch ? entry.fileName === fileName : entry.timestamp === logId;
+            return match && entry.status === 'processing' 
+              ? { ...entry, error: `${reason} hit, retrying in ${Math.round(currentDelay/1000)}s... (Attempt ${i + 1}/${retries})` } 
+              : entry;
+          }));
+
+          await new Promise(r => setTimeout(r, currentDelay));
+          currentDelay *= 2; // Exponential backoff
+          continue;
+        }
+        throw err;
+      }
+    }
+  }, []);
+
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!supabase) {
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -381,52 +435,7 @@ export default function App() {
             throw new Error("Gemini API key is missing.");
           }
           
-          // AI Extraction with robust retry logic for rate limits (429) and server errors (500)
-          const extractWithRetry = async (base64: string, mime: string, retries = 5, initialDelay = 5000): Promise<any> => {
-            let currentDelay = initialDelay;
-            for (let i = 0; i < retries; i++) {
-              try {
-                const extractionPromise = extractMaintenanceData(base64, mime);
-                const timeoutPromise = new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow. Try again or use a clearer photo.")), 90000)
-                );
-                return await Promise.race([extractionPromise, timeoutPromise]);
-              } catch (err: any) {
-                const errorMessage = err.message?.toLowerCase() || "";
-                const isRateLimit = errorMessage.includes("429") || 
-                                   errorMessage.includes("quota") || 
-                                   errorMessage.includes("resource_exhausted") ||
-                                   errorMessage.includes("rate limit");
-                
-                const isServerError = errorMessage.includes("500") || 
-                                     errorMessage.includes("internal error") || 
-                                     errorMessage.includes("xhr error") ||
-                                     errorMessage.includes("rpc failed");
-
-                const isTimeout = errorMessage.includes("timed out");
-
-                // Retry on rate limit, server error, or timeout
-                if ((isRateLimit || isServerError || isTimeout) && i < retries - 1) {
-                  const reason = isRateLimit ? "Rate limit" : isServerError ? "Server error" : "Timeout";
-                  console.warn(`[UPLOAD] ${reason} hit for ${file.name}, retrying in ${currentDelay}ms... (Attempt ${i + 1}/${retries})`);
-                  
-                  // Update log to show retry status
-                  setUploadLog(prev => prev.map(entry => 
-                    entry.fileName === file.name && entry.status === 'processing' 
-                      ? { ...entry, error: `${reason} hit, retrying in ${Math.round(currentDelay/1000)}s... (Attempt ${i + 1}/${retries})` } 
-                      : entry
-                  ));
-
-                  await new Promise(r => setTimeout(r, currentDelay));
-                  currentDelay *= 2; // Exponential backoff
-                  continue;
-                }
-                throw err;
-              }
-            }
-          };
-
-          const result = await extractWithRetry(resizedBase64, 'image/jpeg') as any;
+          const result = await performExtractionWithRetry(resizedBase64, file.name, file.name, true);
           
           if (shouldStopRef.current) throw new Error("Upload stopped by user");
 
@@ -494,8 +503,9 @@ export default function App() {
           localCompletedCount++;
           setProgress(prev => ({ ...prev, current: localCompletedCount, failed: localFailedCount }));
           
-          // Small breathing room for mobile UI
-          await new Promise(r => setTimeout(r, 300));
+          // 4-second delay between requests to stay under Gemini's 15 RPM (Requests Per Minute) rate limit
+          // 60 seconds / 15 requests = 4 seconds per request.
+          await new Promise(r => setTimeout(r, 4000));
         }
       }
 
@@ -530,50 +540,7 @@ export default function App() {
         e.timestamp === entry.timestamp ? { ...e, status: 'processing', error: undefined } : e
       ));
 
-      // AI Extraction with robust retry logic for rate limits (429) and server errors (500)
-      const extractWithRetry = async (base64: string, mime: string, retries = 5, initialDelay = 5000): Promise<any> => {
-        let currentDelay = initialDelay;
-        for (let i = 0; i < retries; i++) {
-          try {
-            const extractionPromise = extractMaintenanceData(base64, mime);
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow. Try again or use a clearer photo.")), 90000)
-            );
-            return await Promise.race([extractionPromise, timeoutPromise]);
-          } catch (err: any) {
-            const errorMessage = err.message?.toLowerCase() || "";
-            const isRateLimit = errorMessage.includes("429") || 
-                               errorMessage.includes("quota") || 
-                               errorMessage.includes("resource_exhausted") ||
-                               errorMessage.includes("rate limit");
-            
-            const isServerError = errorMessage.includes("500") || 
-                                 errorMessage.includes("internal error") || 
-                                 errorMessage.includes("xhr error") ||
-                                 errorMessage.includes("rpc failed");
-
-            const isTimeout = errorMessage.includes("timed out");
-
-            // Retry on rate limit, server error, or timeout
-            if ((isRateLimit || isServerError || isTimeout) && i < retries - 1) {
-              const reason = isRateLimit ? "Rate limit" : isServerError ? "Server error" : "Timeout";
-              console.warn(`[RETRY] ${reason} hit for ${entry.fileName}, retrying in ${currentDelay}ms... (Attempt ${i + 1}/${retries})`);
-              
-              // Update log to show retry status
-              setUploadLog(prev => prev.map(e => 
-                e.timestamp === entry.timestamp ? { ...e, error: `${reason} hit, retrying in ${Math.round(currentDelay/1000)}s... (Attempt ${i + 1}/${retries})` } : e
-              ));
-
-              await new Promise(r => setTimeout(r, currentDelay));
-              currentDelay *= 2; // Exponential backoff
-              continue;
-            }
-            throw err;
-          }
-        }
-      };
-
-      const result = await extractWithRetry(entry.imageData, 'image/jpeg') as any;
+      const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false);
 
       if (!result || !result.records || result.records.length === 0) {
         throw new Error("No readable records found in this image.");
