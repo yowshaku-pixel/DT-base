@@ -332,6 +332,10 @@ export default function App() {
         return await Promise.race([extractionPromise, timeoutPromise]);
       } catch (err: any) {
         const errorMessage = err.message?.toLowerCase() || "";
+        const isDailyQuota = errorMessage.includes("billing details") || 
+                            errorMessage.includes("current quota") ||
+                            errorMessage.includes("plan");
+        
         const isRateLimit = errorMessage.includes("429") || 
                            errorMessage.includes("quota") || 
                            errorMessage.includes("resource_exhausted") ||
@@ -344,6 +348,11 @@ export default function App() {
                              errorMessage.includes("failed to fetch");
 
         const isTimeout = errorMessage.includes("timed out");
+
+        // If it's a daily quota error, don't retry at all
+        if (isDailyQuota) {
+          throw new Error("DAILY_QUOTA_EXCEEDED");
+        }
 
         // Retry on rate limit, server error, or timeout
         if ((isRateLimit || isServerError || isTimeout) && i < retries - 1) {
@@ -500,6 +509,28 @@ export default function App() {
 
         } catch (err: any) {
           console.error(`[BATCH] Failed: ${entry.fileName}`, err);
+          
+          if (err.message === "DAILY_QUOTA_EXCEEDED") {
+            // Calculate time until midnight
+            const now = new Date();
+            const midnight = new Date();
+            midnight.setHours(24, 0, 0, 0);
+            const diffMs = midnight.getTime() - now.getTime();
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            
+            const resetMsg = `Daily Quota Reached. Reset in ${diffHours}h ${diffMins}m (at Midnight).`;
+            setError(resetMsg);
+            
+            setUploadLog(prev => prev.map(e => 
+              e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: "Daily limit reached. Try again after midnight." } : e
+            ));
+            
+            // Stop the entire batch
+            shouldStopRef.current = true;
+            break;
+          }
+
           localFailedCount++;
           setFailedFiles(prev => [...prev, entry.fileName]);
           
@@ -595,9 +626,26 @@ export default function App() {
 
     } catch (err: any) {
       console.error(`[RETRY] Failed: ${entry.fileName}`, err);
-      setUploadLog(prev => prev.map(e => 
-        e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: err.message || "Unknown error" } : e
-      ));
+      
+      if (err.message === "DAILY_QUOTA_EXCEEDED") {
+        const now = new Date();
+        const midnight = new Date();
+        midnight.setHours(24, 0, 0, 0);
+        const diffMs = midnight.getTime() - now.getTime();
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        
+        const resetMsg = `Daily Quota Reached. Reset in ${diffHours}h ${diffMins}m (at Midnight).`;
+        setError(resetMsg);
+        
+        setUploadLog(prev => prev.map(e => 
+          e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: "Daily limit reached. Try again after midnight." } : e
+        ));
+      } else {
+        setUploadLog(prev => prev.map(e => 
+          e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: err.message || "Unknown error" } : e
+        ));
+      }
     }
   }, [user, fetchRecords]);
 
