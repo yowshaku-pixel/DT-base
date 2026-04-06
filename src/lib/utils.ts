@@ -64,3 +64,44 @@ export async function resizeImage(url: string, maxDimension: number = 1200): Pro
     img.src = url;
   });
 }
+
+/**
+ * Normalizes a truck plate number by:
+ * 1. Removing trailer info (anything after / or -)
+ * 2. Removing spaces
+ * 3. Converting to lowercase
+ */
+export function normalizePlate(plate: string): string {
+  if (!plate) return "";
+  
+  // Split by / or - and take the first part
+  // We handle " /" or " -" as well by trimming
+  let cleaned = plate.split(/[/|-]/)[0].trim();
+  
+  // Remove all spaces and lowercase
+  return cleaned.replace(/\s+/g, "").toLowerCase();
+}
+
+/**
+ * Checks if two plate numbers are "similar" based on the user's rule:
+ * "more than 5 characters match at the same positions"
+ */
+export function arePlatesSimilar(plateA: string, plateB: string): boolean {
+  const normA = normalizePlate(plateA);
+  const normB = normalizePlate(plateB);
+  
+  if (normA === normB) return true;
+  
+  // Count matching characters at the same positions
+  let matches = 0;
+  const minLen = Math.min(normA.length, normB.length);
+  
+  for (let i = 0; i < minLen; i++) {
+    if (normA[i] === normB[i]) {
+      matches++;
+    }
+  }
+  
+  // User rule: "more than 5 digits so they are the same"
+  return matches > 5;
+}

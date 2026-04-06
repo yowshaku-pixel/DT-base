@@ -13,3 +13,14 @@ export interface MaintenanceRecord {
 export interface ExtractionResult {
   records: Omit<MaintenanceRecord, 'id'>[];
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+export interface ChatResponse {
+  answer: string;
+  suggestedActions?: string[];
+}

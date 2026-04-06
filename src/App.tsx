@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye } from 'lucide-react';
 import { MaintenanceRecord } from './types';
-import { extractMaintenanceData } from './services/aiService';
-import { cn, resizeImage } from './lib/utils';
+import { extractMaintenanceData, isApiKeyAvailable } from './services/aiService';
+import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
 import { supabase, getSupabaseErrorMessage } from './supabase';
 import { User } from '@supabase/supabase-js';
+import AIChatAssistant from './components/AIChatAssistant';
 
 interface UploadLogEntry {
   fileName: string;
@@ -61,7 +62,44 @@ export default function App() {
   } | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [recentServiceFilters, setRecentServiceFilters] = useState<string[]>([]);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const wakeLockRef = React.useRef<any>(null);
+
+  // API Key Selection Check
+  useEffect(() => {
+    const checkApiKey = async () => {
+      // Check if a key already exists in environment (free or paid)
+      if (isApiKeyAvailable()) {
+        setHasApiKey(true);
+        return;
+      }
+
+      if ((window as any).aistudio?.hasSelectedApiKey) {
+        try {
+          const selected = await (window as any).aistudio.hasSelectedApiKey();
+          setHasApiKey(selected);
+        } catch (err) {
+          console.error("Error checking API key:", err);
+          setHasApiKey(true); // Fallback
+        }
+      } else {
+        // If not in AI Studio or API not available, assume we have one from env
+        setHasApiKey(true);
+      }
+    };
+    checkApiKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if ((window as any).aistudio?.openSelectKey) {
+      try {
+        await (window as any).aistudio.openSelectKey();
+        setHasApiKey(true); // Assume success per instructions
+      } catch (err) {
+        console.error("Error opening key selector:", err);
+      }
+    }
+  };
 
   // PWA Install Prompt
   useEffect(() => {
@@ -410,11 +448,12 @@ export default function App() {
         
         // Only treat as a hard daily quota if it's NOT a 429/RateLimit error, 
         // or if it explicitly says "daily limit reached" without mentioning rate limits.
-        const isDailyQuota = !isRateLimit && (
-          errorMessage.includes("billing details") || 
-          errorMessage.includes("current quota") ||
-          errorMessage.includes("plan")
-        );
+        const isDailyQuota = errorMessage.includes("ai_daily_quota_exceeded") || 
+                            (!isRateLimit && (
+                              errorMessage.includes("billing details") || 
+                              errorMessage.includes("current quota") ||
+                              errorMessage.includes("plan")
+                            ));
         
         const isServerError = errorMessage.includes("500") || 
                              errorMessage.includes("internal error") || 
@@ -430,19 +469,21 @@ export default function App() {
         }
 
         // Retry on rate limit, server error, or timeout
-        if ((isRateLimit || isServerError || isTimeout) && i < retries - 1) {
+        // Increased retries to 10 for rate limits to be more resilient
+        const maxRetries = isRateLimit ? 10 : retries;
+        if ((isRateLimit || isServerError || isTimeout) && i < maxRetries - 1) {
           const reason = isRateLimit ? "Rate limit" : isServerError ? "Network/Server error" : "Timeout";
           
           // For rate limits, use a longer initial delay and more aggressive backoff
-          const retryDelay = isRateLimit ? currentDelay * 2 : currentDelay;
+          const retryDelay = isRateLimit ? currentDelay * 2.5 : currentDelay;
           
-          console.warn(`[AI] ${reason} hit for ${fileName}, retrying in ${retryDelay}ms... (Attempt ${i + 1}/${retries})`);
+          console.warn(`[AI] ${reason} hit for ${fileName}, retrying in ${retryDelay}ms... (Attempt ${i + 1}/${maxRetries})`);
           
           // Update log to show retry status
           setUploadLog(prev => prev.map(entry => {
             const match = isBatch ? entry.fileName === fileName : entry.timestamp === logId;
             return match && entry.status === 'processing' 
-              ? { ...entry, error: `${reason} hit, retrying in ${Math.round(retryDelay/1000)}s... (Attempt ${i + 1}/${retries})` } 
+              ? { ...entry, error: `${reason} hit, retrying in ${Math.round(retryDelay/1000)}s... (Attempt ${i + 1}/${maxRetries})` } 
               : entry;
           }));
 
@@ -625,9 +666,9 @@ export default function App() {
           localCompletedCount++;
           setProgress(prev => ({ ...prev, current: localCompletedCount, failed: localFailedCount }));
           
-          // 7-second delay between requests to stay within free tier rate limits (approx 8-9 RPM)
+          // 10-second delay between requests to stay within free tier rate limits (approx 6 RPM)
           if (localCompletedCount < queuedItems.length && !shouldStopRef.current) {
-            await new Promise(r => setTimeout(r, 7000));
+            await new Promise(r => setTimeout(r, 10000));
           }
         }
       }
@@ -777,7 +818,11 @@ export default function App() {
 
   const filteredRecords = useMemo(() => {
     const filtered = records.filter(record => {
-      const matchesSearch = record.plate_number.toLowerCase().includes(debouncedSearch.toLowerCase());
+      const searchLower = debouncedSearch.toLowerCase().trim();
+      const matchesSearch = !searchLower || 
+        record.plate_number.toLowerCase().includes(searchLower) ||
+        arePlatesSimilar(record.plate_number, searchLower);
+        
       const matchesService = record.service_description.toLowerCase().includes(debouncedService.toLowerCase());
       return matchesSearch && matchesService;
     });
@@ -930,8 +975,8 @@ export default function App() {
     if (!user || records.length === 0 || !supabase) return;
     if (passwordInput === MASTER_PASSWORD) {
       try {
-        const seen = new Set<string>();
         const duplicates: string[] = [];
+        const uniqueRecords: MaintenanceRecord[] = [];
         
         // Sort by createdAt descending to keep the most recent one
         const sortedRecords = [...records].sort((a, b) => {
@@ -941,16 +986,23 @@ export default function App() {
         });
 
         sortedRecords.forEach(record => {
-          const key = `${record.plate_number}-${record.service_date}-${record.service_description}`.toLowerCase().trim();
-          if (seen.has(key)) {
+          // Check if this record is a duplicate of any already seen unique record
+          // We use the new plate similarity rule: > 5 matching characters at same positions
+          const isDuplicate = uniqueRecords.some(unique => 
+            arePlatesSimilar(record.plate_number, unique.plate_number) &&
+            record.service_date === unique.service_date &&
+            record.service_description.toLowerCase().trim() === unique.service_description.toLowerCase().trim()
+          );
+
+          if (isDuplicate) {
             duplicates.push(record.id);
           } else {
-            seen.add(key);
+            uniqueRecords.push(record);
           }
         });
 
         if (duplicates.length === 0) {
-          setError("No exact duplicates found.");
+          setError("No duplicates found based on the new similarity rules.");
           setShowPasswordPrompt(false);
           setPasswordInput('');
           setDangerAction(null);
@@ -1006,6 +1058,53 @@ export default function App() {
     link.click();
     document.body.removeChild(link);
   };
+
+  if (hasApiKey === false) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl p-8 text-center">
+          <div className="w-16 h-16 bg-purple-600/20 border border-purple-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Zap className="w-8 h-8 text-purple-400" />
+          </div>
+          <h1 className="text-2xl font-display font-bold text-white mb-4 tracking-tight uppercase">Paid Tier API Key Required</h1>
+          <p className="text-sm text-white/40 mb-8 leading-relaxed uppercase tracking-widest">
+            To use the AI features of DT.Base, you need to select a Gemini API key from a paid Google Cloud project.
+          </p>
+          <div className="space-y-4">
+            <button
+              onClick={handleSelectKey}
+              className="w-full py-4 px-6 bg-purple-600 hover:bg-purple-500 text-white font-display font-bold uppercase tracking-widest text-xs rounded-xl transition-all shadow-lg shadow-purple-900/20 active:scale-[0.98]"
+            >
+              Select API Key
+            </button>
+            <p className="text-[10px] text-white/20 font-display font-medium uppercase tracking-widest">
+              Note: You must have billing enabled on your Google Cloud project.
+              <br />
+              <a 
+                href="https://ai.google.dev/gemini-api/docs/billing" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-purple-400 hover:underline mt-2 inline-block"
+              >
+                Learn more about billing
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthReady || hasApiKey === null) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40">Initialising DT.Base...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0c] text-white p-4 md:p-12 max-w-7xl mx-auto flex flex-col">
@@ -1091,12 +1190,7 @@ export default function App() {
               </div>
             )}
 
-            {!isAuthReady ? (
-              <div className="flex items-center gap-2 text-white/40">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em]">Syncing...</span>
-              </div>
-            ) : user ? (
+            {user ? (
               <div className="flex items-center gap-3">
                 <div className="text-right">
                   <span className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-purple-400">Active</span>
@@ -1212,7 +1306,7 @@ export default function App() {
       )}
 
       {/* Auth Section */}
-      {!user && isAuthReady && (
+      {!user && (
         <div className="flex-1 flex items-center justify-center py-12">
           <div className="w-full max-w-md p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl">
             <div className="mb-8 text-center">
@@ -2033,6 +2127,11 @@ export default function App() {
         </div>
       )}
         </>
+      )}
+      
+      {/* AI Chat Assistant */}
+      {user && records.length > 0 && (
+        <AIChatAssistant records={records} />
       )}
     </div>
   );
