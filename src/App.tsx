@@ -400,24 +400,31 @@ export default function App() {
         return await Promise.race([extractionPromise, timeoutPromise]);
       } catch (err: any) {
         const errorMessage = err.message?.toLowerCase() || "";
-        const isDailyQuota = errorMessage.includes("billing details") || 
-                            errorMessage.includes("current quota") ||
-                            errorMessage.includes("plan");
         
+        // Distinguish between transient rate limits (429) and hard quota limits
         const isRateLimit = errorMessage.includes("429") || 
-                           errorMessage.includes("quota") || 
                            errorMessage.includes("resource_exhausted") ||
-                           errorMessage.includes("rate limit");
+                           errorMessage.includes("rate limit") ||
+                           errorMessage.includes("quota_exceeded") ||
+                           errorMessage.includes("ai_rate_limit_exceeded");
+        
+        // Only treat as a hard daily quota if it's NOT a 429/RateLimit error, 
+        // or if it explicitly says "daily limit reached" without mentioning rate limits.
+        const isDailyQuota = !isRateLimit && (
+          errorMessage.includes("billing details") || 
+          errorMessage.includes("current quota") ||
+          errorMessage.includes("plan")
+        );
         
         const isServerError = errorMessage.includes("500") || 
                              errorMessage.includes("internal error") || 
                              errorMessage.includes("xhr error") ||
                              errorMessage.includes("rpc failed") ||
                              errorMessage.includes("failed to fetch");
-
+ 
         const isTimeout = errorMessage.includes("timed out");
 
-        // If it's a daily quota error, don't retry at all
+        // If it's a hard daily quota error, don't retry
         if (isDailyQuota) {
           throw new Error("DAILY_QUOTA_EXCEEDED");
         }
@@ -425,19 +432,28 @@ export default function App() {
         // Retry on rate limit, server error, or timeout
         if ((isRateLimit || isServerError || isTimeout) && i < retries - 1) {
           const reason = isRateLimit ? "Rate limit" : isServerError ? "Network/Server error" : "Timeout";
-          console.warn(`[AI] ${reason} hit for ${fileName}, retrying in ${currentDelay}ms... (Attempt ${i + 1}/${retries})`);
+          
+          // For rate limits, use a longer initial delay and more aggressive backoff
+          const retryDelay = isRateLimit ? currentDelay * 2 : currentDelay;
+          
+          console.warn(`[AI] ${reason} hit for ${fileName}, retrying in ${retryDelay}ms... (Attempt ${i + 1}/${retries})`);
           
           // Update log to show retry status
           setUploadLog(prev => prev.map(entry => {
             const match = isBatch ? entry.fileName === fileName : entry.timestamp === logId;
             return match && entry.status === 'processing' 
-              ? { ...entry, error: `${reason} hit, retrying in ${Math.round(currentDelay/1000)}s... (Attempt ${i + 1}/${retries})` } 
+              ? { ...entry, error: `${reason} hit, retrying in ${Math.round(retryDelay/1000)}s... (Attempt ${i + 1}/${retries})` } 
               : entry;
           }));
 
-          await new Promise(r => setTimeout(r, currentDelay));
-          currentDelay *= 2; // Exponential backoff
+          await new Promise(r => setTimeout(r, retryDelay));
+          currentDelay = retryDelay * 1.5; // Exponential backoff
           continue;
+        }
+
+        // If we exhausted all retries for a rate limit, it's effectively a daily quota exceeded
+        if (isRateLimit) {
+          throw new Error("DAILY_QUOTA_EXCEEDED");
         }
         throw err;
       }
@@ -609,9 +625,9 @@ export default function App() {
           localCompletedCount++;
           setProgress(prev => ({ ...prev, current: localCompletedCount, failed: localFailedCount }));
           
-          // 5-second delay between requests as requested by user
+          // 7-second delay between requests to stay within free tier rate limits (approx 8-9 RPM)
           if (localCompletedCount < queuedItems.length && !shouldStopRef.current) {
-            await new Promise(r => setTimeout(r, 5000));
+            await new Promise(r => setTimeout(r, 7000));
           }
         }
       }

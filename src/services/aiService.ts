@@ -111,19 +111,28 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
     
     // Extract error message from various possible formats
     let errorMessage = e.message || "";
+    let isRateLimit = false;
+    
     if (typeof e === 'object' && e !== null) {
       // Handle structured error objects from the SDK
       if (e.status === "RESOURCE_EXHAUSTED" || e.code === 429) {
-        errorMessage = "quota_exceeded";
+        isRateLimit = true;
       } else if (e.error?.status === "RESOURCE_EXHAUSTED" || e.error?.code === 429) {
-        errorMessage = "quota_exceeded";
-      } else if (errorMessage.toLowerCase().includes("quota") || errorMessage.includes("429") || errorMessage.includes("RESOURCE_EXHAUSTED")) {
-        errorMessage = "quota_exceeded";
+        isRateLimit = true;
+      }
+    }
+    
+    // Check message string if not already identified
+    if (!isRateLimit) {
+      const lowerMsg = errorMessage.toLowerCase();
+      if (lowerMsg.includes("quota") || lowerMsg.includes("429") || lowerMsg.includes("resource_exhausted") || lowerMsg.includes("rate limit")) {
+        isRateLimit = true;
       }
     }
 
-    if (errorMessage === "quota_exceeded") {
-      throw new Error("AI Rate Limit Exceeded (429): You have reached your Gemini API quota. Please wait a minute or check your billing details at ai.google.dev.");
+    if (isRateLimit) {
+      // Throw a specific error that App.tsx can handle
+      throw new Error(`AI_RATE_LIMIT_EXCEEDED: ${errorMessage}`);
     }
     
     if (errorMessage.includes("API_KEY_INVALID")) {
