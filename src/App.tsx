@@ -58,6 +58,8 @@ export default function App() {
     date: string;
     service: string;
   } | null>(null);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [recentServiceFilters, setRecentServiceFilters] = useState<string[]>([]);
   const wakeLockRef = React.useRef<any>(null);
 
   // PWA Install Prompt
@@ -129,18 +131,53 @@ export default function App() {
     setUploadLog(prev => prev.filter(entry => !(entry.fileName === fileName && entry.timestamp === timestamp)));
   };
 
+  // Load recent searches from localStorage on mount
+  useEffect(() => {
+    const savedSearches = localStorage.getItem('dt_base_recent_searches');
+    const savedServiceFilters = localStorage.getItem('dt_base_recent_service_filters');
+    if (savedSearches) setRecentSearches(JSON.parse(savedSearches));
+    if (savedServiceFilters) setRecentServiceFilters(JSON.parse(savedServiceFilters));
+  }, []);
+
+  // Save recent searches to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('dt_base_recent_searches', JSON.stringify(recentSearches));
+  }, [recentSearches]);
+
+  useEffect(() => {
+    localStorage.setItem('dt_base_recent_service_filters', JSON.stringify(recentServiceFilters));
+  }, [recentServiceFilters]);
+
+  const addToRecentSearches = (query: string) => {
+    if (!query || query.length < 2) return;
+    setRecentSearches(prev => {
+      const filtered = prev.filter(s => s.toLowerCase() !== query.toLowerCase());
+      return [query, ...filtered].slice(0, 5); // Keep last 5
+    });
+  };
+
+  const addToRecentServiceFilters = (query: string) => {
+    if (!query || query.length < 2) return;
+    setRecentServiceFilters(prev => {
+      const filtered = prev.filter(s => s.toLowerCase() !== query.toLowerCase());
+      return [query, ...filtered].slice(0, 5); // Keep last 5
+    });
+  };
+
   // Debounce search and filter to prevent excessive re-renders and Firestore reads
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-    }, 300);
+      if (searchQuery.length >= 3) addToRecentSearches(searchQuery);
+    }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedService(serviceFilter);
-    }, 300);
+      if (serviceFilter.length >= 3) addToRecentServiceFilters(serviceFilter);
+    }, 500);
     return () => clearTimeout(timer);
   }, [serviceFilter]);
 
@@ -1361,6 +1398,19 @@ export default function App() {
               </button>
             )}
           </div>
+          {recentSearches.length > 0 && !searchQuery && (
+            <div className="mt-2 flex flex-wrap gap-1.5 ml-2">
+              {recentSearches.map((s, i) => (
+                <button 
+                  key={i} 
+                  onClick={() => setSearchQuery(s)}
+                  className="text-[8px] font-mono bg-white/5 hover:bg-purple-500/20 border border-white/5 hover:border-purple-500/30 px-2 py-0.5 rounded-full opacity-40 hover:opacity-100 transition-all"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         
         <div className="relative group">
@@ -1384,6 +1434,19 @@ export default function App() {
               </button>
             )}
           </div>
+          {recentServiceFilters.length > 0 && !serviceFilter && (
+            <div className="mt-2 flex flex-wrap gap-1.5 ml-2">
+              {recentServiceFilters.map((s, i) => (
+                <button 
+                  key={i} 
+                  onClick={() => setServiceFilter(s)}
+                  className="text-[8px] font-mono bg-white/5 hover:bg-purple-500/20 border border-white/5 hover:border-purple-500/30 px-2 py-0.5 rounded-full opacity-40 hover:opacity-100 transition-all"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="relative group">
@@ -1579,8 +1642,14 @@ export default function App() {
                               {(index + 1).toString().padStart(2, '0')}
                             </div>
                             <div className="overflow-hidden">
-                              <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5">
-                                {record.service_date}
+                              <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5 flex items-center gap-2">
+                                <span>{record.service_date}</span>
+                                {record.file_name && (
+                                  <>
+                                    <span className="opacity-40">•</span>
+                                    <span className="truncate max-w-[120px]">{record.file_name}</span>
+                                  </>
+                                )}
                               </div>
                               <div className="text-xs font-medium text-white/90 truncate">{record.service_description}</div>
                             </div>
@@ -1607,7 +1676,14 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
           <div className="relative w-full max-w-4xl bg-[#0a0a0a] border border-white/10 shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-60">Record Image</span>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-60">Record Image</span>
+                {records.find(r => r.id === viewingImage.id)?.file_name && (
+                  <span className="text-[9px] font-mono opacity-40 truncate max-w-[200px]">
+                    {records.find(r => r.id === viewingImage.id)?.file_name}
+                  </span>
+                )}
+              </div>
               <button 
                 onClick={() => setViewingImage(null)}
                 className="p-2 hover:bg-white/10 rounded-full transition-colors"
