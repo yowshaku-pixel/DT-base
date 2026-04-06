@@ -8,7 +8,7 @@ import { User } from '@supabase/supabase-js';
 
 interface UploadLogEntry {
   fileName: string;
-  status: 'pending' | 'processing' | 'success' | 'failed';
+  status: 'queued' | 'processing' | 'success' | 'failed' | 'pending';
   error?: string;
   timestamp: number;
   imageData?: string; // Base64 image data for viewing
@@ -381,69 +381,83 @@ export default function App() {
 
     try {
       setIsProcessing(true);
+      setError(null);
+      const fileArray = Array.from(files);
+      setProgress({ current: 0, total: fileArray.length, failed: 0 });
+      
+      const newEntries: UploadLogEntry[] = [];
+
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        let objectUrl: string | null = null;
+        try {
+          objectUrl = URL.createObjectURL(file);
+          const resizedBase64 = await resizeImage(objectUrl, 1000);
+          
+          newEntries.push({
+            fileName: file.name,
+            status: 'queued',
+            timestamp: Date.now() + newEntries.length,
+            imageData: resizedBase64
+          });
+        } catch (err) {
+          console.error(`Error queuing ${file.name}:`, err);
+        } finally {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          setProgress(prev => ({ ...prev, current: i + 1 }));
+        }
+      }
+
+      setUploadLog(prev => [...newEntries, ...prev].slice(0, 50));
+      e.target.value = '';
+      
+      // Clear progress after a short delay
+      setTimeout(() => setProgress({ current: 0, total: 0, failed: 0 }), 1000);
+
+    } catch (err: any) {
+      console.error("Queue error:", err);
+      setError("Failed to queue images. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [user, supabase]);
+
+  const startBatchProcessing = useCallback(async () => {
+    if (!supabase || !user || isProcessing) return;
+    
+    const queuedItems = uploadLog.filter(entry => entry.status === 'queued');
+    if (queuedItems.length === 0) return;
+
+    try {
+      setIsProcessing(true);
       setIsStopping(false);
       shouldStopRef.current = false;
       setError(null);
       setFailedFiles([]);
-      setProgress({ current: 0, total: files.length, failed: 0 });
-
-      const fileArray = Array.from(files);
-      
-      // Initialize log entries for this batch
-      const newEntries: UploadLogEntry[] = fileArray.map(f => ({
-        fileName: f.name,
-        status: 'pending',
-        timestamp: Date.now()
-      }));
-      setUploadLog(prev => [...newEntries, ...prev].slice(0, 50));
+      setProgress({ current: 0, total: queuedItems.length, failed: 0 });
 
       let localCompletedCount = 0;
       let localFailedCount = 0;
 
-      // Process files one by one for maximum stability on mobile
-      for (const file of fileArray) {
+      for (const entry of queuedItems) {
         if (shouldStopRef.current) break;
 
-        // Update log to processing
-        setUploadLog(prev => prev.map(entry => 
-          entry.fileName === file.name && entry.status === 'pending' 
-            ? { ...entry, status: 'processing' } 
-            : entry
+        // Update status to processing
+        setUploadLog(prev => prev.map(e => 
+          e.timestamp === entry.timestamp ? { ...e, status: 'processing', error: undefined } : e
         ));
 
-        let objectUrl: string | null = null;
-        let resizedBase64: string | null = null;
-
         try {
-          console.log(`[UPLOAD] Starting: ${file.name}`);
-          objectUrl = URL.createObjectURL(file);
+          if (!entry.imageData) throw new Error("Image data missing for queued item.");
 
-          console.log(`[UPLOAD] Resizing: ${file.name}`);
-          resizedBase64 = await resizeImage(objectUrl, 1000);
-
-          // Update log with image data for viewing
-          setUploadLog(prev => prev.map(entry => 
-            entry.fileName === file.name && entry.status === 'processing' 
-              ? { ...entry, imageData: resizedBase64! } 
-              : entry
-          ));
-
-          if (shouldStopRef.current) throw new Error("Upload stopped by user");
-
-          console.log(`[UPLOAD] Extracting: ${file.name}`);
-          if (!process.env.GEMINI_API_KEY) {
-            throw new Error("Gemini API key is missing.");
-          }
+          const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false);
           
-          const result = await performExtractionWithRetry(resizedBase64, file.name, file.name, true);
-          
-          if (shouldStopRef.current) throw new Error("Upload stopped by user");
+          if (shouldStopRef.current) throw new Error("Processing stopped by user");
 
           if (!result || !result.records || result.records.length === 0) {
             throw new Error("No readable records found in this image.");
           }
 
-          console.log(`[UPLOAD] Saving to Supabase: ${file.name} (${result.records.length} records)`);
           for (const record of result.records) {
             if (shouldStopRef.current) break;
             
@@ -455,7 +469,7 @@ export default function App() {
                 service_description: record.service_description,
                 confidence: record.confidence,
                 user_id: user.id,
-                file_name: file.name,
+                file_name: entry.fileName,
                 created_at: new Date().toISOString()
               })
               .select()
@@ -469,7 +483,7 @@ export default function App() {
                 .from('maintenance_record_images')
                 .insert({
                   record_id: recordData.id,
-                  image_data: resizedBase64,
+                  image_data: entry.imageData,
                   user_id: user.id,
                   created_at: new Date().toISOString()
                 });
@@ -480,56 +494,48 @@ export default function App() {
           }
           
           // Success!
-          setUploadLog(prev => prev.map(entry => 
-            entry.fileName === file.name && entry.status === 'processing' 
-              ? { ...entry, status: 'success' } 
-              : entry
+          setUploadLog(prev => prev.map(e => 
+            e.timestamp === entry.timestamp ? { ...e, status: 'success' } : e
           ));
-          console.log(`[UPLOAD] Success: ${file.name}`);
 
         } catch (err: any) {
-          console.error(`[UPLOAD] Failed: ${file.name}`, err);
+          console.error(`[BATCH] Failed: ${entry.fileName}`, err);
           localFailedCount++;
-          setFailedFiles(prev => [...prev, file.name]);
+          setFailedFiles(prev => [...prev, entry.fileName]);
           
-          setUploadLog(prev => prev.map(entry => 
-            entry.fileName === file.name && entry.status === 'processing' 
-              ? { ...entry, status: 'failed', error: err.message || "Unknown error" } 
-              : entry
+          setUploadLog(prev => prev.map(e => 
+            e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: err.message || "Unknown error" } : e
           ));
         } finally {
-          if (objectUrl) URL.revokeObjectURL(objectUrl);
-          resizedBase64 = null; // Clear memory
           localCompletedCount++;
           setProgress(prev => ({ ...prev, current: localCompletedCount, failed: localFailedCount }));
           
-          // 4-second delay between requests to stay under Gemini's 15 RPM (Requests Per Minute) rate limit
-          // 60 seconds / 15 requests = 4 seconds per request.
-          await new Promise(r => setTimeout(r, 4000));
+          // 5-second delay between requests as requested by user
+          if (localCompletedCount < queuedItems.length && !shouldStopRef.current) {
+            await new Promise(r => setTimeout(r, 5000));
+          }
         }
       }
 
       if (shouldStopRef.current) return;
 
       if (localFailedCount > 0) {
-        setError(`Processed ${localCompletedCount} files, but ${localFailedCount} failed. Check the log below for details.`);
+        setError(`Processed ${localCompletedCount} images, but ${localFailedCount} failed. Check the log below.`);
       } else {
-        // Clear progress on total success
         setTimeout(() => setProgress({ current: 0, total: 0, failed: 0 }), 2000);
       }
 
-      // Refresh records after batch
       fetchRecords();
 
     } catch (err: any) {
-      console.error("Critical upload error:", err);
-      setError("A critical error occurred. Please try uploading one image at a time.");
+      console.error("Batch processing error:", err);
+      setError("A critical error occurred during batch processing.");
     } finally {
       setIsProcessing(false);
       setIsStopping(false);
       shouldStopRef.current = false;
     }
-  }, [user, fetchRecords]);
+  }, [user, supabase, uploadLog, isProcessing, fetchRecords, performExtractionWithRetry]);
 
   const handleRetry = useCallback(async (entry: UploadLogEntry) => {
     if (!supabase || !user || !entry.imageData) return;
@@ -1014,7 +1020,7 @@ export default function App() {
               <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">
                 {isProcessing 
                   ? `${progress.current}/${progress.total}` 
-                  : !user ? "Login to Add" : "Add Pictures"}
+                  : !user ? "Login to Add" : "Add to Queue"}
               </span>
               <input 
                 type="file" 
@@ -1158,7 +1164,8 @@ export default function App() {
                     "w-2 h-2 rounded-full flex-shrink-0",
                     entry.status === 'success' ? "bg-green-500" : 
                     entry.status === 'failed' ? "bg-red-500" : 
-                    entry.status === 'processing' ? "bg-purple-500 animate-pulse" : "bg-white/20"
+                    entry.status === 'processing' ? "bg-purple-500 animate-pulse" : 
+                    entry.status === 'queued' ? "bg-blue-500" : "bg-white/20"
                   )} />
                   <div className="flex flex-col overflow-hidden">
                     <span className="text-[11px] font-mono truncate opacity-80" title={entry.fileName}>{entry.fileName}</span>
@@ -1174,7 +1181,8 @@ export default function App() {
                     "text-[9px] font-display font-bold uppercase tracking-widest",
                     entry.status === 'success' ? "text-green-400" : 
                     entry.status === 'failed' ? "text-red-400" : 
-                    entry.status === 'processing' ? "text-purple-400" : "text-white/40"
+                    entry.status === 'processing' ? "text-purple-400" : 
+                    entry.status === 'queued' ? "text-blue-400" : "text-white/40"
                   )}>
                     {entry.status}
                   </span>
@@ -1237,6 +1245,38 @@ export default function App() {
               </div>
             ))}
           </div>
+
+          {uploadLog.some(e => e.status === 'queued') && (
+            <div className="mt-6 p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="text-center">
+                <h4 className="text-xs font-display font-bold text-white uppercase tracking-widest mb-1">Ready to Process</h4>
+                <p className="text-[10px] font-display font-medium text-white/40 uppercase tracking-widest">
+                  {uploadLog.filter(e => e.status === 'queued').length} images waiting in queue
+                </p>
+              </div>
+              <button 
+                onClick={startBatchProcessing}
+                disabled={isProcessing}
+                className="w-full flex items-center justify-center gap-3 py-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-bold uppercase tracking-[0.2em] text-xs rounded-xl shadow-lg shadow-purple-900/20 transition-all active:scale-[0.98]"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 fill-current" />
+                    Start AI Extraction
+                  </>
+                )}
+              </button>
+              <p className="text-[9px] font-display font-medium text-purple-400/60 uppercase tracking-widest text-center">
+                * Images will be processed one by one with a 5s interval to ensure stability
+              </p>
+            </div>
+          )}
+
           <div className="mt-4 flex flex-col gap-1">
             <p className="text-[9px] font-display font-medium opacity-40 italic">
               * This log persists even if the browser crashes. Successful uploads are saved to the cloud.
