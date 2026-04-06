@@ -35,6 +35,7 @@ export default function App() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [serviceFilter, setServiceFilter] = useState('');
   const [debouncedService, setDebouncedService] = useState('');
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [dangerAction, setDangerAction] = useState<'clearAll' | 'clearDuplicates' | null>(null);
@@ -262,6 +263,7 @@ export default function App() {
     if (!supabase) return;
     await supabase.auth.signOut();
     setRecords([]);
+    setTotalCount(0);
     localStorage.removeItem(`records_${user?.id}`);
   };
 
@@ -269,21 +271,50 @@ export default function App() {
     if (!user || !supabase) return;
     setIsRefreshing(true);
     try {
-      const { data, error } = await supabase
+      let allData: MaintenanceRecord[] = [];
+      let from = 0;
+      let to = 999;
+      
+      // Fetch first page and total count
+      const { data, count, error } = await supabase
         .from('maintenance_records')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('user_id', user.id)
-        .order('service_date', { ascending: false });
+        .order('service_date', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
 
-      setRecords(data as MaintenanceRecord[]);
+      allData = data as MaintenanceRecord[];
+      const total = count || 0;
+      setTotalCount(total);
+
+      // If there are more than 1000, fetch the rest in batches (up to 10k)
+      while (allData.length < total && allData.length < 10000) {
+        from += 1000;
+        to += 1000;
+        const { data: moreData, error: moreError } = await supabase
+          .from('maintenance_records')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('service_date', { ascending: false })
+          .range(from, to);
+        
+        if (moreError) {
+          console.warn("Error fetching more records:", moreError);
+          break;
+        }
+        if (!moreData || moreData.length === 0) break;
+        allData = [...allData, ...(moreData as MaintenanceRecord[])];
+      }
+
+      setRecords(allData);
       setIsCloudConnected(true);
       setError(null);
       setIsQuotaExceeded(false);
       
       // Cache in localStorage for offline access
-      localStorage.setItem(`records_${user.id}`, JSON.stringify(data));
+      localStorage.setItem(`records_${user.id}`, JSON.stringify(allData));
     } catch (err: any) {
       console.warn("Fetch failed:", err);
       setIsCloudConnected(false);
@@ -865,6 +896,7 @@ export default function App() {
 
         setSessionStats(prev => ({ ...prev, deletes: prev.deletes + records.length }));
         setRecords([]);
+        setTotalCount(0);
         
         setShowPasswordPrompt(false);
         setPasswordInput('');
@@ -1719,7 +1751,7 @@ export default function App() {
       <footer className="mt-8 flex flex-col gap-8 font-display font-bold text-[10px] uppercase tracking-[0.2em] opacity-40">
         <div className="flex justify-between items-center">
           <div className="flex gap-4 font-display font-bold">
-            <span>Total Records: {records.length}</span>
+            <span>Total Records: {totalCount !== null ? totalCount : records.length}</span>
             <span>Filtered: {filteredRecords.length}</span>
             <button 
               onClick={() => fetchRecords()}
