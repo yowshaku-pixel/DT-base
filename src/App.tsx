@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye } from 'lucide-react';
 import { MaintenanceRecord } from './types';
-import { extractMaintenanceData, isApiKeyAvailable } from './services/aiService';
+import { extractMaintenanceData, isApiKeyAvailable, getKeySource, KeySource } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
 import { supabase, getSupabaseErrorMessage } from './supabase';
 import { User } from '@supabase/supabase-js';
@@ -65,9 +65,13 @@ export default function App() {
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const wakeLockRef = React.useRef<any>(null);
 
+  const [keySource, setKeySource] = useState<KeySource>('none');
+
   // API Key Selection Check
   useEffect(() => {
     const checkApiKey = async () => {
+      setKeySource(getKeySource());
+      
       // Check if a key already exists in environment (free or paid)
       if (isApiKeyAvailable()) {
         setHasApiKey(true);
@@ -1162,6 +1166,16 @@ export default function App() {
             <div className="px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/40 font-mono">
               PWA: {pwaStatus}
             </div>
+            {keySource !== 'none' && (
+              <div className={cn(
+                "px-3 py-1 rounded text-[8px] font-mono font-bold tracking-widest uppercase border",
+                keySource === 'free' ? "bg-green-500/10 border-green-500/30 text-green-400" :
+                keySource === 'selected' ? "bg-blue-500/10 border-blue-500/30 text-blue-400" :
+                "bg-purple-500/10 border-purple-500/30 text-purple-400"
+              )}>
+                {keySource === 'free' ? 'Free Tier' : keySource === 'selected' ? 'Selected Key' : 'Custom Key'}
+              </div>
+            )}
             <div className="flex items-center gap-3 px-3 py-1 bg-white/5 border border-white/10 rounded">
               <div className="flex items-center gap-1.5">
                 <Database className={cn(

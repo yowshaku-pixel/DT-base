@@ -17,6 +17,20 @@ const getApiKey = () => {
   return key && key !== 'MY_GEMINI_API_KEY' ? key : null;
 };
 
+export type KeySource = 'free' | 'selected' | 'custom' | 'none';
+
+export function getKeySource(): KeySource {
+  const viteKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
+  if (viteKey && viteKey !== 'MY_GEMINI_API_KEY') return 'custom';
+  
+  if (typeof process !== 'undefined') {
+    if (process.env.API_KEY) return 'selected';
+    if (process.env.GEMINI_API_KEY) return 'free';
+  }
+  
+  return 'none';
+}
+
 export function isApiKeyAvailable(): boolean {
   return !!getApiKey();
 }
@@ -57,7 +71,9 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
                 * Example: "Kcn 851 s /zf 7827 (Gadano)" -> Extract only "Kcn 851 s".
                 * Example: "Kdm 703 f - beko" -> Extract only "Kdm 703 f".
                 * Clean the plate number: remove extra spaces and ensure it's the primary truck ID.
-              - Date: The date the work was done. Convert to YYYY-MM-DD format. If the date is missing or marked as "—", use the current date: ${new Date().toISOString().split('T')[0]}.
+              - Date: The date the work was done. Convert to YYYY-MM-DD format. 
+                * IMPORTANT: Ensure the date is a VALID calendar date. (e.g., April has only 30 days; if the log says 31/04, use 30/04).
+                * If the date is missing or marked as "—", use the current date: ${new Date().toISOString().split('T')[0]}.
               - Service Description: What was fixed or replaced. Include the general log description, specific spare parts, and any metadata like "Garage", "Supervisor", or "Fundi" (mechanic).
               
               Important:
@@ -201,6 +217,11 @@ export async function analyzeMaintenanceData(
   const systemInstruction = `You are an expert fleet maintenance analyst for DT.Base.
   
   Your task is to answer questions, summarize, analyze, and organize maintenance data for a fleet of trucks.
+  
+  Differentiating Query Types:
+  - **Single Truck**: If the user starts their query with a plate number (e.g., "Kcw 822 b..."), focus your analysis ONLY on that specific truck.
+  - **Maintenance Analysis**: If the user starts their query with a maintenance type (e.g., "oil change...", "tires...", "service..."), analyze that specific type of maintenance across all trucks.
+  - **Overall Quotations**: If the user uses the word "overall" in their query, provide a summary or analysis of the entire database.
   
   Context:
   - You have access to a list of maintenance records.

@@ -161,10 +161,10 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
                   </div>
                   <div className="grid grid-cols-1 gap-2 w-full">
                     {[
-                      "Summarize recent work",
-                      "Which truck has most issues?",
-                      "Find logs for plate KCN 851 S",
-                      "Analyze recurring mechanical problems"
+                      "KCN 851 S: Summarize all logs",
+                      "Oil Change: Analyze across all trucks",
+                      "Overall: Provide a database summary",
+                      "Which truck has most issues?"
                     ].map((suggestion) => (
                       <button
                         key={suggestion}
