@@ -24,3 +24,13 @@ export interface ChatResponse {
   answer: string;
   suggestedActions?: string[];
 }
+
+export interface MarketPrice {
+  id: string;
+  item_name: string;
+  price: number;
+  currency: string;
+  confirmed_by: string;
+  last_updated: string;
+  user_id: string;
+}

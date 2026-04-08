@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, X, MessageSquare, Loader2, Sparkles, Trash2, Key, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
-import { MaintenanceRecord, ChatMessage } from '../types';
+import { MaintenanceRecord, ChatMessage, MarketPrice } from '../types';
 import { analyzeMaintenanceData } from '../services/aiService';
 import { cn } from '../lib/utils';
 
@@ -18,13 +18,16 @@ declare global {
 
 interface AIChatAssistantProps {
   records: MaintenanceRecord[];
+  marketPrices: MarketPrice[];
+  onSaveMarketPrice: (item: string, price: number, currency: string) => Promise<void>;
 }
 
-export default function AIChatAssistant({ records }: AIChatAssistantProps) {
+export default function AIChatAssistant({ records, marketPrices, onSaveMarketPrice }: AIChatAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isShortMode, setIsShortMode] = useState(false);
   const [errorType, setErrorType] = useState<'quota' | 'rate' | 'other' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const stopRef = useRef(false);
@@ -47,19 +50,35 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
       timestamp: Date.now()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInput('');
     setIsLoading(true);
     setErrorType(null);
     stopRef.current = false;
 
     try {
-      const response = await analyzeMaintenanceData(input, records, messages);
+      const response = await analyzeMaintenanceData(
+        input + (isShortMode ? " (GIVE A VERY SHORT, CONCISE ANSWER)" : ""), 
+        records, 
+        updatedMessages, 
+        marketPrices
+      );
       if (stopRef.current) return;
       
+      // Detect price correction
+      const correctionMatch = response.match(/\[PRICE_CORRECTION:\s*(.*?)\s*\|\s*([\d.]+)\s*\|\s*(.*?)\s*\]/);
+      if (correctionMatch) {
+        const [, item, price, currency] = correctionMatch;
+        await onSaveMarketPrice(item, parseFloat(price), currency);
+      }
+
+      // Clean response from tags
+      const cleanResponse = response.replace(/\[PRICE_CORRECTION:.*?\]/g, '').trim();
+
       const assistantMessage: ChatMessage = {
         role: 'assistant',
-        content: response,
+        content: cleanResponse,
         timestamp: Date.now()
       };
       setMessages(prev => [...prev, assistantMessage]);
@@ -157,6 +176,30 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+
+            {/* Mode Toggle */}
+            <div className="px-4 py-2 border-b border-white/5 bg-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  isShortMode ? "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]" : "bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.5)]"
+                )} />
+                <span className="text-[9px] font-display font-bold uppercase tracking-widest text-white/60">
+                  Response Mode: <span className={isShortMode ? "text-blue-400" : "text-purple-400"}>{isShortMode ? "Concise" : "Detailed"}</span>
+                </span>
+              </div>
+              <button 
+                onClick={() => setIsShortMode(!isShortMode)}
+                className={cn(
+                  "px-3 py-1 rounded-full text-[8px] font-display font-bold uppercase tracking-widest transition-all border",
+                  isShortMode 
+                    ? "bg-blue-500/10 border-blue-500/30 text-blue-400" 
+                    : "bg-purple-500/10 border-purple-500/30 text-purple-400"
+                )}
+              >
+                Switch to {isShortMode ? "Detailed" : "Concise"}
+              </button>
             </div>
 
             {/* Messages */}

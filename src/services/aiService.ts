@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { ExtractionResult, MaintenanceRecord, ChatMessage } from "../types";
+import { ExtractionResult, MaintenanceRecord, ChatMessage, MarketPrice } from "../types";
+import { arePlatesSimilar, normalizePlate } from "../lib/utils";
 
 // Use the API key from environment variables (Vite or process.env)
 const getApiKey = () => {
@@ -203,7 +204,8 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
 export async function analyzeMaintenanceData(
   query: string, 
   records: MaintenanceRecord[], 
-  chatHistory: ChatMessage[] = []
+  chatHistory: ChatMessage[] = [],
+  marketPrices: MarketPrice[] = []
 ): Promise<string> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -212,11 +214,60 @@ export async function analyzeMaintenanceData(
 
   const ai = new GoogleGenAI({ apiKey });
   
+  // Smart Filtering: If the query mentions a specific truck, filter the records first
+  // This improves accuracy and reduces noise for the AI
+  let filteredRecords = [...records];
+  let filterNote = "";
+
+  // Simple heuristic: look for words that look like plates (3+ chars, often alphanumeric)
+  const words = query.split(/[\s,]+/).filter(w => w.length >= 3);
+  let detectedPlate = "";
+
+  for (const word of words) {
+    const normalizedWord = normalizePlate(word);
+    // Check if this word matches any plate in our database
+    const match = records.find(r => arePlatesSimilar(r.plate_number, normalizedWord));
+    if (match) {
+      detectedPlate = match.plate_number;
+      filteredRecords = records.filter(r => arePlatesSimilar(r.plate_number, detectedPlate));
+      filterNote = `\n**NOTE**: I have pre-filtered the data to only include records for truck ${detectedPlate} as it was mentioned in the query.`;
+      break;
+    }
+  }
+
   // Format records for the AI
-  const formattedRecords = records.map(r => ({
+  const formattedRecords = filteredRecords.map(r => ({
     plate: r.plate_number,
     date: r.service_date,
     desc: r.service_description
+  }));
+
+  // Pre-calculate truck summary for precision (on the filtered set)
+  const truckSummary: Record<string, { count: number, originalPlates: string[] }> = {};
+  filteredRecords.forEach(r => {
+    const norm = normalizePlate(r.plate_number);
+    let found = false;
+    for (const key in truckSummary) {
+      if (arePlatesSimilar(key, norm)) {
+        truckSummary[key].count++;
+        if (!truckSummary[key].originalPlates.includes(r.plate_number)) {
+          truckSummary[key].originalPlates.push(r.plate_number);
+        }
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      truckSummary[norm] = { count: 1, originalPlates: [r.plate_number] };
+    }
+  });
+
+  // Format market prices for the AI
+  const formattedMarketPrices = marketPrices.map(p => ({
+    item: p.item_name,
+    price: `${p.currency} ${p.price}`,
+    confirmed_by: p.confirmed_by,
+    date: p.last_updated
   }));
 
   const systemInstruction = `You are an expert fleet maintenance analyst and master mechanic for DT.Base. 
@@ -226,6 +277,21 @@ export async function analyzeMaintenanceData(
   
   **Internet Access**: You have access to Google Search. Use it to look up technical specifications, torque settings, fluid capacities, common fault codes, and repair procedures for MB Axor MP3 and MB Actros MP4 trucks to provide the most accurate mechanical advice.
   
+  **Market Knowledge (Confirmed Prices)**:
+  These are prices that have been confirmed or corrected by the user. ALWAYS prioritize these over internet search results.
+  ${JSON.stringify(formattedMarketPrices, null, 2)}
+
+  **Truck Summary (PRE-CALCULATED COUNTS)**:
+  Use these counts for accuracy when asked "how many records" or "how many times". 
+  ${Object.entries(truckSummary).map(([key, data]) => `- ${data.originalPlates[0]} (and similar: ${data.originalPlates.join(', ')}): ${data.count} records`).join('\n')}
+  ${filterNote}
+
+  **Price Corrections**:
+  If the user provides a price correction (e.g., "no KES 22,000" or "the price is actually 5000"), acknowledge it. 
+  IMPORTANT: If you detect a price correction, start your response with the tag [PRICE_CORRECTION: Item Name | Price | Currency]. 
+  Example: [PRICE_CORRECTION: Caltex Ultra E | 22000 | KES]
+  This allows the system to save the correction to the database.
+
   Fleet Knowledge (Identify models based on Plate Numbers):
   - **MB Axor MP3**: 
     * Range: KCL 054 to KCY 901B (Alphabetical order)
@@ -265,18 +331,20 @@ export async function analyzeMaintenanceData(
   `;
 
   try {
+    // Convert history to Gemini format
+    const history = chatHistory.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    }));
+
     const chat = ai.chats.create({
       model: "gemini-3-flash-preview",
+      history,
       config: {
         systemInstruction,
         tools: [{ googleSearch: {} }],
       },
     });
-
-    // Convert history to Gemini format
-    // Note: Gemini chat history is handled by the chat object, but we can also pass it
-    // For simplicity, we'll just send the current query as the first message if it's a new chat
-    // or use the history if provided.
     
     const response = await chat.sendMessage({ message: query });
     return response.text || "I couldn't generate a response.";

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye } from 'lucide-react';
-import { MaintenanceRecord } from './types';
+import { MaintenanceRecord, MarketPrice } from './types';
 import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable, getKeySource, KeySource } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
 import { supabase, getSupabaseErrorMessage } from './supabase';
@@ -73,6 +73,7 @@ export default function App() {
   const [troubleFindingAnswer, setTroubleFindingAnswer] = useState<string | null>(null);
   const [isTroubleFindingLoading, setIsTroubleFindingLoading] = useState(false);
   const troubleStopRef = useRef(false);
+  const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([]);
 
   // API Key Selection Check
   useEffect(() => {
@@ -922,6 +923,56 @@ export default function App() {
     return groups;
   }, [filteredRecords]);
 
+  // Fetch Market Prices
+  useEffect(() => {
+    if (!user || !supabase) return;
+    
+    const fetchMarketPrices = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('market_prices')
+          .select('*')
+          .eq('user_id', user.id);
+        
+        if (!error && data) {
+          setMarketPrices(data);
+        }
+      } catch (err) {
+        console.error("Error fetching market prices:", err);
+      }
+    };
+    
+    fetchMarketPrices();
+  }, [user]);
+
+  const handleSaveMarketPrice = async (item: string, price: number, currency: string) => {
+    if (!user || !supabase) return;
+    
+    try {
+      const { error } = await supabase
+        .from('market_prices')
+        .upsert({
+          item_name: item,
+          price: price,
+          currency: currency,
+          confirmed_by: user.email || 'User',
+          last_updated: new Date().toISOString(),
+          user_id: user.id
+        }, { onConflict: 'item_name,user_id' });
+        
+      if (!error) {
+        // Refresh prices
+        const { data: updatedData } = await supabase
+          .from('market_prices')
+          .select('*')
+          .eq('user_id', user.id);
+        if (updatedData) setMarketPrices(updatedData);
+      }
+    } catch (err) {
+      console.error("Error saving market price:", err);
+    }
+  };
+
   const handleTroubleFinding = useCallback(async () => {
     if (!records.length) return;
     setIsTroubleFindingLoading(true);
@@ -939,7 +990,7 @@ export default function App() {
       Please analyze the full database and find any records that might be similar or relevant to what they are looking for. 
       If you find similar records, list them clearly. If you don't find anything, suggest what they might be doing wrong or what else they could search for.`;
       
-      const answer = await analyzeMaintenanceData(context, records);
+      const answer = await analyzeMaintenanceData(context, records, [], marketPrices);
       if (troubleStopRef.current) return;
       
       setTroubleFindingAnswer(answer);
@@ -1796,6 +1847,33 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Market Knowledge Section */}
+      {marketPrices.length > 0 && (
+        <div className="mb-12 p-6 bg-white/5 border border-white/10 rounded-2xl">
+          <div className="flex items-center gap-3 mb-6">
+            <Database className="w-5 h-5 text-purple-400" />
+            <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">Market Knowledge Base</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {marketPrices.map((price) => (
+              <div key={price.id} className="p-4 bg-white/5 border border-white/5 rounded-xl group hover:border-purple-500/30 transition-all">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-[10px] font-display font-bold text-white/80 uppercase tracking-wider">{price.item_name}</span>
+                  <span className="text-xs font-mono font-bold text-purple-400">{price.currency} {price.price.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center mt-4">
+                  <span className="text-[8px] font-mono text-white/20 uppercase">Last: {new Date(price.last_updated).toLocaleDateString()}</span>
+                  <span className="text-[8px] font-mono text-white/20 uppercase">By: {price.confirmed_by.split('@')[0]}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[9px] font-display font-medium text-white/20 uppercase tracking-widest mt-6 text-center">
+            * Correct the AI in the chat to update these prices (e.g., "no, Caltex Ultra E is KES 22,000")
+          </p>
+        </div>
+      )}
       
       {/* Latest Result Summary Area */}
       {showLatestOnly && filteredRecords.length > 0 && (
@@ -2320,7 +2398,11 @@ export default function App() {
       
       {/* AI Chat Assistant */}
       {user && records.length > 0 && (
-        <AIChatAssistant records={records} />
+        <AIChatAssistant 
+          records={records} 
+          marketPrices={marketPrices}
+          onSaveMarketPrice={handleSaveMarketPrice}
+        />
       )}
     </div>
   );
