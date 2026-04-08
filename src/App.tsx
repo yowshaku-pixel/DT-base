@@ -1242,134 +1242,84 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="mb-8 md:mb-12 border-b border-[var(--color-line)] pb-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-purple-600/20 border border-purple-500/30 rounded-xl">
-              <Truck className="w-8 h-8 text-purple-400" strokeWidth={1.5} />
+      <header className="mb-4 md:mb-6 border-b border-white/5 pb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-600/20 border border-purple-500/30 rounded-none">
+              <Truck className="w-6 h-6 text-purple-400" strokeWidth={1.5} />
             </div>
             <div>
-              <h1 className="text-5xl md:text-7xl font-display font-bold tracking-tighter mb-2">DT.Base</h1>
-              <p className="text-[10px] md:text-sm opacity-60 uppercase tracking-[0.3em] font-display font-medium">Mechanical Issue Extraction & History Log</p>
+              <h1 className="text-5xl md:text-8xl font-display font-bold tracking-tighter leading-none">DT.Base</h1>
+              <p className="text-[11px] opacity-50 uppercase tracking-[0.5em] font-display font-bold mt-1">Mechanical History Log</p>
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3 md:gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 px-1.5 py-1 bg-white/5 border border-white/10 rounded-none text-[6px] font-mono text-white/30 uppercase tracking-tighter">
+              <span>PWA: {pwaStatus}</span>
+              {keySource !== 'none' && (
+                <>
+                  <div className="w-px h-2 bg-white/10" />
+                  <span className={cn(
+                    keySource === 'free' ? "text-green-500" :
+                    keySource === 'selected' ? "text-blue-500" :
+                    "text-purple-500"
+                  )}>{keySource}</span>
+                </>
+              )}
+            </div>
+
             <button 
               onClick={() => setShowUsageModal(true)}
-              className="px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/60 font-mono hover:bg-white/10 transition-colors flex items-center gap-2"
+              className="px-2 py-1 bg-white/5 border border-white/10 rounded-none text-[7px] text-white/40 font-mono hover:bg-white/10 transition-colors flex items-center gap-1.5"
             >
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              USAGE STATS
+              <div className="w-1 h-1 rounded-full bg-green-500" />
+              STATS
             </button>
+
             {deferredPrompt && (
               <button 
                 onClick={handleInstallClick}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-purple-600 text-white hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/40 active:scale-95 animate-bounce"
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white hover:bg-purple-500 transition-all active:scale-95 rounded-none"
               >
-                <Download className="w-4 h-4" />
-                <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">Install App</span>
+                <Download className="w-3 h-3" />
+                <span className="text-[10px] font-display font-bold uppercase tracking-widest">Install</span>
               </button>
             )}
-            <div className="px-3 py-1 bg-white/5 border border-white/10 rounded text-[8px] text-white/40 font-mono">
-              PWA: {pwaStatus}
-            </div>
-            {keySource !== 'none' && (
-              <div className={cn(
-                "px-3 py-1 rounded text-[8px] font-mono font-bold tracking-widest uppercase border",
-                keySource === 'free' ? "bg-green-500/10 border-green-500/30 text-green-400" :
-                keySource === 'selected' ? "bg-blue-500/10 border-blue-500/30 text-blue-400" :
-                "bg-purple-500/10 border-purple-500/30 text-purple-400"
-              )}>
-                {keySource === 'free' ? 'Free Tier' : keySource === 'selected' ? 'Selected Key' : 'Custom Key'}
-              </div>
-            )}
-            <div className="flex items-center gap-3 px-3 py-1 bg-white/5 border border-white/10 rounded">
-              <div className="flex items-center gap-1.5">
-                <Database className={cn(
-                  "w-2.5 h-2.5",
-                  isCloudConnected === true ? "text-green-500" : 
-                  isCloudConnected === false ? "text-red-500" : 
-                  "text-white/20"
-                )} />
-                <span className="text-[8px] font-mono text-white/40 uppercase tracking-wider">
-                  {isQuotaExceeded ? "Quota Exceeded" :
-                   isCloudConnected === true ? "Connected" : 
-                   isCloudConnected === false ? "Offline" : 
-                   "Connecting..."}
-                </span>
-              </div>
-              <div className="w-px h-2.5 bg-white/10" />
-              <div className="flex items-center gap-1.5">
-                <Zap className={cn("w-2.5 h-2.5 text-emerald-400", isProcessing && "animate-pulse")} />
-                <span className="text-[8px] font-mono text-white/40 uppercase tracking-wider">Sync</span>
-              </div>
-            </div>
-            {isProcessing && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-[9px] text-purple-400 animate-pulse">
-                <Clock className="w-3 h-3" />
-                <span className="font-display font-bold uppercase tracking-[0.2em]">Keep Screen On Active</span>
-              </div>
-            )}
-
+            
             {user ? (
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <span className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-purple-400">Active</span>
-                  <span className="text-[8px] opacity-40 font-mono truncate max-w-[100px] block">{user.email}</span>
-                </div>
+              <div className="flex items-center gap-2 px-2 py-1.5 bg-white/5 border border-white/10 rounded-none">
+                <span className="text-[7px] opacity-40 font-mono truncate max-w-[60px]">{user.email}</span>
                 <button 
                   onClick={logout}
-                  className="p-2 bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all rounded active:scale-95"
+                  className="p-1 hover:bg-white/10 transition-all rounded-none"
                   title="Logout"
                 >
-                  <LogOut className="w-3 h-3" />
+                  <LogOut className="w-2.5 h-2.5 opacity-40" />
                 </button>
               </div>
             ) : null}
 
-            {!isProcessing && records.length > 0 && (
-              <button 
-                onClick={downloadCSV}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all active:scale-95"
-              >
-                <Download className="w-4 h-4" />
-                <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">Export</span>
-              </button>
-            )}
-            {isProcessing && (
-              <button 
-                onClick={() => { 
-                  shouldStopRef.current = true; 
-                  setIsProcessing(false);
-                  setIsStopping(false);
-                  setProgress({ current: 0, total: 0, failed: 0 });
-                }}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 text-white border bg-red-500/20 border-red-500/50 hover:bg-red-500/40 transition-colors active:scale-95"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">
-                  Stop
-                </span>
-              </button>
-            )}
-            <button 
-              onClick={() => fetchRecords()}
-              disabled={isRefreshing || !user}
-              className="p-2 hover:bg-white/10 rounded-full transition-all active:scale-95 disabled:opacity-50"
-              title="Sync with Supabase"
+            <div className="flex items-center gap-2 px-2 py-1.5 bg-white/5 border border-white/10 rounded-none">
+              <Database className={cn(
+                "w-2 h-2",
+                isCloudConnected === true ? "text-green-500" : "text-red-500"
+              )} />
+              <span className="text-[7px] font-mono text-white/20 uppercase tracking-widest">
+                {isCloudConnected ? "Sync" : "Off"}
+              </span>
+            </div>
+
+            <label 
+              className={cn(
+                "flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all active:scale-95 !rounded-none",
+                (isProcessing || !user) && "opacity-50 cursor-not-allowed"
+              )}
+              style={{ borderRadius: '0px !important' }}
             >
-              <Zap className={cn("w-4 h-4 text-emerald-400", isRefreshing && "animate-pulse")} />
-            </button>
-            <label className={cn(
-              "flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 md:py-3 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 active:scale-95",
-              (isProcessing || !user) && "opacity-50 cursor-not-allowed"
-            )}>
-              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">
-                {isProcessing 
-                  ? `${progress.current}/${progress.total}` 
-                  : !user ? "Login to Add" : "Add to Queue"}
+              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+              <span className="text-[10px] font-display font-bold uppercase tracking-widest">
+                {isProcessing ? `${progress.current}/${progress.total}` : "Add to Queue"}
               </span>
               <input 
                 type="file" 
@@ -1382,6 +1332,7 @@ export default function App() {
             </label>
           </div>
         </div>
+      </header>
         
         {/* Progress Bar */}
         {isProcessing && (
@@ -1392,7 +1343,6 @@ export default function App() {
             />
           </div>
         )}
-      </header>
 
       {/* Error Message */}
       {error && (
@@ -1877,76 +1827,141 @@ export default function App() {
       
       {/* Latest Result Summary Area */}
       {showLatestOnly && filteredRecords.length > 0 && (
-        <div className="mb-12 p-8 bg-purple-600/10 border border-purple-500/30 rounded-xl">
+        <div className="mb-12 p-6 bg-white/[0.02] border border-white/10 rounded-2xl">
           <div className="flex flex-col gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-              <span className="font-display font-bold text-[10px] uppercase tracking-[0.3em] text-purple-400">Latest Record Summary</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse" />
+                <span className="font-display font-bold text-[9px] uppercase tracking-[0.3em] text-purple-400">Latest Inquiry Found</span>
+              </div>
+              <div className="text-[9px] font-mono opacity-30 uppercase tracking-widest">
+                {(() => {
+                  const d = new Date(filteredRecords[0].service_date);
+                  if (isNaN(d.getTime())) return filteredRecords[0].service_date;
+                  return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                })()}
+              </div>
             </div>
             
             {/* Show image if available */}
             {isLoadingLatestImage ? (
-              <div className="w-full max-w-md h-48 flex items-center justify-center bg-white/5 border border-white/10 rounded-lg">
-                <Loader2 className="w-6 h-6 animate-spin opacity-40" />
+              <div className="w-full max-w-sm h-40 flex items-center justify-center bg-white/5 border border-white/10 rounded-lg">
+                <Loader2 className="w-5 h-5 animate-spin opacity-20" />
               </div>
             ) : latestImage ? (
-              <div className="w-full max-w-md overflow-hidden rounded-lg border border-white/10">
+              <div className="w-full max-w-sm overflow-hidden rounded-lg border border-white/10 shadow-2xl shadow-black/50">
                 <img 
                   src={latestImage} 
                   alt="Original Record" 
-                  className="w-full h-auto object-contain"
+                  className="w-full h-auto object-contain grayscale hover:grayscale-0 transition-all duration-500"
                   referrerPolicy="no-referrer"
                 />
               </div>
-            ) : (
-              <div className="w-full max-w-md h-48 flex items-center justify-center bg-white/5 border border-white/10 rounded-lg border-dashed">
-                <p className="text-[10px] font-display font-bold uppercase tracking-widest opacity-40">No Image Available</p>
+            ) : null}
+
+            <div className="space-y-4">
+              <div className="text-center">
+                <p className="font-display text-4xl md:text-5xl font-bold tracking-tighter text-white mb-1 uppercase">{filteredRecords[0].plate_number}</p>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-[10px] font-display font-bold text-white/40 uppercase tracking-widest">History for {filteredRecords[0].plate_number}</span>
+                  <div className="w-1 h-1 bg-white/10 rounded-full" />
+                  <span className="text-[10px] font-display font-bold text-purple-400 uppercase tracking-widest">
+                    {(() => {
+                      const recordDate = new Date(filteredRecords[0].service_date);
+                      const now = new Date();
+                      const diffTime = Math.abs(now.getTime() - recordDate.getTime());
+                      const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30.4375));
+                      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                      if (diffMonths > 0) return `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago`;
+                      return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+                    })()}
+                  </span>
+                </div>
               </div>
-            )}
 
-            <div className="space-y-1">
-              <p className="font-display text-sm opacity-60 uppercase tracking-widest">
-                On the date of <span className="text-white font-bold">
+              <div className="bg-black/20 p-6 rounded-xl border border-white/5">
+                <div className="flex flex-col gap-2">
                   {(() => {
-                    try {
-                      const d = new Date(filteredRecords[0].service_date);
-                      if (isNaN(d.getTime())) return filteredRecords[0].service_date;
-                      const day = d.getDate().toString().padStart(2, '0');
-                      const month = (d.getMonth() + 1).toString().padStart(2, '0');
-                      const year = d.getFullYear().toString().slice(-2);
-                      return `${day}/${month}/${year}`;
-                    } catch {
-                      return filteredRecords[0].service_date;
-                    }
+                    // Combine all records from the same date and truck if they exist
+                    const combinedDescription = filteredRecords
+                      .filter(r => r.service_date === filteredRecords[0].service_date && r.plate_number === filteredRecords[0].plate_number)
+                      .map(r => r.service_description)
+                      .join('\n');
+
+                    return combinedDescription.split(/[,*\n]/)
+                      .map(p => p.trim())
+                      .filter(p => p)
+                      .sort((a, b) => {
+                        const aLower = a.toLowerCase();
+                        const bLower = b.toLowerCase();
+                        const aMatch = (serviceFilter && aLower.includes(serviceFilter.toLowerCase())) || (secondaryServiceFilter && aLower.includes(secondaryServiceFilter.toLowerCase()));
+                        const bMatch = (serviceFilter && bLower.includes(serviceFilter.toLowerCase())) || (secondaryServiceFilter && bLower.includes(secondaryServiceFilter.toLowerCase()));
+                        // Put matches at the bottom, non-matches at the top
+                        if (aMatch && !bMatch) return 1;
+                        if (!aMatch && bMatch) return -1;
+                        return 0;
+                      })
+                      .map((part, i) => {
+                        const lowerPart = part.toLowerCase();
+                        const isPrimaryMatch = serviceFilter && lowerPart.includes(serviceFilter.toLowerCase());
+                        const isSecondaryMatch = secondaryServiceFilter && lowerPart.includes(secondaryServiceFilter.toLowerCase());
+                        const isMatch = isPrimaryMatch || isSecondaryMatch;
+
+                        // Filter out common names/metadata ONLY if they are NOT a match
+                        const isMetadata = lowerPart.includes('mechanic') || 
+                                         lowerPart.includes('supervisor') || 
+                                         lowerPart.includes('fundi') ||
+                                         lowerPart.includes('garage');
+
+                        if (isMetadata && !isMatch) return null;
+
+                        return (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className={cn(
+                              "transition-all duration-500",
+                              isMatch 
+                                ? "text-2xl md:text-3xl font-bold text-emerald-500 leading-tight" 
+                                : "text-[14px] opacity-70 font-medium text-white/90"
+                            )}>
+                              * {part}
+                            </span>
+                          </div>
+                        );
+                      });
                   })()}
-                </span>
-              </p>
-              <p className="font-display text-4xl md:text-6xl font-bold tracking-tighter text-white">Truck {filteredRecords[0].plate_number}</p>
-              <p className="font-display text-xl md:text-2xl font-medium text-purple-200">Work has been done with : {filteredRecords[0].service_description}</p>
-            </div>
+                </div>
+              </div>
 
-            <div className="pt-4 border-t border-white/5">
-              <p className="font-display font-bold text-3xl text-white/80">
-                {(() => {
-                  const recordDate = new Date(filteredRecords[0].service_date);
-                  const now = new Date();
-                  const diffTime = Math.abs(now.getTime() - recordDate.getTime());
-                  const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30.4375));
-                  return `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago`;
-                })()}
-              </p>
-              <p className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 mt-1">Calculated till current time</p>
-            </div>
+              <div className="flex flex-col items-center gap-4 pt-4">
+                <div className="flex flex-wrap justify-center gap-2">
+                  {searchQuery && <span className="px-2 py-1 bg-white/5 rounded text-[8px] font-mono text-white/40 uppercase tracking-widest">Plate: {searchQuery}</span>}
+                  {serviceFilter && <span className="px-2 py-1 bg-white/5 rounded text-[8px] font-mono text-white/40 uppercase tracking-widest">Primary: {serviceFilter}</span>}
+                  {secondaryServiceFilter && <span className="px-2 py-1 bg-white/5 rounded text-[8px] font-mono text-white/40 uppercase tracking-widest">Secondary: {secondaryServiceFilter}</span>}
+                </div>
 
-            <div className="pt-4 border-t border-white/5 space-y-2">
-              <p className="text-[11px] font-display font-medium text-white/60 italic">
-                Note : Check the detailed picture of info above doesn't appear to satisfy your request
-              </p>
-              {filteredRecords[0].file_name && (
-                <p className="text-[10px] font-mono opacity-40 uppercase tracking-widest">
-                  File name : {filteredRecords[0].file_name}
-                </p>
-              )}
+                <button 
+                  onClick={() => {
+                    const recordDate = new Date(filteredRecords[0].service_date);
+                    const now = new Date();
+                    const diffTime = Math.abs(now.getTime() - recordDate.getTime());
+                    const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30.4375));
+                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                    const timeDiff = diffMonths > 0 ? `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago` : `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+
+                    const text = `DT.Base History for ${filteredRecords[0].plate_number}\nDate: ${filteredRecords[0].service_date} (${timeDiff})\nService: ${filteredRecords[0].service_description}`;
+                    if (navigator.share) {
+                      navigator.share({ title: 'DT.Base Record', text });
+                    } else {
+                      navigator.clipboard.writeText(text);
+                      alert("Copied to clipboard!");
+                    }
+                  }}
+                  className="flex items-center gap-2 px-8 py-3 bg-white text-black hover:bg-gray-200 transition-all active:scale-95"
+                >
+                  <Search className="w-3 h-3" />
+                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em]">Share Result</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2170,17 +2185,6 @@ export default function App() {
                     <ListFilter className="w-4 h-4" />
                     <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">Clear Duplicates</span>
                   </button>
-
-                  <button 
-                    onClick={() => {
-                      setShowPasswordPrompt(true);
-                      setDangerAction('clearAll');
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">Clear All History</span>
-                  </button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3 w-full max-w-xs relative">
@@ -2198,7 +2202,7 @@ export default function App() {
                   </button>
                   <input 
                     type="password"
-                    placeholder={`ENTER PASSWORD TO ${dangerAction === 'clearAll' ? 'CLEAR ALL' : 'CLEAR DUPLICATES'}...`}
+                    placeholder={`ENTER PASSWORD TO CLEAR DUPLICATES...`}
                     className={cn(
                       "w-full bg-white/5 border p-3 font-display font-medium text-xs focus:outline-none text-white",
                       passwordError ? "border-red-500" : "border-white/10"
@@ -2208,13 +2212,13 @@ export default function App() {
                       setPasswordInput(e.target.value);
                       setPasswordError(false);
                     }}
-                    onKeyDown={(e) => e.key === 'Enter' && (dangerAction === 'clearAll' ? handleClearAll() : handleClearDuplicates())}
+                    onKeyDown={(e) => e.key === 'Enter' && handleClearDuplicates()}
                     autoFocus
                   />
                   {passwordError && <p className="text-[9px] text-red-400 font-display font-bold">INCORRECT PASSWORD</p>}
                   <div className="flex gap-2 w-full">
                     <button 
-                      onClick={dangerAction === 'clearAll' ? handleClearAll : handleClearDuplicates}
+                      onClick={handleClearDuplicates}
                       className="flex-1 bg-red-500/20 border border-red-500/50 text-red-100 py-2 text-[10px] font-display font-bold uppercase tracking-[0.2em] hover:bg-red-500/40 transition-all"
                     >
                       CONFIRM

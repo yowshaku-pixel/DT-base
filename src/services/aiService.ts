@@ -28,7 +28,7 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
 
   const systemInstruction = `You are an expert at reading maintenance logs for trucks (both hand-written and digital). 
               
-              Task: Extract all maintenance entries from the provided image.
+              Task: Extract EVERY SINGLE maintenance entry and mechanical detail from the provided image.
               
               Context:
               - The image could be a photo of a notebook, a digital log, or a screenshot.
@@ -47,13 +47,18 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
               - Date: The date the work was done. Convert to YYYY-MM-DD format. 
                 * IMPORTANT: Ensure the date is a VALID calendar date. (e.g., April has only 30 days; if the log says 31/04, use 30/04).
                 * If the date is missing or marked as "—", use the current date: ${new Date().toISOString().split('T')[0]}.
-              - Service Description: What was fixed or replaced. Include the general log description, specific spare parts, and any metadata like "Garage", "Supervisor", or "Fundi" (mechanic).
+              - Service Description: What was fixed or replaced. 
+                * **CRITICAL**: You MUST extract EVERY SINGLE item listed in the log. Do NOT summarize. Do NOT skip any entries.
+                * If there is a list (e.g., i, ii, iii or 1, 2, 3), extract EVERY numbered item.
+                * Include the general log description, specific spare parts, and any metadata like "Garage", "Supervisor", or "Fundi" (mechanic).
                 * **COST EXTRACTION**: If you see any prices, amounts, or currency (e.g., "5000", "KES 10,000", "50 USD"), extract them clearly. 
                 * Format the description to include costs like this: "[Part/Service Name] - [Amount] [Currency]".
               
               Important:
-              - If multiple distinct entries are found in one image, create a separate record for each.
-              - Combine all related information (Maintenance log, Spare parts, Garage, Supervisor, Fundi) into a single detailed Service Description.
+              - GROUPING: If multiple maintenance items are found on the same page for the SAME TRUCK and SAME DATE, you MUST combine them into a SINGLE record. 
+              - Use a newline or a comma to separate items within the service_description.
+              - Only create separate records if the truck plate number or the date changes.
+              - Combine all related information (Maintenance log, Spare parts, Garage, Supervisor, Fundi) into a single detailed Service Description, but ENSURE NO ITEMS ARE OMITTED.
               - If you are absolutely sure there are no maintenance records, return an empty array.
               
               Return the data in a structured JSON format with a "records" array containing objects with plate_number, service_date, service_description, and confidence.`;

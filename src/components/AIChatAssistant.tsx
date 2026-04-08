@@ -27,7 +27,7 @@ export default function AIChatAssistant({ records, marketPrices, onSaveMarketPri
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isShortMode, setIsShortMode] = useState(false);
+  const [isShortMode, setIsShortMode] = useState(true);
   const [errorType, setErrorType] = useState<'quota' | 'rate' | 'other' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const stopRef = useRef(false);
