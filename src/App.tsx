@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye } from 'lucide-react';
 import { MaintenanceRecord } from './types';
-import { extractMaintenanceData, isApiKeyAvailable, getKeySource, KeySource } from './services/aiService';
+import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable, getKeySource, KeySource } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
 import { supabase, getSupabaseErrorMessage } from './supabase';
 import { User } from '@supabase/supabase-js';
@@ -36,6 +36,8 @@ export default function App() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [serviceFilter, setServiceFilter] = useState('');
   const [debouncedService, setDebouncedService] = useState('');
+  const [secondaryServiceFilter, setSecondaryServiceFilter] = useState('');
+  const [debouncedSecondaryService, setDebouncedSecondaryService] = useState('');
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
@@ -66,6 +68,11 @@ export default function App() {
   const wakeLockRef = React.useRef<any>(null);
 
   const [keySource, setKeySource] = useState<KeySource>('none');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [troubleFindingAnswer, setTroubleFindingAnswer] = useState<string | null>(null);
+  const [isTroubleFindingLoading, setIsTroubleFindingLoading] = useState(false);
+  const troubleStopRef = useRef(false);
 
   // API Key Selection Check
   useEffect(() => {
@@ -223,6 +230,13 @@ export default function App() {
     }, 500);
     return () => clearTimeout(timer);
   }, [serviceFilter]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSecondaryService(secondaryServiceFilter);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [secondaryServiceFilter]);
 
   // Screen Wake Lock to prevent "crushing" when screen turns off during processing
   useEffect(() => {
@@ -828,11 +842,17 @@ export default function App() {
         arePlatesSimilar(record.plate_number, searchLower);
         
       const matchesService = record.service_description.toLowerCase().includes(debouncedService.toLowerCase());
-      return matchesSearch && matchesService;
+      const matchesSecondaryService = record.service_description.toLowerCase().includes(debouncedSecondaryService.toLowerCase());
+      
+      const recordDate = new Date(record.service_date);
+      const matchesStartDate = !startDate || recordDate >= new Date(startDate);
+      const matchesEndDate = !endDate || recordDate <= new Date(endDate);
+
+      return matchesSearch && matchesService && matchesSecondaryService && matchesStartDate && matchesEndDate;
     });
 
     return filtered;
-  }, [records, debouncedSearch, debouncedService]);
+  }, [records, debouncedSearch, debouncedService, debouncedSecondaryService, startDate, endDate]);
 
   // Fetch image for the latest record when it changes
   useEffect(() => {
@@ -901,6 +921,43 @@ export default function App() {
     });
     return groups;
   }, [filteredRecords]);
+
+  const handleTroubleFinding = useCallback(async () => {
+    if (!records.length) return;
+    setIsTroubleFindingLoading(true);
+    setTroubleFindingAnswer(null);
+    troubleStopRef.current = false;
+    
+    try {
+      const context = `The user is having trouble finding history. 
+      Current filters: 
+      - Plate: ${searchQuery || 'None'}
+      - Primary Service: ${serviceFilter || 'None'}
+      - Secondary Service: ${secondaryServiceFilter || 'None'}
+      - Date Range: ${startDate || 'Any'} to ${endDate || 'Any'}
+      
+      Please analyze the full database and find any records that might be similar or relevant to what they are looking for. 
+      If you find similar records, list them clearly. If you don't find anything, suggest what they might be doing wrong or what else they could search for.`;
+      
+      const answer = await analyzeMaintenanceData(context, records);
+      if (troubleStopRef.current) return;
+      
+      setTroubleFindingAnswer(answer);
+    } catch (err: any) {
+      if (troubleStopRef.current) return;
+      console.error("Trouble finding error:", err);
+      setTroubleFindingAnswer("Sorry, I encountered an error while searching. Please try again.");
+    } finally {
+      if (!troubleStopRef.current) {
+        setIsTroubleFindingLoading(false);
+      }
+    }
+  }, [records, searchQuery, serviceFilter, secondaryServiceFilter, startDate, endDate]);
+
+  const handleStopTroubleFinding = () => {
+    troubleStopRef.current = true;
+    setIsTroubleFindingLoading(false);
+  };
 
   const togglePlate = (plate: string) => {
     setExpandedPlates(prev => ({
@@ -1532,7 +1589,7 @@ export default function App() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
         <div className="relative group">
           <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
           <div className="relative">
@@ -1571,26 +1628,47 @@ export default function App() {
         
         <div className="relative group">
           <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Find Maintenance</label>
-          <div className="relative">
-            <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
-            <input 
-              type="text"
-              placeholder="Service type..."
-              className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
-              value={serviceFilter}
-              onChange={(e) => setServiceFilter(e.target.value)}
-            />
-            {serviceFilter && (
-              <button 
-                onClick={() => setServiceFilter('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
-                title="Clear Filter"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          <div className="flex flex-col gap-2">
+            <div className="relative">
+              <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
+              <input 
+                type="text"
+                placeholder="Primary filter..."
+                className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
+                value={serviceFilter}
+                onChange={(e) => setServiceFilter(e.target.value)}
+              />
+              {serviceFilter && (
+                <button 
+                  onClick={() => setServiceFilter('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
+                  title="Clear Filter"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <ListFilter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
+              <input 
+                type="text"
+                placeholder="Secondary filter..."
+                className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
+                value={secondaryServiceFilter}
+                onChange={(e) => setSecondaryServiceFilter(e.target.value)}
+              />
+              {secondaryServiceFilter && (
+                <button 
+                  onClick={() => setSecondaryServiceFilter('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
+                  title="Clear Secondary Filter"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
-          {recentServiceFilters.length > 0 && !serviceFilter && (
+          {recentServiceFilters.length > 0 && !serviceFilter && !secondaryServiceFilter && (
             <div className="mt-2 flex flex-wrap gap-1.5 ml-2">
               {recentServiceFilters.map((s, i) => (
                 <button 
@@ -1606,20 +1684,117 @@ export default function App() {
         </div>
 
         <div className="relative group">
-          <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Quick View</label>
+          <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Date Range</label>
+          <div className="flex items-center gap-2">
+            <input 
+              type="date"
+              className="flex-1 bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <span className="text-white/20 text-[10px]">to</span>
+            <input 
+              type="date"
+              className="flex-1 bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-end gap-2">
           <button 
             onClick={() => setShowLatestOnly(!showLatestOnly)}
             className={cn(
-              "w-full flex items-center justify-center gap-3 p-2.5 rounded-full border transition-all font-display font-bold text-[11px] uppercase tracking-[0.2em]",
+              "flex-1 flex items-center justify-center gap-2 p-2.5 rounded-full border transition-all font-display font-bold text-[10px] uppercase tracking-[0.2em]",
               showLatestOnly 
                 ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/20" 
                 : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white"
             )}
+            title="Toggle Latest Only"
           >
             <Clock className={cn("w-3.5 h-3.5", showLatestOnly ? "animate-pulse" : "")} />
-            {showLatestOnly ? "Latest Active" : "Latest Only"}
+            {showLatestOnly ? "Latest" : "All"}
+          </button>
+          
+          <button 
+            onClick={() => {
+              setSearchQuery('');
+              setServiceFilter('');
+              setSecondaryServiceFilter('');
+              setStartDate('');
+              setEndDate('');
+            }}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 p-2.5 rounded-full border transition-all font-display font-bold text-[10px] uppercase tracking-[0.2em]",
+              (searchQuery || serviceFilter || secondaryServiceFilter || startDate || endDate) 
+                ? "bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30" 
+                : "bg-white/5 border-white/10 text-white/20 cursor-not-allowed"
+            )}
+            disabled={!(searchQuery || serviceFilter || secondaryServiceFilter || startDate || endDate)}
+            title="Clear All Filters"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Clear
           </button>
         </div>
+      </div>
+
+      {/* Trouble Finding Section */}
+      <div className="mb-12 p-6 bg-white/5 border border-white/10 rounded-2xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">Having trouble finding History?</h3>
+            <p className="text-[10px] font-display font-medium text-white/40 uppercase tracking-[0.2em]">Let the AI search the entire database for similar or related records</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleTroubleFinding}
+              disabled={isTroubleFindingLoading || records.length === 0}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-xl transition-all active:scale-95 shadow-lg shadow-purple-900/20"
+            >
+              {isTroubleFindingLoading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  AI is searching...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-3.5 h-3.5 fill-current" />
+                  Ask AI to Find History
+                </>
+              )}
+            </button>
+            {isTroubleFindingLoading && (
+              <button 
+                onClick={handleStopTroubleFinding}
+                className="px-4 py-3 bg-red-500/20 hover:bg-red-500/40 text-red-400 font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-xl transition-all active:scale-95 border border-red-500/30"
+              >
+                Stop
+              </button>
+            )}
+          </div>
+        </div>
+
+        {troubleFindingAnswer && (
+          <div className="mt-6 p-6 bg-zinc-900/50 border border-purple-500/20 rounded-xl animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
+              <span className="font-display font-bold text-[10px] uppercase tracking-[0.3em] text-purple-400">AI Search Results</span>
+              <button 
+                onClick={() => setTroubleFindingAnswer(null)}
+                className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X className="w-3 h-3 opacity-40 hover:opacity-100" />
+              </button>
+            </div>
+            <div className="prose prose-invert prose-sm max-w-none">
+              <div className="text-white/80 font-display leading-relaxed whitespace-pre-wrap text-xs">
+                {troubleFindingAnswer}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Latest Result Summary Area */}
@@ -2118,7 +2293,7 @@ export default function App() {
                   value={manualEntryData.service}
                   onChange={(e) => setManualEntryData({ ...manualEntryData, service: e.target.value })}
                   className="w-full bg-white/5 border border-white/10 p-4 rounded-xl font-display font-bold text-base focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all min-h-[100px]"
-                  placeholder="E.G. Oil Change, Tire Rotation..."
+                  placeholder="E.G. Oil Change - 15000 KES, Tire Rotation - 5000 KES..."
                 />
               </div>
 

@@ -27,6 +27,7 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorType, setErrorType] = useState<'quota' | 'rate' | 'other' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const stopRef = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -50,9 +51,12 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
     setInput('');
     setIsLoading(true);
     setErrorType(null);
+    stopRef.current = false;
 
     try {
       const response = await analyzeMaintenanceData(input, records, messages);
+      if (stopRef.current) return;
+      
       const assistantMessage: ChatMessage = {
         role: 'assistant',
         content: response,
@@ -77,8 +81,15 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
-      setIsLoading(false);
+      if (!stopRef.current) {
+        setIsLoading(false);
+      }
     }
+  };
+
+  const handleStop = () => {
+    stopRef.current = true;
+    setIsLoading(false);
   };
 
   const handleOpenKeySelector = async () => {
@@ -117,7 +128,7 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-50 w-[90vw] md:w-[400px] h-[600px] max-h-[70vh] bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-24 right-6 z-50 w-[90vw] md:w-[600px] h-[800px] max-h-[85vh] bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="p-4 border-b border-white/10 bg-gradient-to-r from-purple-900/20 to-zinc-900 flex items-center justify-between">
@@ -163,8 +174,8 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
                     {[
                       "KCN 851 S: Summarize all logs",
                       "Oil Change: Analyze across all trucks",
-                      "Overall: Provide a database summary",
-                      "Which truck has most issues?"
+                      "Overall: Total maintenance cost this month",
+                      "How much should a turbocharger for Axor MP3 cost?"
                     ].map((suggestion) => (
                       <button
                         key={suggestion}
@@ -226,9 +237,17 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
               )}
 
               {isLoading && (
-                <div className="flex items-center gap-2 text-white/40 font-mono text-[10px] animate-pulse">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  AI IS ANALYZING...
+                <div className="flex items-center justify-between gap-2 p-2 bg-purple-600/10 border border-purple-500/20 rounded-lg animate-pulse">
+                  <div className="flex items-center gap-2 text-purple-400 font-mono text-[10px]">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    AI IS ANALYZING...
+                  </div>
+                  <button 
+                    onClick={handleStop}
+                    className="px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 text-[9px] font-bold uppercase rounded transition-colors"
+                  >
+                    Stop
+                  </button>
                 </div>
               )}
               <div ref={messagesEndRef} />
@@ -236,18 +255,24 @@ export default function AIChatAssistant({ records }: AIChatAssistantProps) {
 
             {/* Input */}
             <form onSubmit={handleSend} className="p-4 border-t border-white/10 bg-zinc-900/50">
-              <div className="relative">
-                <input
-                  type="text"
+              <div className="relative flex items-end gap-2">
+                <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask DT.Base AI..."
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-colors"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder="Ask DT.Base AI... (Shift+Enter for new line)"
+                  rows={Math.min(5, input.split('\n').length || 1)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all resize-none min-h-[44px] max-h-[200px]"
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-purple-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500 transition-colors"
+                  className="mb-1 p-2.5 bg-purple-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500 transition-colors shrink-0"
                 >
                   <Send className="w-4 h-4" />
                 </button>
