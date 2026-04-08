@@ -83,14 +83,37 @@ export default function AIChatAssistant({ records, marketPrices, onSaveMarketPri
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error: any) {
-      let content = `Sorry, I encountered an error: ${error.message || 'Unknown error'}`;
+      let rawMessage = error.message || 'Unknown error';
+      let content = `Sorry, I encountered an error: ${rawMessage}`;
       
-      if (error.message?.includes('AI_DAILY_QUOTA_EXCEEDED')) {
+      // Try to parse JSON error if it looks like one
+      try {
+        if (rawMessage.includes('{')) {
+          const jsonStr = rawMessage.substring(rawMessage.indexOf('{'));
+          const parsed = JSON.parse(jsonStr);
+          if (parsed.error?.message) rawMessage = parsed.error.message;
+          else if (parsed.message) rawMessage = parsed.message;
+        }
+      } catch (e) {
+        // Not JSON or parse failed, keep original
+      }
+
+      const isQuota = rawMessage.includes('AI_DAILY_QUOTA_EXCEEDED') || 
+                      rawMessage.includes('RESOURCE_EXHAUSTED') || 
+                      rawMessage.includes('quota');
+      
+      const isRate = rawMessage.includes('AI_RATE_LIMIT_EXCEEDED') || 
+                     rawMessage.includes('429') || 
+                     rawMessage.includes('rate limit');
+
+      if (isQuota) {
         setErrorType('quota');
-        content = "### ⚠️ Quota Exceeded\nYou have reached your daily limit for AI analysis. To continue, you can wait until tomorrow or use your own Gemini API key via the **Gear Icon (API Config)** at the top right.";
-      } else if (error.message?.includes('AI_RATE_LIMIT_EXCEEDED')) {
+        content = "### ⚠️ Quota Exceeded\nYou have reached the daily limit for AI analysis. To continue, you can wait until tomorrow or use your own Gemini API key via the **Key Icon (🔑)** at the top right of this chat window.";
+      } else if (isRate) {
         setErrorType('rate');
         content = "### ⏳ Rate Limit Reached\nYou're sending questions too fast! Please wait about 60 seconds and try again.";
+      } else {
+        content = `### ❌ Error\n${rawMessage}`;
       }
 
       const errorMessage: ChatMessage = {
