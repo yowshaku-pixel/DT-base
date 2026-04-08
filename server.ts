@@ -56,7 +56,7 @@ async function startServer() {
         }
       });
 
-      const result = await chat.sendMessage(query);
+      const result = await chat.sendMessage({ message: query });
       const text = result.text;
 
       res.json({ text });
@@ -84,15 +84,17 @@ async function startServer() {
       
       const result = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: [
-          { text: systemInstruction },
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType,
+        contents: {
+          parts: [
+            { text: systemInstruction },
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType,
+              },
             },
-          },
-        ],
+          ]
+        },
       });
 
       const text = result.text;
