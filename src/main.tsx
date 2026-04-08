@@ -1,8 +1,8 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
+import App from './App';
 import './index.css';
-import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Register Service Worker for PWA support
 if ('serviceWorker' in navigator) {

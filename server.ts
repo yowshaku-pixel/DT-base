@@ -21,7 +21,9 @@ async function startServer() {
 
   // Request logger for debugging
   app.use((req, res, next) => {
-    console.log(`[SERVER] ${req.method} ${req.url}`);
+    if (req.url.startsWith('/api/')) {
+      console.log(`[API] ${req.method} ${req.url}`);
+    }
     next();
   });
 
