@@ -5,7 +5,10 @@ import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
-dotenv.config();
+const envResult = dotenv.config();
+console.log("[SERVER] Dotenv config loaded:", !!envResult.parsed);
+console.log("[SERVER] GEMINI_API_KEY present in env:", !!process.env.GEMINI_API_KEY);
+console.log("[SERVER] VITE_GEMINI_API_KEY present in env:", !!process.env.VITE_GEMINI_API_KEY);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,16 +19,25 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Request logger for debugging
+  app.use((req, res, next) => {
+    console.log(`[SERVER] ${req.method} ${req.url}`);
+    next();
+  });
+
   // API routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
 
   app.post("/api/chat", async (req, res) => {
+    console.log("[SERVER] Handling /api/chat request");
+    console.log("[SERVER] Request body keys:", Object.keys(req.body || {}));
     try {
       const { query, history, systemInstruction, model = "gemini-3-flash-preview" } = req.body;
       
       const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+      console.log("[SERVER] API Key present:", !!apiKey);
       
       if (!apiKey) {
         console.error("Missing API Key on server");
@@ -99,6 +111,12 @@ async function startServer() {
         details: error.toString()
       });
     }
+  });
+
+  // Catch-all for API routes to prevent HTML fallback
+  app.all("/api/*", (req, res) => {
+    console.warn(`[SERVER] API Route not found: ${req.method} ${req.url}`);
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
   });
 
   // Vite middleware for development
