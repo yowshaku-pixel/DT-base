@@ -1,22 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { ExtractionResult, MaintenanceRecord, ChatMessage, MarketPrice } from "../types";
 import { arePlatesSimilar, normalizePlate } from "../lib/utils";
-
-// Use the API key from environment variables (Vite or process.env)
-const getApiKey = () => {
-  // In AI Studio Build, the key is usually available as process.env.GEMINI_API_KEY
-  // but for client-side apps, Vite doesn't automatically expose process.env.
-  // We check both Vite's import.meta.env and a global process.env if it exists.
-  
-  const viteKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
-  const processKey = typeof process !== 'undefined' ? (process.env.API_KEY || process.env.GEMINI_API_KEY) : '';
-  
-  console.log("[DEBUG] getApiKey: viteKey exists:", !!viteKey);
-  console.log("[DEBUG] getApiKey: processKey exists:", !!processKey);
-  
-  const key = viteKey || processKey;
-  return key && key !== 'MY_GEMINI_API_KEY' ? key : null;
-};
 
 export type KeySource = 'free' | 'selected' | 'custom' | 'none';
 
@@ -33,7 +16,7 @@ export function getKeySource(): KeySource {
 }
 
 export function isApiKeyAvailable(): boolean {
-  return !!getApiKey();
+  return true; // Backend handles the key now
 }
 
 export async function extractMaintenanceData(base64Image: string, mimeType: string): Promise<ExtractionResult> {
@@ -41,23 +24,9 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
     return { records: [] };
   }
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("Gemini API Key is missing. Please go to the 'Settings' menu (gear icon), then 'Secrets', and add a secret named 'VITE_GEMINI_API_KEY' with your Gemini API key.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
-  console.log("Starting AI extraction with model: gemini-3-flash-preview");
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: [
-        {
-          parts: [
-            {
-              text: `You are an expert at reading maintenance logs for trucks (both hand-written and digital). 
+  const systemInstruction = `You are an expert at reading maintenance logs for trucks (both hand-written and digital). 
               
               Task: Extract all maintenance entries from the provided image.
               
@@ -87,116 +56,29 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
               - Combine all related information (Maintenance log, Spare parts, Garage, Supervisor, Fundi) into a single detailed Service Description.
               - If you are absolutely sure there are no maintenance records, return an empty array.
               
-              Return the data in a structured JSON format.`,
-            },
-            {
-              inlineData: {
-                data: base64Data,
-                mimeType,
-              },
-            },
-          ],
-        },
-      ],
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            records: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  plate_number: { type: Type.STRING, description: "The truck's plate number" },
-                  service_date: { type: Type.STRING, description: "The date of service" },
-                  service_description: { type: Type.STRING, description: "Description of the work done" },
-                  confidence: { type: Type.NUMBER, description: "Confidence score from 0 to 1" },
-                },
-                required: ["plate_number", "service_date", "service_description"],
-              },
-            },
-          },
-          required: ["records"],
-        },
+              Return the data in a structured JSON format with a "records" array containing objects with plate_number, service_date, service_description, and confidence.`;
+
+  try {
+    const response = await fetch('/api/extract', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        base64Data,
+        mimeType,
+        systemInstruction
+      }),
     });
 
-    const text = response.text;
-    if (!text) {
-      const finishReason = response.candidates?.[0]?.finishReason;
-      if (finishReason === 'SAFETY') {
-        throw new Error("AI blocked the image due to safety filters. Please ensure the photo only contains log text.");
-      }
-      throw new Error(`No response from AI (Reason: ${finishReason || 'Unknown'})`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to communicate with extraction server.");
     }
-    
-    try {
-      return JSON.parse(text);
-    } catch (parseError) {
-      console.error("JSON Parse Error. Raw text:", text);
-      throw new Error("AI returned an invalid data format. Please try again.");
-    }
+
+    return await response.json();
   } catch (e: any) {
     console.error("AI Extraction Error:", e);
-    
-    // Extract error message from various possible formats
-    let rawError = e.message || "";
-    let errorMessage = rawError;
-    
-    // Try to parse if it's a JSON string (common in Gemini SDK errors)
-    try {
-      if (rawError.startsWith('{')) {
-        const parsed = JSON.parse(rawError);
-        errorMessage = parsed.error?.message || parsed.message || rawError;
-      }
-    } catch (p) {
-      // Not JSON, use as is
-    }
-
-    let isRateLimit = false;
-    let isHardQuota = false;
-    
-    const lowerMsg = errorMessage.toLowerCase();
-    
-    // Check for hard quota limits (daily or plan-based)
-    if (lowerMsg.includes("billing details") || 
-        lowerMsg.includes("current quota") || 
-        lowerMsg.includes("plan") || 
-        lowerMsg.includes("daily limit reached")) {
-      isHardQuota = true;
-    }
-    
-    // Check for transient rate limits
-    if (lowerMsg.includes("429") || 
-        lowerMsg.includes("resource_exhausted") || 
-        lowerMsg.includes("rate limit") || 
-        lowerMsg.includes("quota_exceeded")) {
-      isRateLimit = true;
-    }
-
-    if (isHardQuota) {
-      throw new Error(`AI_DAILY_QUOTA_EXCEEDED: ${errorMessage}`);
-    }
-
-    if (isRateLimit) {
-      throw new Error(`AI_RATE_LIMIT_EXCEEDED: ${errorMessage}`);
-    }
-    
-    if (errorMessage.includes("API_KEY_INVALID")) {
-      throw new Error("Invalid API Key: Please check your Gemini API Key in the 'Secrets' tab.");
-    }
-    
-    const isNetworkError = errorMessage.toLowerCase().includes("failed to fetch") || 
-                           errorMessage.toLowerCase().includes("xhr error") || 
-                           errorMessage.toLowerCase().includes("rpc failed") ||
-                           errorMessage.includes("500") ||
-                           errorMessage.toLowerCase().includes("internal error");
-
-    if (isNetworkError) {
-      throw new Error(`AI Network/Server Error: ${e.message || "Failed to connect to AI service. Please check your internet connection."}`);
-    }
-    
     throw new Error(e.message || "AI Extraction Failed");
   }
 }
@@ -207,12 +89,6 @@ export async function analyzeMaintenanceData(
   chatHistory: ChatMessage[] = [],
   marketPrices: MarketPrice[] = []
 ): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("Gemini API Key is missing.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
   
   // Smart Filtering: If the query mentions a specific truck, filter the records first
   // This improves accuracy and reduces noise for the AI
@@ -275,8 +151,6 @@ export async function analyzeMaintenanceData(
   
   Your task is to answer questions, summarize, analyze, and provide mechanical advice based on maintenance data.
   
-  **Internet Access**: You have access to Google Search. Use it to look up technical specifications, torque settings, fluid capacities, common fault codes, and repair procedures for MB Axor MP3 and MB Actros MP4 trucks to provide the most accurate mechanical advice.
-  
   **Market Knowledge (Confirmed Prices)**:
   These are prices that have been confirmed or corrected by the user. ALWAYS prioritize these over internet search results.
   ${JSON.stringify(formattedMarketPrices, null, 2)}
@@ -307,7 +181,6 @@ export async function analyzeMaintenanceData(
   Cost Analysis & Pricing:
   - **Extract Costs**: Look for currency symbols or keywords like "KES", "USD", "Price", "Cost", "Amount" within the service descriptions.
   - **Calculate Totals**: If asked for costs, sum up the values you find. Be careful with different currencies (default to KES if not specified, but note if multiple are present).
-  - **Market Research**: Use Google Search to find current market prices for spare parts or services if the user asks "How much should this cost?" or "Is this a good price?". Compare the recorded costs in the database with current market rates.
   
   Mechanic Persona:
   - Act as a highly skilled mechanic. If you see recurring issues (e.g., frequent brake changes on an Actros MP4), provide technical insights or preventative maintenance suggestions specific to that model.
@@ -337,17 +210,27 @@ export async function analyzeMaintenanceData(
       parts: [{ text: msg.content }]
     }));
 
-    const chat = ai.chats.create({
-      model: "gemini-3-flash-preview",
-      history,
-      config: {
-        systemInstruction,
-        tools: [{ googleSearch: {} }],
+    // Call the backend API instead of direct AI call
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        query,
+        history,
+        systemInstruction,
+        model: "gemini-3-flash-preview"
+      }),
     });
-    
-    const response = await chat.sendMessage({ message: query });
-    return response.text || "I couldn't generate a response.";
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to communicate with AI server.");
+    }
+
+    const data = await response.json();
+    return data.text || "I couldn't generate a response.";
   } catch (e: any) {
     console.error("AI Analysis Error:", e);
     throw new Error(e.message || "AI Analysis Failed");
