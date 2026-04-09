@@ -1,22 +1,12 @@
+import { GoogleGenAI } from "@google/genai";
 import { ExtractionResult, MaintenanceRecord, ChatMessage, MarketPrice } from "../types";
 import { arePlatesSimilar, normalizePlate } from "../lib/utils";
 
-export type KeySource = 'free' | 'selected' | 'custom' | 'none';
-
-export function getKeySource(): KeySource {
-  const viteKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
-  if (viteKey && viteKey !== 'MY_GEMINI_API_KEY') return 'custom';
-  
-  if (typeof process !== 'undefined') {
-    if (process.env.API_KEY) return 'selected';
-    if (process.env.GEMINI_API_KEY) return 'free';
-  }
-  
-  return 'none';
-}
+// Initialize AI directly in the frontend
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function isApiKeyAvailable(): boolean {
-  return true; // Backend handles the key now
+  return !!process.env.GEMINI_API_KEY;
 }
 
 export async function extractMaintenanceData(base64Image: string, mimeType: string): Promise<ExtractionResult> {
@@ -64,26 +54,31 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
               Return the data in a structured JSON format with a "records" array containing objects with plate_number, service_date, service_description, and confidence.`;
 
   try {
-    const response = await fetch('/api/extract', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    console.log("[AI] Starting extraction with Gemini...");
+    const result = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: {
+        parts: [
+          { text: systemInstruction },
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType,
+            },
+          },
+        ]
       },
-      body: JSON.stringify({
-        base64Data,
-        mimeType,
-        systemInstruction
-      }),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to communicate with extraction server.");
-    }
+    const text = result.text;
+    console.log("[AI] Extraction raw response:", text);
 
-    return await response.json();
+    // Clean markdown if present
+    const jsonMatch = text?.match(/\{[\s\S]*\}/);
+    const cleanJson = jsonMatch ? jsonMatch[0] : text;
+    return JSON.parse(cleanJson || '{"records":[]}');
   } catch (e: any) {
-    console.error("AI Extraction Error:", e);
+    console.error("[AI] AI Extraction Error:", e);
     throw new Error(e.message || "AI Extraction Failed");
   }
 }
@@ -209,35 +204,22 @@ export async function analyzeMaintenanceData(
   `;
 
   try {
-    // Convert history to Gemini format
-    const history = chatHistory.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }]
-    }));
-
-    // Call the backend API instead of direct AI call
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query,
-        history,
-        systemInstruction,
-        model: "gemini-3-flash-preview"
-      }),
+    console.log("[AI] Starting chat analysis with Gemini...");
+    const chat = ai.chats.create({
+      model: "gemini-3-flash-preview",
+      history: chatHistory.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      })),
+      config: {
+        systemInstruction: systemInstruction
+      }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Failed to communicate with AI server.");
-    }
-
-    const data = await response.json();
-    return data.text || "I couldn't generate a response.";
+    const result = await chat.sendMessage({ message: query });
+    return result.text || "I couldn't generate a response.";
   } catch (e: any) {
-    console.error("AI Analysis Error:", e);
+    console.error("[AI] AI Analysis Error:", e);
     throw new Error(e.message || "AI Analysis Failed");
   }
 }

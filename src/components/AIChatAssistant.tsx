@@ -108,7 +108,7 @@ export default function AIChatAssistant({ records, marketPrices, onSaveMarketPri
 
       if (isQuota) {
         setErrorType('quota');
-        content = "### ⚠️ Quota Exceeded\nYou have reached the daily limit for AI analysis. To continue, you can wait until tomorrow or use your own Gemini API key via the **Key Icon (🔑)** at the top right of this chat window.";
+        content = "### ⚠️ Quota Exceeded\nYou have reached the daily limit for AI analysis. Please try again tomorrow.";
       } else if (isRate) {
         setErrorType('rate');
         content = "### ⏳ Rate Limit Reached\nYou're sending questions too fast! Please wait about 60 seconds and try again.";
@@ -132,15 +132,6 @@ export default function AIChatAssistant({ records, marketPrices, onSaveMarketPri
   const handleStop = () => {
     stopRef.current = true;
     setIsLoading(false);
-  };
-
-  const handleOpenKeySelector = async () => {
-    if (window.aistudio?.openSelectKey) {
-      await window.aistudio.openSelectKey();
-      // After selecting a key, the environment usually refreshes or injects the key.
-      // We can clear the error and let the user try again.
-      setErrorType(null);
-    }
   };
 
   const clearChat = () => {
@@ -184,13 +175,6 @@ export default function AIChatAssistant({ records, marketPrices, onSaveMarketPri
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <button 
-                  onClick={handleOpenKeySelector}
-                  className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-purple-400"
-                  title="Change API Key"
-                >
-                  <Key className="w-4 h-4" />
-                </button>
                 <button 
                   onClick={clearChat}
                   className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-red-400"
@@ -290,15 +274,8 @@ export default function AIChatAssistant({ records, marketPrices, onSaveMarketPri
                     QUOTA EXCEEDED
                   </div>
                   <p className="text-[10px] text-white/60 font-mono">
-                    You've hit the daily limit. You can use your own Gemini API key to get higher limits.
+                    You've hit the daily limit. Please try again tomorrow.
                   </p>
-                  <button
-                    onClick={handleOpenKeySelector}
-                    className="w-full py-2 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Key className="w-3 h-3" />
-                    USE MY OWN API KEY
-                  </button>
                 </div>
               )}
 

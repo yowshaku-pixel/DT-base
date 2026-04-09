@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
-import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable, getKeySource, KeySource } from './services/aiService';
+import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
 import { supabase, getSupabaseErrorMessage } from './supabase';
 import { User } from '@supabase/supabase-js';
@@ -67,7 +67,6 @@ export default function App() {
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const wakeLockRef = React.useRef<any>(null);
 
-  const [keySource, setKeySource] = useState<KeySource>('none');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [troubleFindingAnswer, setTroubleFindingAnswer] = useState<string | null>(null);
@@ -78,8 +77,6 @@ export default function App() {
   // API Key Selection Check
   useEffect(() => {
     const checkApiKey = async () => {
-      setKeySource(getKeySource());
-      
       // Check if a key already exists in environment (free or paid)
       if (isApiKeyAvailable()) {
         setHasApiKey(true);
@@ -712,6 +709,11 @@ export default function App() {
     }
   }, [user, supabase, uploadLog, isProcessing, fetchRecords, performExtractionWithRetry]);
 
+  const stopBatchProcessing = useCallback(() => {
+    setIsStopping(true);
+    shouldStopRef.current = true;
+  }, []);
+
   const handleRetry = useCallback(async (entry: UploadLogEntry) => {
     if (!supabase || !user || !entry.imageData) return;
 
@@ -1257,16 +1259,6 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 px-1.5 py-1 bg-white/5 border border-white/10 rounded-none text-[6px] font-mono text-white/30 uppercase tracking-tighter">
               <span>PWA: {pwaStatus}</span>
-              {keySource !== 'none' && (
-                <>
-                  <div className="w-px h-2 bg-white/10" />
-                  <span className={cn(
-                    keySource === 'free' ? "text-green-500" :
-                    keySource === 'selected' ? "text-blue-500" :
-                    "text-purple-500"
-                  )}>{keySource}</span>
-                </>
-              )}
             </div>
 
             <button 
@@ -1336,11 +1328,26 @@ export default function App() {
         
         {/* Progress Bar */}
         {isProcessing && (
-          <div className="mt-4 h-1 w-full bg-white/10 overflow-hidden rounded-full">
-            <div 
-              className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]" 
-              style={{ width: `${(progress.current / progress.total) * 100}%` }}
-            />
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-display font-bold text-purple-400 uppercase tracking-widest animate-pulse">
+                {isStopping ? "Stopping..." : "Processing Queue..."}
+              </span>
+              {!isStopping && (
+                <button 
+                  onClick={stopBatchProcessing}
+                  className="text-[10px] font-display font-bold text-red-400 hover:text-red-300 uppercase tracking-widest transition-colors"
+                >
+                  Stop Progress
+                </button>
+              )}
+            </div>
+            <div className="h-1 w-full bg-white/10 overflow-hidden rounded-full">
+              <div 
+                className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]" 
+                style={{ width: `${(progress.current / progress.total) * 100}%` }}
+              />
+            </div>
           </div>
         )}
 
