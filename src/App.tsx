@@ -67,13 +67,9 @@ export default function App() {
     localStorage.setItem('dtbase_service_unlocked', isServiceUnlocked.toString());
   }, [isServiceUnlocked]);
 
-  const [isAppUnlocked, setIsAppUnlocked] = useState(() => localStorage.getItem('dtbase_app_unlocked') === 'true');
+  const [isAppUnlocked, setIsAppUnlocked] = useState(false);
   const [appPasswordInput, setAppPasswordInput] = useState('');
   const [appPasswordError, setAppPasswordError] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem('dtbase_app_unlocked', isAppUnlocked.toString());
-  }, [isAppUnlocked]);
 
   const handleAppUnlock = () => {
     if (appPasswordInput === APP_PASSWORD) {
@@ -1243,6 +1239,17 @@ export default function App() {
     document.body.removeChild(link);
   };
 
+  if (!isAuthReady || hasApiKey === null) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40">Initialising DT.Base...</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAppUnlocked) {
     return (
       <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center p-4">
@@ -1317,17 +1324,6 @@ export default function App() {
               </a>
             </p>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthReady || hasApiKey === null) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40">Initialising DT.Base...</span>
         </div>
       </div>
     );
