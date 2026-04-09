@@ -20,6 +20,9 @@ const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
 // No limit - fetch all records for the user
 
 export default function App() {
+  const MASTER_PASSWORD = import.meta.env.VITE_SERVICE_PASSWORD || 'adminjo';
+  const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
+
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -63,6 +66,24 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('dtbase_service_unlocked', isServiceUnlocked.toString());
   }, [isServiceUnlocked]);
+
+  const [isAppUnlocked, setIsAppUnlocked] = useState(() => localStorage.getItem('dtbase_app_unlocked') === 'true');
+  const [appPasswordInput, setAppPasswordInput] = useState('');
+  const [appPasswordError, setAppPasswordError] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('dtbase_app_unlocked', isAppUnlocked.toString());
+  }, [isAppUnlocked]);
+
+  const handleAppUnlock = () => {
+    if (appPasswordInput === APP_PASSWORD) {
+      setIsAppUnlocked(true);
+      setAppPasswordError(false);
+      setAppPasswordInput('');
+    } else {
+      setAppPasswordError(true);
+    }
+  };
 
   const handleUnlockService = () => {
     if (servicePasswordInput === MASTER_PASSWORD) {
@@ -108,7 +129,6 @@ export default function App() {
   const [isTroubleFindingLoading, setIsTroubleFindingLoading] = useState(false);
   const troubleStopRef = useRef(false);
   const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // API Key Selection Check
   useEffect(() => {
@@ -324,8 +344,6 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isProcessing]);
-
-  const MASTER_PASSWORD = 'adminjo'; // Updated password
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
@@ -1225,6 +1243,48 @@ export default function App() {
     document.body.removeChild(link);
   };
 
+  if (!isAppUnlocked) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl p-8 text-center">
+          <div className="w-16 h-16 bg-amber-500/20 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Key className="w-8 h-8 text-amber-400" />
+          </div>
+          <h1 className="text-2xl font-display font-bold text-white mb-4 tracking-tight uppercase">App Access Required</h1>
+          <p className="text-sm text-white/40 mb-8 leading-relaxed uppercase tracking-widest">
+            Please enter the access password to enter DT.Base.
+          </p>
+          <div className="space-y-4">
+            <div className="relative">
+              <input 
+                type="password"
+                value={appPasswordInput}
+                onChange={(e) => setAppPasswordInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAppUnlock()}
+                placeholder="Enter App Password"
+                className={cn(
+                  "w-full bg-black/40 border px-4 py-4 text-white font-mono text-center tracking-[0.5em] focus:outline-none transition-all rounded-xl",
+                  appPasswordError ? "border-red-500/50" : "border-white/10 focus:border-amber-500/50"
+                )}
+              />
+              {appPasswordError && (
+                <p className="text-[10px] text-red-400 font-display font-bold uppercase tracking-widest mt-2">
+                  Incorrect Password
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleAppUnlock}
+              className="w-full py-4 px-6 bg-amber-500 hover:bg-amber-600 text-black font-display font-bold uppercase tracking-widest text-xs rounded-xl transition-all shadow-lg shadow-amber-900/20 active:scale-[0.98]"
+            >
+              Enter App
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (hasApiKey === false) {
     return (
       <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center p-4">
@@ -1371,21 +1431,19 @@ export default function App() {
               </button>
             )}
 
-            <button 
-              onClick={() => {
+            <label 
+              onClick={(e) => {
                 if (!isServiceUnlocked) {
+                  e.preventDefault();
                   setShowServicePasswordPrompt(true);
-                } else if (!isProcessing && user) {
-                  fileInputRef.current?.click();
                 }
               }}
               className={cn(
-                "flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white transition-all active:scale-95 !rounded-none",
+                "flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all active:scale-95 !rounded-none",
                 (isProcessing || !user || !isServiceUnlocked) && "opacity-50"
               )}
               style={{ borderRadius: '0px !important' }}
               title={!isServiceUnlocked ? "Unlock services to add images" : "Select images to add to the processing queue"}
-              disabled={isProcessing || !user}
             >
               {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
               <span className="text-[10px] font-display font-bold uppercase tracking-widest">
@@ -1393,13 +1451,13 @@ export default function App() {
               </span>
               <input 
                 type="file" 
-                ref={fileInputRef}
                 multiple 
                 accept="image/*" 
                 className="hidden" 
                 onChange={handleFileUpload}
+                disabled={isProcessing || !user}
               />
-            </button>
+            </label>
           </div>
         </div>
       </header>
@@ -2129,23 +2187,30 @@ export default function App() {
                 </p>
               </div>
               {!isProcessing && user && (
-                <button 
-                  onClick={() => {
+                <label 
+                  onClick={(e) => {
                     if (!isServiceUnlocked) {
+                      e.preventDefault();
                       setShowServicePasswordPrompt(true);
-                    } else {
-                      fileInputRef.current?.click();
                     }
                   }}
                   className={cn(
-                    "flex items-center gap-2 px-8 py-4 bg-purple-600 text-white transition-all shadow-lg shadow-purple-900/20 font-display font-bold uppercase tracking-[0.2em] text-xs",
+                    "flex items-center gap-2 px-8 py-4 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 font-display font-bold uppercase tracking-[0.2em] text-xs",
                     !isServiceUnlocked && "opacity-50"
                   )}
                   title={!isServiceUnlocked ? "Unlock services to upload" : "Upload your first maintenance log image"}
                 >
                   <Upload className="w-4 h-4" />
                   Upload First Log
-                </button>
+                  <input 
+                    type="file" 
+                    multiple 
+                    accept="image/*"
+                    className="hidden" 
+                    onChange={handleFileUpload}
+                    disabled={isProcessing}
+                  />
+                </label>
               )}
             </div>
           ) : (
