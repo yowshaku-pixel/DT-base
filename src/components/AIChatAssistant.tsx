@@ -20,9 +20,17 @@ interface AIChatAssistantProps {
   records: MaintenanceRecord[];
   marketPrices: MarketPrice[];
   onSaveMarketPrice: (item: string, price: number, currency: string) => Promise<void>;
+  isLocked?: boolean;
+  onUnlockRequest?: () => void;
 }
 
-export default function AIChatAssistant({ records, marketPrices, onSaveMarketPrice }: AIChatAssistantProps) {
+export default function AIChatAssistant({ 
+  records, 
+  marketPrices, 
+  onSaveMarketPrice,
+  isLocked = false,
+  onUnlockRequest
+}: AIChatAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -43,6 +51,11 @@ export default function AIChatAssistant({ records, marketPrices, onSaveMarketPri
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    if (isLocked) {
+      onUnlockRequest?.();
+      return;
+    }
 
     const userMessage: ChatMessage = {
       role: 'user',
@@ -210,7 +223,25 @@ export default function AIChatAssistant({ records, marketPrices, onSaveMarketPri
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide relative">
+              {isLocked && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-zinc-900/90 backdrop-blur-sm p-8 text-center">
+                  <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mb-4">
+                    <Key className="w-8 h-8 text-amber-500" />
+                  </div>
+                  <h3 className="text-lg font-display font-bold text-white uppercase tracking-wider mb-2">AI Access Locked</h3>
+                  <p className="text-xs text-white/40 font-mono uppercase tracking-widest mb-6">
+                    A master password is required to access the AI Chat Assistant.
+                  </p>
+                  <button 
+                    onClick={onUnlockRequest}
+                    className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-display font-bold uppercase tracking-widest text-[10px] rounded-xl transition-all active:scale-95"
+                  >
+                    Enter Password
+                  </button>
+                </div>
+              )}
+
               {messages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
                   <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
@@ -308,13 +339,17 @@ export default function AIChatAssistant({ records, marketPrices, onSaveMarketPri
                       handleSend();
                     }
                   }}
-                  placeholder="Ask DT.Base AI... (Shift+Enter for new line)"
+                  placeholder={isLocked ? "AI is locked..." : "Ask DT.Base AI... (Shift+Enter for new line)"}
                   rows={Math.min(5, input.split('\n').length || 1)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all resize-none min-h-[44px] max-h-[200px]"
+                  disabled={isLocked}
+                  className={cn(
+                    "w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all resize-none min-h-[44px] max-h-[200px]",
+                    isLocked && "opacity-50 cursor-not-allowed"
+                  )}
                 />
                 <button
                   type="submit"
-                  disabled={!input.trim() || isLoading}
+                  disabled={!input.trim() || isLoading || isLocked}
                   className="mb-1 p-2.5 bg-purple-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500 transition-colors shrink-0"
                 >
                   <Send className="w-4 h-4" />

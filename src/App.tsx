@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
 import { supabase, getSupabaseErrorMessage } from './supabase';
 import { User } from '@supabase/supabase-js';
 import AIChatAssistant from './components/AIChatAssistant';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface UploadLogEntry {
   fileName: string;
@@ -40,6 +41,40 @@ export default function App() {
   const [debouncedSecondaryService, setDebouncedSecondaryService] = useState('');
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isFiltering, setIsFiltering] = useState(false);
+  
+  // Usage Tracking & Password Protection
+  const [usageStats, setUsageStats] = useState(() => {
+    const saved = localStorage.getItem('dtbase_usage_stats');
+    return saved ? JSON.parse(saved) : { uploads: 0, searches: 0 };
+  });
+  const [isServiceUnlocked, setIsServiceUnlocked] = useState(() => {
+    return localStorage.getItem('dtbase_service_unlocked') === 'true';
+  });
+  const [showServicePasswordPrompt, setShowServicePasswordPrompt] = useState(false);
+  const [servicePasswordInput, setServicePasswordInput] = useState('');
+  const [servicePasswordError, setServicePasswordError] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('dtbase_usage_stats', JSON.stringify(usageStats));
+  }, [usageStats]);
+
+  useEffect(() => {
+    localStorage.setItem('dtbase_service_unlocked', isServiceUnlocked.toString());
+  }, [isServiceUnlocked]);
+
+  const handleUnlockService = () => {
+    if (servicePasswordInput === MASTER_PASSWORD) {
+      setIsServiceUnlocked(true);
+      setShowServicePasswordPrompt(false);
+      setServicePasswordInput('');
+      setServicePasswordError(false);
+    } else {
+      setServicePasswordError(true);
+    }
+  };
+
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [dangerAction, setDangerAction] = useState<'clearAll' | 'clearDuplicates' | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
@@ -73,6 +108,7 @@ export default function App() {
   const [isTroubleFindingLoading, setIsTroubleFindingLoading] = useState(false);
   const troubleStopRef = useRef(false);
   const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // API Key Selection Check
   useEffect(() => {
@@ -214,27 +250,31 @@ export default function App() {
 
   // Debounce search and filter to prevent excessive re-renders and Firestore reads
   useEffect(() => {
+    if (searchQuery) setIsSearching(true);
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-      if (searchQuery.length >= 3) addToRecentSearches(searchQuery);
+      setIsSearching(false);
+      if (searchQuery.length >= 3) {
+        addToRecentSearches(searchQuery);
+        // Track search usage
+        if (!isServiceUnlocked) {
+          setUsageStats(prev => ({ ...prev, searches: prev.searches + 1 }));
+        }
+      }
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, isServiceUnlocked]);
 
   useEffect(() => {
+    if (serviceFilter || secondaryServiceFilter) setIsFiltering(true);
     const timer = setTimeout(() => {
       setDebouncedService(serviceFilter);
+      setDebouncedSecondaryService(secondaryServiceFilter);
+      setIsFiltering(false);
       if (serviceFilter.length >= 3) addToRecentServiceFilters(serviceFilter);
     }, 500);
     return () => clearTimeout(timer);
-  }, [serviceFilter]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSecondaryService(secondaryServiceFilter);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [secondaryServiceFilter]);
+  }, [serviceFilter, secondaryServiceFilter]);
 
   // Screen Wake Lock to prevent "crushing" when screen turns off during processing
   useEffect(() => {
@@ -526,6 +566,13 @@ export default function App() {
       setError("You must be logged in to upload records. Please click the Login button.");
       return;
     }
+
+    // Check if services are unlocked
+    if (!isServiceUnlocked) {
+      setShowServicePasswordPrompt(true);
+      return;
+    }
+
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -647,6 +694,11 @@ export default function App() {
           setUploadLog(prev => prev.map(e => 
             e.timestamp === entry.timestamp ? { ...e, status: 'success' } : e
           ));
+
+          // Update usage stats on success
+          if (!isServiceUnlocked) {
+            setUsageStats(prev => ({ ...prev, uploads: prev.uploads + 1 }));
+          }
 
         } catch (err: any) {
           console.error(`[BATCH] Failed: ${entry.fileName}`, err);
@@ -1188,6 +1240,7 @@ export default function App() {
             <button
               onClick={handleSelectKey}
               className="w-full py-4 px-6 bg-purple-600 hover:bg-purple-500 text-white font-display font-bold uppercase tracking-widest text-xs rounded-xl transition-all shadow-lg shadow-purple-900/20 active:scale-[0.98]"
+              title="Select a Gemini API key from your Google Cloud project"
             >
               Select API Key
             </button>
@@ -1264,6 +1317,7 @@ export default function App() {
             <button 
               onClick={() => setShowUsageModal(true)}
               className="px-2 py-1 bg-white/5 border border-white/10 rounded-none text-[7px] text-white/40 font-mono hover:bg-white/10 transition-colors flex items-center gap-1.5"
+              title="View session statistics and quota usage"
             >
               <div className="w-1 h-1 rounded-full bg-green-500" />
               STATS
@@ -1273,6 +1327,7 @@ export default function App() {
               <button 
                 onClick={handleInstallClick}
                 className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white hover:bg-purple-500 transition-all active:scale-95 rounded-none"
+                title="Install DT.Base as a Progressive Web App"
               >
                 <Download className="w-3 h-3" />
                 <span className="text-[10px] font-display font-bold uppercase tracking-widest">Install</span>
@@ -1292,7 +1347,10 @@ export default function App() {
               </div>
             ) : null}
 
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-white/5 border border-white/10 rounded-none">
+            <div 
+              className="flex items-center gap-2 px-2 py-1.5 bg-white/5 border border-white/10 rounded-none"
+              title="Cloud synchronization status"
+            >
               <Database className={cn(
                 "w-2 h-2",
                 isCloudConnected === true ? "text-green-500" : "text-red-500"
@@ -1302,12 +1360,32 @@ export default function App() {
               </span>
             </div>
 
-            <label 
+            {!isServiceUnlocked && (
+              <button 
+                onClick={() => setShowServicePasswordPrompt(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 transition-all rounded-none"
+                title="Enter password to unlock AI and advanced features"
+              >
+                <Key className="w-3 h-3" />
+                <span className="text-[8px] font-display font-bold uppercase tracking-widest">Unlock Services</span>
+              </button>
+            )}
+
+            <button 
+              onClick={() => {
+                if (!isServiceUnlocked) {
+                  setShowServicePasswordPrompt(true);
+                } else if (!isProcessing && user) {
+                  fileInputRef.current?.click();
+                }
+              }}
               className={cn(
-                "flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all active:scale-95 !rounded-none",
-                (isProcessing || !user) && "opacity-50 cursor-not-allowed"
+                "flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white transition-all active:scale-95 !rounded-none",
+                (isProcessing || !user || !isServiceUnlocked) && "opacity-50"
               )}
               style={{ borderRadius: '0px !important' }}
+              title={!isServiceUnlocked ? "Unlock services to add images" : "Select images to add to the processing queue"}
+              disabled={isProcessing || !user}
             >
               {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
               <span className="text-[10px] font-display font-bold uppercase tracking-widest">
@@ -1315,13 +1393,13 @@ export default function App() {
               </span>
               <input 
                 type="file" 
+                ref={fileInputRef}
                 multiple 
                 accept="image/*" 
                 className="hidden" 
                 onChange={handleFileUpload}
-                disabled={isProcessing || !user}
               />
-            </label>
+            </button>
           </div>
         </div>
       </header>
@@ -1337,6 +1415,7 @@ export default function App() {
                 <button 
                   onClick={stopBatchProcessing}
                   className="text-[10px] font-display font-bold text-red-400 hover:text-red-300 uppercase tracking-widest transition-colors"
+                  title="Stop current batch processing"
                 >
                   Stop Progress
                 </button>
@@ -1601,13 +1680,28 @@ export default function App() {
         <div className="relative group">
           <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
           <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
+            {isSearching ? (
+              <Loader2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-purple-400 animate-spin" />
+            ) : (
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
+            )}
             <input 
               type="text"
-              placeholder="Plate number..."
-              className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
+              placeholder={!isServiceUnlocked && usageStats.searches >= 15 ? "Search limit reached..." : "Plate number..."}
+              className={cn(
+                "w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30",
+                !isServiceUnlocked && usageStats.searches >= 15 && "opacity-50 cursor-not-allowed"
+              )}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                if (!isServiceUnlocked && usageStats.searches >= 15) {
+                  setShowServicePasswordPrompt(true);
+                  return;
+                }
+                setSearchQuery(e.target.value);
+              }}
+              disabled={!isServiceUnlocked && usageStats.searches >= 15}
+              title="Search records by truck plate number"
             />
             {searchQuery && (
               <button 
@@ -1638,13 +1732,18 @@ export default function App() {
           <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Find Maintenance</label>
           <div className="flex flex-col gap-2">
             <div className="relative">
-              <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
+              {isFiltering ? (
+                <Loader2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-purple-400 animate-spin" />
+              ) : (
+                <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
+              )}
               <input 
                 type="text"
                 placeholder="Primary filter..."
                 className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
                 value={serviceFilter}
                 onChange={(e) => setServiceFilter(e.target.value)}
+                title="Filter records by service description (e.g. Oil, Tires)"
               />
               {serviceFilter && (
                 <button 
@@ -1664,6 +1763,7 @@ export default function App() {
                 className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
                 value={secondaryServiceFilter}
                 onChange={(e) => setSecondaryServiceFilter(e.target.value)}
+                title="Add a second filter for more specific results"
               />
               {secondaryServiceFilter && (
                 <button 
@@ -1699,6 +1799,7 @@ export default function App() {
               className="flex-1 bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              title="Start date for filtering records"
             />
             <span className="text-white/20 text-[10px]">to</span>
             <input 
@@ -1706,6 +1807,7 @@ export default function App() {
               className="flex-1 bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              title="End date for filtering records"
             />
           </div>
         </div>
@@ -1760,6 +1862,7 @@ export default function App() {
               onClick={handleTroubleFinding}
               disabled={isTroubleFindingLoading || records.length === 0}
               className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-xl transition-all active:scale-95 shadow-lg shadow-purple-900/20"
+              title="Use AI to search for similar or related records across the entire database"
             >
               {isTroubleFindingLoading ? (
                 <>
@@ -1777,6 +1880,7 @@ export default function App() {
               <button 
                 onClick={handleStopTroubleFinding}
                 className="px-4 py-3 bg-red-500/20 hover:bg-red-500/40 text-red-400 font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-xl transition-all active:scale-95 border border-red-500/30"
+                title="Stop AI search"
               >
                 Stop
               </button>
@@ -1792,6 +1896,7 @@ export default function App() {
               <button 
                 onClick={() => setTroubleFindingAnswer(null)}
                 className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                title="Close AI search results"
               >
                 <X className="w-3 h-3 opacity-40 hover:opacity-100" />
               </button>
@@ -1964,6 +2069,7 @@ export default function App() {
                     }
                   }}
                   className="flex items-center gap-2 px-8 py-3 bg-white text-black hover:bg-gray-200 transition-all active:scale-95"
+                  title="Share this record or copy it to clipboard"
                 >
                   <Search className="w-3 h-3" />
                   <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em]">Share Result</span>
@@ -1983,6 +2089,7 @@ export default function App() {
             <button 
               onClick={() => setShowHistory(!showHistory)}
               className="text-[9px] font-display font-bold uppercase tracking-[0.2em] px-2.5 py-1 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all text-white/60"
+              title="Toggle visibility of the maintenance log history"
             >
               {showHistory ? 'Hide' : 'Show'}
             </button>
@@ -1993,12 +2100,14 @@ export default function App() {
             <button 
               onClick={() => toggleAll(true)}
               className="text-[9px] font-display font-bold uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-purple-400 transition-all"
+              title="Expand all truck record groups"
             >
               Expand
             </button>
             <button 
               onClick={() => toggleAll(false)}
               className="text-[9px] font-display font-bold uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-purple-400 transition-all"
+              title="Collapse all truck record groups"
             >
               Collapse
             </button>
@@ -2020,18 +2129,23 @@ export default function App() {
                 </p>
               </div>
               {!isProcessing && user && (
-                <label className="flex items-center gap-2 px-8 py-4 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 font-display font-bold uppercase tracking-[0.2em] text-xs">
+                <button 
+                  onClick={() => {
+                    if (!isServiceUnlocked) {
+                      setShowServicePasswordPrompt(true);
+                    } else {
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 px-8 py-4 bg-purple-600 text-white transition-all shadow-lg shadow-purple-900/20 font-display font-bold uppercase tracking-[0.2em] text-xs",
+                    !isServiceUnlocked && "opacity-50"
+                  )}
+                  title={!isServiceUnlocked ? "Unlock services to upload" : "Upload your first maintenance log image"}
+                >
                   <Upload className="w-4 h-4" />
                   Upload First Log
-                  <input 
-                    type="file" 
-                    multiple 
-                    accept="image/*"
-                    className="hidden" 
-                    onChange={handleFileUpload}
-                    disabled={isProcessing}
-                  />
-                </label>
+                </button>
               )}
             </div>
           ) : (
@@ -2041,6 +2155,7 @@ export default function App() {
                 <button 
                   onClick={() => togglePlate(plate)}
                   className="w-full flex items-center justify-between p-3.5 px-5 text-white transition-all"
+                  title={`Click to ${expandedPlates[plate] ? 'collapse' : 'expand'} records for ${plate}`}
                 >
                   <div className="flex items-center gap-4">
                     <div className={cn(
@@ -2088,6 +2203,7 @@ export default function App() {
                           <button 
                             onClick={() => handleViewImage(record)}
                             className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full"
+                            title="View the original image for this record"
                           >
                             View
                           </button>
@@ -2167,6 +2283,7 @@ export default function App() {
               <button 
                 onClick={() => window.location.reload()}
                 className="text-purple-400 hover:text-purple-300 transition-colors text-[10px] font-display font-bold uppercase tracking-widest"
+                title="Retry connecting to the cloud database"
               >
                 Retry Connection
               </button>
@@ -2188,6 +2305,7 @@ export default function App() {
                       setDangerAction('clearDuplicates');
                     }}
                     className="flex items-center gap-2 px-6 py-3 border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
+                    title="Remove duplicate records from the database (requires password)"
                   >
                     <ListFilter className="w-4 h-4" />
                     <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">Clear Duplicates</span>
@@ -2390,6 +2508,7 @@ export default function App() {
                 onClick={handleManualAdd}
                 disabled={isProcessing}
                 className="w-full py-5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-display font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-lg shadow-purple-600/20 flex items-center justify-center gap-3"
+                title="Save this manual entry to the database"
               >
                 {isProcessing ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -2413,8 +2532,95 @@ export default function App() {
           records={records} 
           marketPrices={marketPrices}
           onSaveMarketPrice={handleSaveMarketPrice}
+          isLocked={!isServiceUnlocked}
+          onUnlockRequest={() => setShowServicePasswordPrompt(true)}
         />
       )}
+
+      {/* Service Password Modal */}
+      <AnimatePresence>
+        {showServicePasswordPrompt && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-zinc-900 border border-white/10 p-8 rounded-2xl shadow-2xl relative"
+            >
+              <button 
+                onClick={() => {
+                  setShowServicePasswordPrompt(false);
+                  setServicePasswordInput('');
+                  setServicePasswordError(false);
+                }}
+                className="absolute top-4 right-4 p-2 hover:bg-white/5 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-white/40" />
+              </button>
+
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Key className="w-8 h-8 text-amber-500" />
+                </div>
+                <h3 className="text-xl font-display font-bold text-white uppercase tracking-wider mb-2">Unlock Services</h3>
+                <p className="text-xs text-white/40 font-mono uppercase tracking-widest">
+                  Enter the master password to continue using AI and advanced features.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-display font-bold text-white/40 uppercase tracking-widest ml-1">Password</label>
+                  <input 
+                    type="password"
+                    value={servicePasswordInput}
+                    onChange={(e) => {
+                      setServicePasswordInput(e.target.value);
+                      setServicePasswordError(false);
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleUnlockService()}
+                    className={cn(
+                      "w-full bg-white/5 border p-4 rounded-xl text-white font-mono focus:outline-none transition-all",
+                      servicePasswordError ? "border-red-500" : "border-white/10 focus:border-amber-500/50"
+                    )}
+                    placeholder="••••••••"
+                    autoFocus
+                  />
+                  {servicePasswordError && (
+                    <p className="text-[10px] text-red-400 font-display font-bold uppercase tracking-widest text-center mt-2">
+                      Incorrect Password
+                    </p>
+                  )}
+                </div>
+
+                <button 
+                  onClick={handleUnlockService}
+                  className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-black font-display font-bold uppercase tracking-widest text-xs rounded-xl transition-all active:scale-[0.98]"
+                >
+                  Unlock Now
+                </button>
+
+                <div className="pt-4 border-t border-white/5 flex flex-col gap-2">
+                  <div className="flex justify-between text-[9px] font-mono uppercase tracking-tighter">
+                    <span className="text-white/30">Uploads:</span>
+                    <span className="text-red-400">Locked</span>
+                  </div>
+                  <div className="flex justify-between text-[9px] font-mono uppercase tracking-tighter">
+                    <span className="text-white/30">Searches:</span>
+                    <span className={cn(usageStats.searches >= 15 ? "text-red-400" : "text-white/60")}>
+                      {usageStats.searches} / 15
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[9px] font-mono uppercase tracking-tighter">
+                    <span className="text-white/30">AI Access:</span>
+                    <span className="text-red-400">Locked</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
