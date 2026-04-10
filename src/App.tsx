@@ -98,6 +98,7 @@ export default function App() {
   const [passwordError, setPasswordError] = useState(false);
   const [expandedPlates, setExpandedPlates] = useState<Record<string, boolean>>({});
   const [showHistory, setShowHistory] = useState(false);
+  const [showDateRangeReport, setShowDateRangeReport] = useState(false);
   const [showLatestOnly, setShowLatestOnly] = useState(false);
   const [uploadLog, setUploadLog] = useState<UploadLogEntry[]>([]);
   const [latestImage, setLatestImage] = useState<string | null>(null);
@@ -106,6 +107,7 @@ export default function App() {
   const [viewingImage, setViewingImage] = useState<{ id: string, image: string | null, loading: boolean } | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [pwaStatus, setPwaStatus] = useState<string>('Checking...');
+  const [newVersionAvailable, setNewVersionAvailable] = useState(false);
   const [sessionStats, setSessionStats] = useState({ reads: 0, writes: 0, deletes: 0 });
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [manualEntryData, setManualEntryData] = useState<{
@@ -180,10 +182,30 @@ export default function App() {
 
     // Check Service Worker
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then(() => {
+      navigator.serviceWorker.ready.then((registration) => {
         console.log('Service Worker is ready');
+        
+        // Listen for new service worker waiting
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                setNewVersionAvailable(true);
+              }
+            });
+          }
+        });
+
         if (!deferredPrompt && !window.matchMedia('(display-mode: standalone)').matches) {
           setPwaStatus('Waiting for Chrome...');
+        }
+      });
+      
+      // Check for waiting worker on load
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg?.waiting) {
+          setNewVersionAvailable(true);
         }
       });
     } else {
@@ -483,7 +505,7 @@ export default function App() {
       }
     } catch (err: any) {
       console.error("Auth error:", err);
-      setError(err.message || "Authentication failed. Please try again.");
+      setError(getSupabaseErrorMessage(err));
     } finally {
       setIsLoggingIn(false);
     }
@@ -742,7 +764,7 @@ export default function App() {
           setFailedFiles(prev => [...prev, entry.fileName]);
           
           setUploadLog(prev => prev.map(e => 
-            e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: err.message || "Unknown error" } : e
+            e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: getSupabaseErrorMessage(err) } : e
           ));
         } finally {
           localCompletedCount++;
@@ -855,7 +877,7 @@ export default function App() {
         ));
       } else {
         setUploadLog(prev => prev.map(e => 
-          e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: err.message || "Unknown error" } : e
+          e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: getSupabaseErrorMessage(err) } : e
         ));
       }
     }
@@ -967,6 +989,7 @@ export default function App() {
         lastFetchedRecordIdRef.current = latestRecord.id;
       } catch (err) {
         console.error("Failed to fetch latest image", err);
+        setError(getSupabaseErrorMessage(err));
         setLatestImage(null);
       } finally {
         setIsLoadingLatestImage(false);
@@ -1002,11 +1025,13 @@ export default function App() {
           .select('*')
           .eq('user_id', user.id);
         
-        if (!error && data) {
+        if (error) throw error;
+        if (data) {
           setMarketPrices(data);
         }
       } catch (err) {
         console.error("Error fetching market prices:", err);
+        setError(getSupabaseErrorMessage(err));
       }
     };
     
@@ -1028,21 +1053,30 @@ export default function App() {
           user_id: user.id
         }, { onConflict: 'item_name,user_id' });
         
-      if (!error) {
-        // Refresh prices
-        const { data: updatedData } = await supabase
-          .from('market_prices')
-          .select('*')
-          .eq('user_id', user.id);
-        if (updatedData) setMarketPrices(updatedData);
-      }
+      if (error) throw error;
+
+      // Refresh prices
+      const { data: updatedData, error: fetchError } = await supabase
+        .from('market_prices')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (fetchError) throw fetchError;
+      if (updatedData) setMarketPrices(updatedData);
     } catch (err) {
       console.error("Error saving market price:", err);
+      setError(getSupabaseErrorMessage(err));
     }
   };
 
   const handleTroubleFinding = useCallback(async () => {
     if (!records.length) return;
+    
+    if (!isServiceUnlocked) {
+      setShowServicePasswordPrompt(true);
+      return;
+    }
+
     setIsTroubleFindingLoading(true);
     setTroubleFindingAnswer(null);
     troubleStopRef.current = false;
@@ -1120,6 +1154,7 @@ export default function App() {
       }
     } catch (err) {
       console.error("Failed to fetch image", err);
+      setError(getSupabaseErrorMessage(err));
       setViewingImage(null);
     }
   };
@@ -1369,6 +1404,16 @@ export default function App() {
             <div className="flex items-center gap-1.5 px-1.5 py-1 bg-white/5 border border-white/10 rounded-none text-[6px] font-mono text-white/30 uppercase tracking-tighter">
               <span>PWA: {pwaStatus}</span>
             </div>
+
+            {newVersionAvailable && (
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-2 py-1 bg-amber-500 text-black font-display font-bold text-[7px] uppercase tracking-widest hover:bg-amber-400 transition-all animate-pulse"
+                title="A new version of DT.Base is available. Click to refresh."
+              >
+                Update Available
+              </button>
+            )}
 
             <button 
               onClick={() => setShowUsageModal(true)}
@@ -1864,6 +1909,15 @@ export default function App() {
               title="End date for filtering records"
             />
           </div>
+          {(startDate || endDate) && (
+            <button 
+              onClick={() => setShowDateRangeReport(true)}
+              className="mt-2 w-full flex items-center justify-center gap-2 p-2 bg-purple-600/20 border border-purple-500/30 text-purple-400 rounded-xl font-display font-bold text-[9px] uppercase tracking-[0.2em] hover:bg-purple-600/30 transition-all"
+            >
+              <ListFilter className="w-3 h-3" />
+              Generate Summary Report
+            </button>
+          )}
         </div>
 
         <div className="flex items-end gap-2">
@@ -2320,6 +2374,120 @@ export default function App() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Date Range Summary Report Modal */}
+      {showDateRangeReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="relative w-full max-w-2xl bg-[#0d0d0f] border border-white/10 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[85vh]"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/[0.02]">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-purple-400">Summary Report</h2>
+                <div className="flex items-center gap-2 text-white/60 font-display font-bold text-xs uppercase tracking-widest">
+                  <span>From {startDate || 'Start'}</span>
+                  <ChevronRight className="w-3 h-3 opacity-30" />
+                  <span>To {endDate || 'Today'}</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowDateRangeReport(false)}
+                className="p-2 hover:bg-white/5 rounded-full transition-colors text-white/40 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-6 space-y-8">
+              {Object.entries(groupedRecords).length === 0 ? (
+                <div className="py-20 text-center">
+                  <AlertCircle className="w-8 h-8 text-white/10 mx-auto mb-4" />
+                  <p className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/20">No records found for this range</p>
+                </div>
+              ) : (
+                Object.entries(groupedRecords).map(([plate, plateRecords]) => {
+                  // Group by service type for this plate
+                  const serviceGroups: Record<string, string[]> = {};
+                  plateRecords.forEach(r => {
+                    const desc = r.service_description.toLowerCase().trim();
+                    if (!serviceGroups[desc]) serviceGroups[desc] = [];
+                    serviceGroups[desc].push(r.service_date);
+                  });
+
+                  return (
+                    <div key={plate} className="space-y-6">
+                      <div className="flex items-baseline gap-3 border-b border-white/5 pb-2">
+                        <h3 className="text-2xl font-display font-bold text-white tracking-tight uppercase">{plate}</h3>
+                        <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
+                          {plateRecords.length} {plateRecords.length === 1 ? 'Entry' : 'Entries'}
+                        </span>
+                      </div>
+
+                      <div className="space-y-6 pl-4">
+                        {Object.entries(serviceGroups).map(([service, dates]) => (
+                          <div key={service} className="space-y-3">
+                            <p className="text-sm font-display font-medium text-white/80 leading-relaxed">
+                              Has <span className="text-purple-400 font-bold">{dates.length}</span> {dates.length === 1 ? 'record' : 'records'} for <span className="text-emerald-400 font-bold uppercase tracking-wide">{service}</span>
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime()).map((date, i) => (
+                                <div key={i} className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5 rounded-lg">
+                                  <div className="w-1 h-1 rounded-full bg-purple-500/50" />
+                                  <span className="text-[10px] font-mono text-white/60 font-bold">{date}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="p-6 border-t border-white/5 bg-white/[0.01] flex justify-between items-center">
+              <div className="text-[9px] font-mono text-white/20 uppercase tracking-[0.2em]">
+                Generated {new Date().toLocaleDateString()}
+              </div>
+              <button 
+                onClick={() => {
+                  const reportText = Object.entries(groupedRecords).map(([plate, plateRecords]) => {
+                    const serviceGroups: Record<string, string[]> = {};
+                    plateRecords.forEach(r => {
+                      const desc = r.service_description.toLowerCase().trim();
+                      if (!serviceGroups[desc]) serviceGroups[desc] = [];
+                      serviceGroups[desc].push(r.service_date);
+                    });
+
+                    let plateText = `\n${plate}\nHas ${plateRecords.length} records\n`;
+                    Object.entries(serviceGroups).forEach(([service, dates]) => {
+                      plateText += `\nFor ${service.toUpperCase()}:\n`;
+                      dates.forEach(d => plateText += `* ${d}\n`);
+                    });
+                    return plateText;
+                  }).join('\n---\n');
+
+                  const fullText = `DT.Base Summary Report\nFrom: ${startDate || 'Start'} To: ${endDate || 'Today'}\n${reportText}`;
+                  
+                  if (navigator.share) {
+                    navigator.share({ title: 'DT.Base Summary Report', text: fullText });
+                  } else {
+                    navigator.clipboard.writeText(fullText);
+                    alert("Report copied to clipboard!");
+                  }
+                }}
+                className="flex items-center gap-2 px-6 py-3 bg-white text-black hover:bg-gray-200 transition-all active:scale-95 rounded-xl"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em]">Share Report</span>
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
 

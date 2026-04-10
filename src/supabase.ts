@@ -3,13 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Supabase configuration is missing! Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your Secrets in AI Studio and restart the dev server.");
+if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes("TODO_PROJECT_ID")) {
+  console.error("Supabase configuration is missing or contains placeholders! Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your Secrets in AI Studio and restart the dev server.");
 }
 
 // Only initialize if we have a valid URL to avoid "Invalid supabaseUrl" error
 // This prevents the app from crashing on load if secrets aren't set yet
-export const supabase = (supabaseUrl && supabaseUrl.startsWith('http')) 
+export const supabase = (supabaseUrl && supabaseUrl.startsWith('http') && !supabaseUrl.includes("TODO_PROJECT_ID")) 
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
 
@@ -22,6 +22,24 @@ export type SupabaseError = {
 
 export function getSupabaseErrorMessage(err: any): string {
   if (!err) return "Unknown error";
+  
+  // Handle "Failed to fetch" which is a common network error
+  // We check message, details, and the object itself stringified
+  const message = err.message || (typeof err === 'string' ? err : "");
+  const details = err.details || "";
+  const errString = String(err);
+  
+  const isNetworkError = 
+    message.includes("Failed to fetch") || 
+    message.includes("NetworkError") ||
+    details.includes("Failed to fetch") ||
+    errString.includes("Failed to fetch") ||
+    errString.includes("TypeError: Load failed");
+
+  if (isNetworkError) {
+    return "Network connection error. Please check your internet connection or verify that your Supabase URL is correct and reachable.";
+  }
+
   if (typeof err === 'string') return err;
   
   const error = err as SupabaseError;

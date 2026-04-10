@@ -1,17 +1,14 @@
-const CACHE_NAME = 'dt-base-v7';
+const CACHE_NAME = 'dt-base-v8';
 const ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/src/main.tsx',
-  '/src/App.tsx',
-  '/src/index.css',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS).catch(err => console.warn('Asset caching failed:', err));
+      return cache.addAll(ASSETS);
     })
   );
   self.skipWaiting();
@@ -29,10 +26,28 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  // Skip non-GET requests and Supabase/API calls
+  if (event.request.method !== 'GET' || 
+      event.request.url.includes('supabase.co') || 
+      event.request.url.includes('googleapis.com')) {
+    return;
+  }
   
   event.respondWith(
     fetch(event.request)
-      .catch(() => caches.match(event.request))
+      .then((response) => {
+        // If valid response, clone it and update cache
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        // Fallback to cache if network fails
+        return caches.match(event.request);
+      })
   );
 });

@@ -9,6 +9,32 @@ export function isApiKeyAvailable(): boolean {
   return !!process.env.GEMINI_API_KEY;
 }
 
+function getAIErrorMessage(err: any): string {
+  if (!err) return "AI operation failed";
+  const message = err.message || String(err);
+  const errString = String(err);
+  
+  const isNetworkError = 
+    message.includes("Failed to fetch") || 
+    message.includes("NetworkError") ||
+    errString.includes("Failed to fetch") ||
+    errString.includes("TypeError: Load failed");
+
+  if (isNetworkError) {
+    return "AI connection error. Please check your internet connection or verify your API key configuration.";
+  }
+  
+  if (message.includes("API key not valid")) {
+    return "Invalid Gemini API key. Please check your configuration in AI Studio.";
+  }
+
+  if (message.includes("quota") || message.includes("limit")) {
+    return "AI quota exceeded. Please try again later.";
+  }
+
+  return message;
+}
+
 export async function extractMaintenanceData(base64Image: string, mimeType: string): Promise<ExtractionResult> {
   if (!base64Image) {
     return { records: [] };
@@ -79,7 +105,7 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
     return JSON.parse(cleanJson || '{"records":[]}');
   } catch (e: any) {
     console.error("[AI] AI Extraction Error:", e);
-    throw new Error(e.message || "AI Extraction Failed");
+    throw new Error(getAIErrorMessage(e));
   }
 }
 
@@ -151,6 +177,8 @@ export async function analyzeMaintenanceData(
   
   Your task is to answer questions, summarize, analyze, and provide mechanical advice based on maintenance data.
   
+  **CRITICAL**: Be extremely CONCISE. Provide short, direct answers. Avoid long explanations unless specifically asked. Use bullet points for lists.
+  
   **Market Knowledge (Confirmed Prices)**:
   These are prices that have been confirmed or corrected by the user. ALWAYS prioritize these over internet search results.
   ${JSON.stringify(formattedMarketPrices, null, 2)}
@@ -220,6 +248,6 @@ export async function analyzeMaintenanceData(
     return result.text || "I couldn't generate a response.";
   } catch (e: any) {
     console.error("[AI] AI Analysis Error:", e);
-    throw new Error(e.message || "AI Analysis Failed");
+    throw new Error(getAIErrorMessage(e));
   }
 }
