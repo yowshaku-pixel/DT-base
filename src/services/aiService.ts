@@ -28,8 +28,8 @@ function getAIErrorMessage(err: any): string {
     return "Invalid Gemini API key. Please check your configuration in AI Studio.";
   }
 
-  if (message.includes("quota") || message.includes("limit")) {
-    return "AI quota exceeded. Please try again later.";
+  if (message.includes("429") || message.includes("quota") || message.includes("limit") || message.includes("RESOURCE_EXHAUSTED")) {
+    return "AI daily quota exceeded. Google limits free usage; this will reset at midnight. Please try again later or use a different API key.";
   }
 
   return message;

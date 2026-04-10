@@ -51,10 +51,10 @@ export default function App() {
   const [usageStats, setUsageStats] = useState(() => {
     try {
       const saved = localStorage.getItem('dtbase_usage_stats');
-      return saved ? JSON.parse(saved) : { uploads: 0, searches: 0 };
+      return saved ? JSON.parse(saved) : { extractions: 0, searches: 0 };
     } catch (e) {
       console.error("Error parsing usage stats", e);
-      return { uploads: 0, searches: 0 };
+      return { extractions: 0, searches: 0 };
     }
   });
   const [isServiceUnlocked, setIsServiceUnlocked] = useState(() => {
@@ -526,25 +526,28 @@ export default function App() {
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow.")), 90000)
         );
-        return await Promise.race([extractionPromise, timeoutPromise]);
+        const result = await Promise.race([extractionPromise, timeoutPromise]);
+        setUsageStats(prev => ({ ...prev, extractions: prev.extractions + 1 }));
+        return result;
       } catch (err: any) {
         const errorMessage = err.message?.toLowerCase() || "";
         
         // Distinguish between transient rate limits (429) and hard quota limits
-        const isRateLimit = errorMessage.includes("429") || 
+        const isRateLimit = (errorMessage.includes("429") || 
                            errorMessage.includes("resource_exhausted") ||
                            errorMessage.includes("rate limit") ||
                            errorMessage.includes("quota_exceeded") ||
-                           errorMessage.includes("ai_rate_limit_exceeded");
+                           errorMessage.includes("ai_rate_limit_exceeded")) &&
+                           !errorMessage.includes("billing details") &&
+                           !errorMessage.includes("plan");
         
-        // Only treat as a hard daily quota if it's NOT a 429/RateLimit error, 
-        // or if it explicitly says "daily limit reached" without mentioning rate limits.
+        // Only treat as a hard daily quota if it explicitly says "daily limit reached",
+        // or mentions billing/plan/quota exhaustion that isn't just a transient rate limit.
         const isDailyQuota = errorMessage.includes("ai_daily_quota_exceeded") || 
-                            (!isRateLimit && (
-                              errorMessage.includes("billing details") || 
-                              errorMessage.includes("current quota") ||
-                              errorMessage.includes("plan")
-                            ));
+                            errorMessage.includes("billing details") || 
+                            errorMessage.includes("current quota") ||
+                            errorMessage.includes("plan") ||
+                            errorMessage.includes("quota exceeded");
         
         const isServerError = errorMessage.includes("500") || 
                              errorMessage.includes("internal error") || 
@@ -1114,9 +1117,10 @@ export default function App() {
       Please analyze the full database and find any records that might be similar or relevant to what they are looking for. 
       If you find similar records, list them clearly. If you don't find anything, suggest what they might be doing wrong or what else they could search for.`;
       
-      const answer = await analyzeMaintenanceData(context, records, []);
+      const answer = await analyzeMaintenanceData(context, records, [], marketPrices);
       if (troubleStopRef.current) return;
       
+      setUsageStats(prev => ({ ...prev, searches: prev.searches + 1 }));
       setTroubleFindingAnswer(answer);
     } catch (err: any) {
       if (troubleStopRef.current) return;
@@ -1437,6 +1441,15 @@ export default function App() {
             </button>
 
             <button 
+              onClick={() => setShowUsageModal(true)}
+              className="px-2 py-1 bg-white/5 border border-white/10 rounded-none text-[7px] text-white/40 font-mono hover:bg-white/10 transition-colors flex items-center gap-1.5"
+              title="View session statistics and quota usage"
+            >
+              <div className="w-1 h-1 rounded-full bg-green-500" />
+              STATS
+            </button>
+
+            <button 
               onClick={() => setShowMarketPricesModal(true)}
               className="px-2 py-1 bg-white/5 border border-white/10 rounded-none text-[7px] text-white/40 font-mono hover:bg-white/10 transition-colors flex items-center gap-1.5"
               title="View tracked market prices for parts and services"
@@ -1556,7 +1569,14 @@ export default function App() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <span className="text-sm font-display font-medium">{error}</span>
+              <div className="flex flex-col">
+                <span className="text-sm font-display font-medium">{error}</span>
+                {error.includes("Daily Quota Reached") && (
+                  <p className="text-[10px] opacity-60 mt-1">
+                    You can still add records manually using the "Add Manually" button on failed items in the log below.
+                  </p>
+                )}
+              </div>
             </div>
             <button 
               onClick={() => {
@@ -2739,6 +2759,36 @@ export default function App() {
                 </div>
                 <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Daily Limit: 20,000</p>
               </div>
+
+              {/* AI Extractions */}
+              <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-lg">
+                <div className="flex justify-between items-end mb-2">
+                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-purple-400">AI Extractions (Session)</span>
+                  <span className="text-xl font-mono font-bold text-white">{usageStats.extractions.toLocaleString()}</span>
+                </div>
+                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-purple-500 transition-all duration-500" 
+                    style={{ width: `${Math.min((usageStats.extractions / 1500) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Daily Limit: ~1,500 (Free Tier)</p>
+              </div>
+
+              {/* AI Searches */}
+              <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+                <div className="flex justify-between items-end mb-2">
+                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-blue-400">AI Searches (Session)</span>
+                  <span className="text-xl font-mono font-bold text-white">{usageStats.searches.toLocaleString()}</span>
+                </div>
+                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 transition-all duration-500" 
+                    style={{ width: `${Math.min((usageStats.searches / 1500) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="text-[8px] text-white/30 mt-2 font-mono uppercase tracking-widest">Daily Limit: ~1,500 (Free Tier)</p>
+              </div>
             </div>
 
             <div className="mt-8 pt-6 border-t border-white/5">
@@ -2750,7 +2800,10 @@ export default function App() {
                 </p>
               </div>
               <button 
-                onClick={() => setSessionStats({ reads: 0, writes: 0, deletes: 0 })}
+                onClick={() => {
+                  setSessionStats({ reads: 0, writes: 0, deletes: 0 });
+                  setUsageStats({ extractions: 0, searches: 0 });
+                }}
                 className="w-full mt-4 py-3 border border-white/10 text-[10px] font-display font-bold uppercase tracking-[0.2em] hover:bg-white/5 transition-all"
               >
                 Reset Session Stats

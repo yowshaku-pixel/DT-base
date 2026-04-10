@@ -10,7 +10,11 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
       // Check for updates periodically
       setInterval(() => {
-        registration.update();
+        if (navigator.onLine) {
+          registration.update().catch(() => {
+            // Ignore update errors when offline or server unreachable
+          });
+        }
       }, 60 * 60 * 1000); // Check every hour
     }).catch((err) => {
       console.error('Service Worker registration failed:', err);
