@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dt-base-v9';
+const CACHE_NAME = 'dt-base-v10';
 const ASSETS = [
   '/',
   '/index.html',

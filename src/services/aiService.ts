@@ -144,6 +144,14 @@ export async function analyzeMaintenanceData(
     desc: r.service_description
   }));
 
+  // Format market prices for the AI
+  const formattedMarketPrices = marketPrices.map(p => ({
+    item: p.item_name,
+    price: `${p.currency} ${p.price}`,
+    confirmed_by: p.confirmed_by,
+    date: p.last_updated
+  }));
+
   // Pre-calculate truck summary for precision (on the filtered set)
   const truckSummary: Record<string, { count: number, originalPlates: string[] }> = {};
   filteredRecords.forEach(r => {
@@ -163,14 +171,6 @@ export async function analyzeMaintenanceData(
       truckSummary[norm] = { count: 1, originalPlates: [r.plate_number] };
     }
   });
-
-  // Format market prices for the AI
-  const formattedMarketPrices = marketPrices.map(p => ({
-    item: p.item_name,
-    price: `${p.currency} ${p.price}`,
-    confirmed_by: p.confirmed_by,
-    date: p.last_updated
-  }));
 
   const systemInstruction = `You are an expert fleet maintenance analyst and master mechanic for DT.Base. 
   You specialize in Mercedes-Benz trucks, specifically the **MB Axor MP3** and **MB Actros MP4**.

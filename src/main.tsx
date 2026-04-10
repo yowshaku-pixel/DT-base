@@ -8,11 +8,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
-      // If there's already a waiting worker, skip waiting and reload
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      }
-
       // Check for updates periodically
       setInterval(() => {
         registration.update();
@@ -20,15 +15,6 @@ if ('serviceWorker' in navigator) {
     }).catch((err) => {
       console.error('Service Worker registration failed:', err);
     });
-  });
-
-  // Handle automatic refresh when a new service worker takes over
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!refreshing) {
-      refreshing = true;
-      window.location.reload();
-    }
   });
 }
 

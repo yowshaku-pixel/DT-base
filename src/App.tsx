@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
@@ -112,9 +112,9 @@ export default function App() {
   const [viewingImage, setViewingImage] = useState<{ id: string, image: string | null, loading: boolean } | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [pwaStatus, setPwaStatus] = useState<string>('Checking...');
-  const [newVersionAvailable, setNewVersionAvailable] = useState(false);
   const [sessionStats, setSessionStats] = useState({ reads: 0, writes: 0, deletes: 0 });
   const [showUsageModal, setShowUsageModal] = useState(false);
+  const [showMarketPricesModal, setShowMarketPricesModal] = useState(false);
   const [manualEntryData, setManualEntryData] = useState<{
     fileName: string;
     plateNumber: string;
@@ -190,27 +190,8 @@ export default function App() {
       navigator.serviceWorker.ready.then((registration) => {
         console.log('Service Worker is ready');
         
-        // Listen for new service worker waiting
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                setNewVersionAvailable(true);
-              }
-            });
-          }
-        });
-
         if (!deferredPrompt && !window.matchMedia('(display-mode: standalone)').matches) {
           setPwaStatus('Waiting for Chrome...');
-        }
-      });
-      
-      // Check for waiting worker on load
-      navigator.serviceWorker.getRegistration().then(reg => {
-        if (reg?.waiting) {
-          setNewVersionAvailable(true);
         }
       });
     } else {
@@ -1032,6 +1013,13 @@ export default function App() {
     return groups;
   }, [filteredRecords]);
 
+  // Fetch Records
+  useEffect(() => {
+    if (user && isAuthReady) {
+      fetchRecords();
+    }
+  }, [user, isAuthReady, fetchRecords]);
+
   // Fetch Market Prices
   useEffect(() => {
     if (!user || !supabase) return;
@@ -1046,8 +1034,8 @@ export default function App() {
         if (error) {
           // If table doesn't exist (42P01) or PostgREST can't find it
           const isMissingTable = error.code === '42P01' || 
-                               error.message?.toLowerCase().includes('not found') ||
-                               error.message?.toLowerCase().includes('does not exist');
+                                error.message?.toLowerCase().includes('not found') ||
+                                error.message?.toLowerCase().includes('does not exist');
           
           if (isMissingTable) {
             console.warn("Market prices table not found in Supabase. This feature is optional.");
@@ -1126,7 +1114,7 @@ export default function App() {
       Please analyze the full database and find any records that might be similar or relevant to what they are looking for. 
       If you find similar records, list them clearly. If you don't find anything, suggest what they might be doing wrong or what else they could search for.`;
       
-      const answer = await analyzeMaintenanceData(context, records, [], marketPrices);
+      const answer = await analyzeMaintenanceData(context, records, []);
       if (troubleStopRef.current) return;
       
       setTroubleFindingAnswer(answer);
@@ -1439,16 +1427,6 @@ export default function App() {
               <span>PWA: {pwaStatus}</span>
             </div>
 
-            {newVersionAvailable && (
-              <button 
-                onClick={() => window.location.reload()}
-                className="px-2 py-1 bg-amber-500 text-black font-display font-bold text-[7px] uppercase tracking-widest hover:bg-amber-400 transition-all animate-pulse"
-                title="A new version of DT.Base is available. Click to refresh."
-              >
-                Update Available
-              </button>
-            )}
-
             <button 
               onClick={() => setShowUsageModal(true)}
               className="px-2 py-1 bg-white/5 border border-white/10 rounded-none text-[7px] text-white/40 font-mono hover:bg-white/10 transition-colors flex items-center gap-1.5"
@@ -1456,6 +1434,15 @@ export default function App() {
             >
               <div className="w-1 h-1 rounded-full bg-green-500" />
               STATS
+            </button>
+
+            <button 
+              onClick={() => setShowMarketPricesModal(true)}
+              className="px-2 py-1 bg-white/5 border border-white/10 rounded-none text-[7px] text-white/40 font-mono hover:bg-white/10 transition-colors flex items-center gap-1.5"
+              title="View tracked market prices for parts and services"
+            >
+              <Tag className="w-2 h-2 text-amber-500" />
+              MARKET
             </button>
 
             {deferredPrompt && (
@@ -2052,33 +2039,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Market Knowledge Section */}
-      {marketPrices.length > 0 && (
-        <div className="mb-12 p-6 bg-white/5 border border-white/10 rounded-2xl">
-          <div className="flex items-center gap-3 mb-6">
-            <Database className="w-5 h-5 text-purple-400" />
-            <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">Market Knowledge Base</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {marketPrices.map((price) => (
-              <div key={price.id} className="p-4 bg-white/5 border border-white/5 rounded-xl group hover:border-purple-500/30 transition-all">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-[10px] font-display font-bold text-white/80 uppercase tracking-wider">{price.item_name}</span>
-                  <span className="text-xs font-mono font-bold text-purple-400">{price.currency} {price.price.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center mt-4">
-                  <span className="text-[8px] font-mono text-white/20 uppercase">Last: {new Date(price.last_updated).toLocaleDateString()}</span>
-                  <span className="text-[8px] font-mono text-white/20 uppercase">By: {price.confirmed_by.split('@')[0]}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="text-[9px] font-display font-medium text-white/20 uppercase tracking-widest mt-6 text-center">
-            * Correct the AI in the chat to update these prices (e.g., "no, Caltex Ultra E is KES 22,000")
-          </p>
-        </div>
-      )}
-      
       {/* Latest Result Summary Area */}
       {showLatestOnly && filteredRecords.length > 0 && (
         <div className="mb-12 p-6 bg-white/[0.02] border border-white/10 rounded-2xl">
@@ -2629,6 +2589,92 @@ export default function App() {
           </div>
         )}
       </footer>
+
+      {/* Market Prices Modal */}
+      <AnimatePresence>
+        {showMarketPricesModal && (
+          <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowMarketPricesModal(false)}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#0a0a0c] border border-white/10 w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            >
+              <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500/20 rounded-none border border-amber-500/30">
+                    <Tag className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-display font-bold text-white uppercase tracking-widest">Market Price Reference</h2>
+                    <p className="text-[10px] text-white/40 font-mono uppercase">Tracked Costs for Parts & Services</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowMarketPricesModal(false)}
+                  className="p-2 hover:bg-white/5 transition-colors"
+                >
+                  <X className="w-5 h-5 text-white/40" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {marketPrices.length === 0 ? (
+                  <div className="text-center py-12 border border-dashed border-white/10">
+                    <Coins className="w-8 h-8 text-white/10 mx-auto mb-3" />
+                    <p className="text-xs text-white/40 font-mono uppercase tracking-widest">No market prices tracked yet.</p>
+                    <p className="text-[10px] text-white/20 font-mono mt-2 px-8">
+                      The AI automatically tracks prices from your logs and chat corrections.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2">
+                    {marketPrices.map((price) => (
+                      <div key={price.id} className="p-3 bg-white/5 border border-white/10 flex items-center justify-between group hover:border-amber-500/30 transition-all">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-display font-bold text-white uppercase tracking-wider">{price.item_name}</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[9px] text-white/40 font-mono uppercase">Last Updated: {new Date(price.last_updated).toLocaleDateString()}</span>
+                            <span className="text-[9px] text-amber-500/60 font-mono uppercase">By: {price.confirmed_by}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-mono font-bold text-amber-400">{price.currency} {price.price.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="p-4 bg-amber-500/5 border border-amber-500/20">
+                  <div className="flex items-start gap-3">
+                    <Zap className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-display font-bold text-amber-500 uppercase tracking-widest">How it works</p>
+                      <p className="text-[9px] text-white/60 leading-relaxed">
+                        The AI scans your logs for costs and saves them here. You can also correct prices in the AI Chat (e.g., "The price of Caltex Ultra is 5000") to update this database.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end">
+                <button 
+                  onClick={() => setShowMarketPricesModal(false)}
+                  className="px-6 py-2 bg-white/5 hover:bg-white/10 text-white font-display font-bold uppercase tracking-widest text-[10px] transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Usage Stats Modal */}
       {showUsageModal && (
