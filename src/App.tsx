@@ -49,8 +49,13 @@ export default function App() {
   
   // Usage Tracking & Password Protection
   const [usageStats, setUsageStats] = useState(() => {
-    const saved = localStorage.getItem('dtbase_usage_stats');
-    return saved ? JSON.parse(saved) : { uploads: 0, searches: 0 };
+    try {
+      const saved = localStorage.getItem('dtbase_usage_stats');
+      return saved ? JSON.parse(saved) : { uploads: 0, searches: 0 };
+    } catch (e) {
+      console.error("Error parsing usage stats", e);
+      return { uploads: 0, searches: 0 };
+    }
   });
   const [isServiceUnlocked, setIsServiceUnlocked] = useState(() => {
     return localStorage.getItem('dtbase_service_unlocked') === 'true';
@@ -257,8 +262,16 @@ export default function App() {
   useEffect(() => {
     const savedSearches = localStorage.getItem('dt_base_recent_searches');
     const savedServiceFilters = localStorage.getItem('dt_base_recent_service_filters');
-    if (savedSearches) setRecentSearches(JSON.parse(savedSearches));
-    if (savedServiceFilters) setRecentServiceFilters(JSON.parse(savedServiceFilters));
+    try {
+      if (savedSearches) setRecentSearches(JSON.parse(savedSearches));
+    } catch (e) {
+      console.error("Failed to parse recent searches", e);
+    }
+    try {
+      if (savedServiceFilters) setRecentServiceFilters(JSON.parse(savedServiceFilters));
+    } catch (e) {
+      console.error("Failed to parse recent service filters", e);
+    }
   }, []);
 
   // Save recent searches to localStorage whenever they change
@@ -457,8 +470,13 @@ export default function App() {
       // Fallback to localStorage
       const cached = localStorage.getItem(`records_${user.id}`);
       if (cached) {
-        setRecords(JSON.parse(cached));
-        setError(null);
+        try {
+          setRecords(JSON.parse(cached));
+          setError(null);
+        } catch (e) {
+          console.error("Failed to parse cached records", e);
+          setError(getSupabaseErrorMessage(err));
+        }
       } else {
         setError(getSupabaseErrorMessage(err));
       }
@@ -1025,13 +1043,23 @@ export default function App() {
           .select('*')
           .eq('user_id', user.id);
         
-        if (error) throw error;
+        if (error) {
+          // If table doesn't exist (42P01) or PostgREST can't find it
+          const isMissingTable = error.code === '42P01' || 
+                               error.message?.toLowerCase().includes('not found') ||
+                               error.message?.toLowerCase().includes('does not exist');
+          
+          if (isMissingTable) {
+            console.warn("Market prices table not found in Supabase. This feature is optional.");
+            return;
+          }
+          throw error;
+        }
         if (data) {
           setMarketPrices(data);
         }
       } catch (err) {
         console.error("Error fetching market prices:", err);
-        setError(getSupabaseErrorMessage(err));
       }
     };
     
@@ -1053,7 +1081,13 @@ export default function App() {
           user_id: user.id
         }, { onConflict: 'item_name,user_id' });
         
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes('not found')) {
+          setError("Market prices table is not set up in your database yet.");
+          return;
+        }
+        throw error;
+      }
 
       // Refresh prices
       const { data: updatedData, error: fetchError } = await supabase
@@ -1288,7 +1322,7 @@ export default function App() {
   if (!isAppUnlocked) {
     return (
       <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl p-8 text-center">
+        <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md p-8 text-center">
           <div className="w-16 h-16 bg-amber-500/20 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
             <Key className="w-8 h-8 text-amber-400" />
           </div>

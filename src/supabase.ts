@@ -54,6 +54,8 @@ export function getSupabaseErrorMessage(err: any): string {
       return "Record not found.";
     case 'PGRST301':
       return "JWT expired. Please log in again.";
+    case '42P01':
+      return "Database table missing. Please ensure all tables are created in Supabase.";
     default:
       return error.message || "An error occurred with the database.";
   }

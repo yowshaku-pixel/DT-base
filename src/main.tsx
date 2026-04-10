@@ -8,6 +8,11 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
+      // If there's already a waiting worker, skip waiting and reload
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+
       // Check for updates periodically
       setInterval(() => {
         registration.update();

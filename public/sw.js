@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dt-base-v8';
+const CACHE_NAME = 'dt-base-v9';
 const ASSETS = [
   '/',
   '/index.html',
@@ -25,6 +25,12 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests and Supabase/API calls
   if (event.request.method !== 'GET' || 
@@ -37,7 +43,7 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((response) => {
         // If valid response, clone it and update cache
-        if (response && response.status === 200 && response.type === 'basic') {
+        if (response && response.status === 200) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
