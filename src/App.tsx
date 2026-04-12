@@ -1476,7 +1476,7 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="mb-4 md:mb-6 border-b border-white/5 pb-4">
+      <header className="mb-4 md:mb-6 border-b border-white/5 pb-4 glassmorphism p-4 rounded-3xl neon-border-violet">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-600/20 border border-purple-500/30 rounded-2xl">
@@ -1491,7 +1491,7 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-2">
             <button 
               onClick={() => setShowSettingsModal(true)}
-              className="p-2 bg-white/5 border border-white/10 hover:bg-white/10 transition-all rounded-full text-white/40 hover:text-white"
+              className="p-2 bg-white/5 border border-white/10 hover:bg-white/10 transition-all rounded-full text-white/40 hover:text-white hover:neon-glow-violet"
               title="Open Settings"
             >
               <Settings className="w-4 h-4" />
@@ -1500,7 +1500,7 @@ export default function App() {
             {deferredPrompt && (
               <button 
                 onClick={handleInstallClick}
-                className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white hover:bg-purple-500 transition-all active:scale-95 rounded-xl"
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 text-white hover:bg-violet-500 transition-all active:scale-95 rounded-xl shadow-[0_0_15px_rgba(160,32,240,0.4)]"
                 title="Install DT.Base as a Progressive Web App"
               >
                 <Download className="w-3 h-3" />
@@ -1528,7 +1528,7 @@ export default function App() {
             {!isServiceUnlocked && (
               <button 
                 onClick={() => setShowServicePasswordPrompt(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 transition-all rounded-xl"
+                className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 transition-all rounded-xl shadow-[0_0_10px_rgba(245,158,11,0.2)]"
                 title="Enter password to unlock AI and advanced features"
               >
                 <Key className="w-3 h-3" />
@@ -1836,8 +1836,8 @@ export default function App() {
               type="text"
               placeholder={!isServiceUnlocked && usageStats.searches >= 15 ? "Search limit reached..." : "Plate number..."}
               className={cn(
-                "w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30",
-                !isServiceUnlocked && usageStats.searches >= 15 && "opacity-50 cursor-not-allowed"
+                "w-full bg-black/40 backdrop-blur-md border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
+                !isServiceUnlocked && usageStats.searches >= 15 ? "opacity-50 cursor-not-allowed border-white/10" : "neon-border-cyan"
               )}
               value={searchQuery}
               onChange={(e) => {
@@ -1887,7 +1887,7 @@ export default function App() {
               <input 
                 type="text"
                 placeholder="Primary filter..."
-                className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
+                className="w-full bg-black/40 backdrop-blur-md border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
                 value={serviceFilter}
                 onChange={(e) => setServiceFilter(e.target.value)}
                 title="Filter records by service description (e.g. Oil, Tires)"
@@ -1907,7 +1907,7 @@ export default function App() {
               <input 
                 type="text"
                 placeholder="Secondary filter..."
-                className="w-full bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all placeholder:opacity-30"
+                className="w-full bg-black/40 backdrop-blur-md border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
                 value={secondaryServiceFilter}
                 onChange={(e) => setSecondaryServiceFilter(e.target.value)}
                 title="Add a second filter for more specific results"
@@ -2010,17 +2010,17 @@ export default function App() {
       </div>
 
       {/* Trouble Finding Section */}
-      <div className="mb-8 p-4 bg-white/5 border border-white/10 rounded-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="mb-8 p-6 glassmorphism rounded-2xl neon-border-violet shimmer-ai">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
           <div className="flex flex-col">
-            <h3 className="font-display font-bold text-xs text-white uppercase tracking-widest">Trouble finding History?</h3>
-            <p className="text-[9px] font-display font-medium text-white/30 uppercase tracking-widest">AI can search the entire database</p>
+            <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">Trouble finding History?</h3>
+            <p className="text-[9px] font-display font-medium text-white/60 uppercase tracking-widest">AI can search the entire database</p>
           </div>
           <div className="flex items-center gap-2">
             <button 
               onClick={handleTroubleFinding}
               disabled={isTroubleFindingLoading || records.length === 0}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-bold uppercase tracking-[0.2em] text-[9px] rounded-lg transition-all active:scale-95"
+              className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-full transition-all active:scale-95 shadow-[0_0_20px_rgba(0,245,255,0.4)]"
               title="Use AI to search for similar or related records across the entire database"
             >
               {isTroubleFindingLoading ? (
@@ -2071,12 +2071,12 @@ export default function App() {
 
       {/* Latest Result Summary Area */}
       {showLatestOnly && filteredRecords.length > 0 && (
-        <div className="mb-12 p-6 bg-white/[0.02] border border-white/10 rounded-2xl">
+        <div className="mb-12 p-6 glassmorphism rounded-2xl neon-border-violet">
           <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse" />
-                <span className="font-display font-bold text-[9px] uppercase tracking-[0.3em] text-purple-400">Latest Inquiry Found</span>
+                <div className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(160,32,240,0.8)]" />
+                <span className="font-display font-bold text-[9px] uppercase tracking-[0.3em] text-violet-400">Latest Inquiry Found</span>
               </div>
               <div className="text-[9px] font-mono opacity-30 uppercase tracking-widest">
                 {(() => {
@@ -2181,8 +2181,6 @@ export default function App() {
                   {searchQuery && <span className="px-2 py-1 bg-white/5 rounded text-[8px] font-mono text-white/40 uppercase tracking-widest">Plate: {searchQuery}</span>}
                   {serviceFilter && <span className="px-2 py-1 bg-white/5 rounded text-[8px] font-mono text-white/40 uppercase tracking-widest">Primary: {serviceFilter}</span>}
                   {secondaryServiceFilter && <span className="px-2 py-1 bg-white/5 rounded text-[8px] font-mono text-white/40 uppercase tracking-widest">Secondary: {secondaryServiceFilter}</span>}
-                </div>
-
                 <button 
                   onClick={() => {
                     const recordDate = new Date(filteredRecords[0].service_date);
@@ -2191,7 +2189,6 @@ export default function App() {
                     const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30.4375));
                     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                     const timeDiff = diffMonths > 0 ? `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago` : `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
-
                     const text = `DT.Base History for ${filteredRecords[0].plate_number}\nDate: ${filteredRecords[0].service_date} (${timeDiff})\nService: ${filteredRecords[0].service_description}`;
                     if (navigator.share) {
                       navigator.share({ title: 'DT.Base Record', text });
@@ -2200,7 +2197,7 @@ export default function App() {
                       alert("Copied to clipboard!");
                     }
                   }}
-                  className="flex items-center gap-2 px-8 py-3 bg-white text-black hover:bg-gray-200 transition-all active:scale-95"
+                  className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-violet-600 text-white hover:from-cyan-400 hover:to-violet-500 transition-all active:scale-95 rounded-full shadow-[0_0_20px_rgba(0,245,255,0.3)]"
                   title="Share this record or copy it to clipboard"
                 >
                   <Search className="w-3 h-3" />
@@ -2210,6 +2207,7 @@ export default function App() {
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* Maintenance History Header */}
@@ -2289,7 +2287,7 @@ export default function App() {
             </div>
           ) : (
             Object.entries(groupedRecords).map(([plate, plateRecords]) => (
-              <div key={plate} className="bg-white/[0.03] border border-white/5 rounded-3xl overflow-hidden transition-all hover:bg-white/[0.05]">
+              <div key={plate} className="glassmorphism rounded-3xl overflow-hidden transition-all hover:bg-white/[0.05] neon-border-violet/30">
                 {/* Plate Header */}
                 <button 
                   onClick={() => togglePlate(plate)}
@@ -2360,12 +2358,12 @@ export default function App() {
       {/* Image Modal */}
       {viewingImage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl bg-[#0a0a0a] border border-white/10 shadow-2xl rounded-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div className="relative w-full max-w-4xl glassmorphism neon-border-violet shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
               <div className="flex flex-col">
-                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-60">Record Image</span>
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-violet-400">Record Image</span>
                 {records.find(r => r.id === viewingImage.id)?.file_name && (
-                  <span className="text-[9px] font-mono opacity-40 truncate max-w-[200px]">
+                  <span className="text-[9px] font-mono text-white/40 truncate max-w-[200px]">
                     {records.find(r => r.id === viewingImage.id)?.file_name}
                   </span>
                 )}
@@ -2407,14 +2405,14 @@ export default function App() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-2xl bg-[#0d0d0f] border border-white/10 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
+            className="relative w-full max-w-2xl glassmorphism neon-border-violet shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
           >
-            <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/[0.02]">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-purple-400">Summary Report</h2>
+            <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/[0.02] shimmer-ai">
+              <div className="flex flex-col gap-1 relative z-10">
+                <h2 className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-violet-400">Summary Report</h2>
                 <div className="flex items-center gap-2 text-white/60 font-display font-bold text-xs uppercase tracking-widest">
                   <span>From {startDate || 'Start'}</span>
-                  <ChevronRight className="w-3 h-3 opacity-30" />
+                  <ChevronRight className="w-3 h-3 opacity-30 text-cyan-400" />
                   <span>To {endDate || 'Today'}</span>
                 </div>
               </div>
@@ -2545,16 +2543,16 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-[#0a0a0c] border border-white/10 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] rounded-2xl my-auto"
+              className="glassmorphism neon-border-violet w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] rounded-3xl my-auto"
             >
-              <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between bg-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-500/20 rounded-lg border border-amber-500/30">
+              <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between bg-white/5 shimmer-ai">
+                <div className="flex items-center gap-3 relative z-10">
+                  <div className="p-2 bg-amber-500/20 rounded-lg border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.3)]">
                     <Tag className="w-4 h-4 text-amber-400" />
                   </div>
                   <div>
                     <h2 className="text-sm font-display font-bold text-white uppercase tracking-widest">Market Price Reference</h2>
-                    <p className="text-[10px] text-white/40 font-mono uppercase">Tracked Costs for Parts & Services</p>
+                    <p className="text-[10px] text-cyan-400/60 font-mono uppercase">Tracked Costs for Parts & Services</p>
                   </div>
                 </div>
                 <button 
@@ -2578,16 +2576,16 @@ export default function App() {
                 ) : (
                   <div className="grid grid-cols-1 gap-2">
                     {marketPrices.map((price) => (
-                      <div key={price.id} className="p-3 bg-white/5 border border-white/10 flex items-center justify-between group hover:border-amber-500/30 transition-all">
+                      <div key={price.id} className="p-3 glassmorphism border neon-border-violet/20 flex items-center justify-between group hover:neon-border-violet transition-all rounded-xl">
                         <div className="flex flex-col">
                           <span className="text-xs font-display font-bold text-white uppercase tracking-wider">{price.item_name}</span>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-[9px] text-white/40 font-mono uppercase">Last Updated: {new Date(price.last_updated).toLocaleDateString()}</span>
-                            <span className="text-[9px] text-amber-500/60 font-mono uppercase">By: {price.confirmed_by}</span>
+                            <span className="text-[9px] text-violet-400/60 font-mono uppercase">By: {price.confirmed_by}</span>
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="text-sm font-mono font-bold text-amber-400">{price.currency} {price.price.toLocaleString()}</span>
+                          <span className="text-sm font-mono font-bold text-cyan-400 shadow-[0_0_8px_rgba(0,245,255,0.3)]">{price.currency} {price.price.toLocaleString()}</span>
                         </div>
                       </div>
                     ))}
@@ -2628,14 +2626,14 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-6 sm:p-8 relative rounded-2xl my-auto"
+              className="w-full max-w-md glassmorphism p-6 sm:p-8 relative rounded-3xl my-auto neon-border-violet"
             >
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 rounded-t-2xl" />
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 rounded-t-3xl" />
               
               <div className="flex items-start justify-between mb-8">
                 <div>
-                  <h2 className="text-2xl font-display font-black tracking-tighter italic mb-1">SETTINGS</h2>
-                  <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em]">Application Configuration & Tools</p>
+                  <h2 className="text-2xl font-display font-black tracking-tighter italic mb-1 text-white">SETTINGS</h2>
+                  <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em]">Application Configuration & Tools</p>
                 </div>
                 <button 
                   onClick={() => setShowSettingsModal(false)}
@@ -2655,16 +2653,16 @@ export default function App() {
                   </div>
                   <div className="grid grid-cols-1 gap-3">
                     {/* Database Stats */}
-                    <div className="p-6 bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-3xl flex items-center justify-between group hover:from-purple-500/15 transition-all shadow-xl shadow-purple-900/10">
+                    <div className="p-6 bg-gradient-to-br from-violet-500/10 to-transparent border border-violet-500/20 rounded-3xl flex items-center justify-between group hover:from-violet-500/15 transition-all shadow-xl shadow-violet-900/10 neon-glow-violet">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-purple-400 mb-1">Fleet Database</span>
+                        <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-violet-400 mb-1">Fleet Database</span>
                         <div className="flex items-baseline gap-2">
                           <span className="text-4xl font-display font-bold text-white tracking-tighter">{totalCount !== null ? totalCount : records.length}</span>
                           <span className="text-xs font-display font-bold text-white/30 uppercase tracking-widest">Records</span>
                         </div>
                       </div>
-                      <div className="p-4 bg-purple-500/20 rounded-2xl border border-purple-500/30 shadow-inner">
-                        <Database className="w-7 h-7 text-purple-400" />
+                      <div className="p-4 bg-violet-500/20 rounded-2xl border border-violet-500/30 shadow-inner">
+                        <Database className="w-7 h-7 text-violet-400" />
                       </div>
                     </div>
 
@@ -2702,32 +2700,32 @@ export default function App() {
                     <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-white/40">Connectivity</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex flex-col gap-4 group hover:bg-white/[0.06] transition-all">
+                    <div className="p-4 glassmorphism rounded-2xl flex flex-col gap-4 group hover:bg-white/[0.06] transition-all neon-border-violet/20">
                       <div className="flex items-center justify-between">
-                        <Smartphone className="w-4 h-4 text-white/20" />
-                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                        <Smartphone className="w-4 h-4 text-violet-400/40" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse shadow-[0_0_8px_rgba(160,32,240,0.8)]" />
                       </div>
                       <div>
                         <span className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-white/30 block mb-1">PWA Status</span>
-                        <span className="text-[10px] font-mono text-purple-400 font-bold uppercase tracking-widest">{pwaStatus}</span>
+                        <span className="text-[10px] font-mono text-violet-400 font-bold uppercase tracking-widest">{pwaStatus}</span>
                       </div>
                     </div>
-                    <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex flex-col gap-4 group hover:bg-white/[0.06] transition-all">
+                    <div className="p-4 glassmorphism rounded-2xl flex flex-col gap-4 group hover:bg-white/[0.06] transition-all neon-border-cyan/20">
                       <div className="flex items-center justify-between">
                         <Cloud className={cn(
                           "w-4 h-4",
-                          isCloudConnected ? "text-green-500" : "text-red-500"
+                          isCloudConnected ? "text-cyan-400" : "text-red-500"
                         )} />
                         <div className={cn(
                           "w-1.5 h-1.5 rounded-full",
-                          isCloudConnected ? "bg-green-500" : "bg-red-500"
+                          isCloudConnected ? "bg-cyan-400 shadow-[0_0_8px_rgba(0,245,255,0.8)]" : "bg-red-500"
                         )} />
                       </div>
                       <div>
                         <span className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-white/30 block mb-1">Cloud Sync</span>
                         <span className={cn(
                           "text-[10px] font-mono uppercase tracking-widest font-bold",
-                          isCloudConnected ? "text-green-500/80" : "text-red-500/80"
+                          isCloudConnected ? "text-cyan-400" : "text-red-500/80"
                         )}>
                           {isCloudConnected ? "Connected" : "Offline"}
                         </span>
@@ -2947,13 +2945,13 @@ export default function App() {
       {/* Usage Stats Modal */}
       {showUsageModal && (
         <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
-          <div className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-6 sm:p-8 relative rounded-2xl my-auto">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 rounded-t-2xl" />
+          <div className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 relative rounded-3xl my-auto">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 rounded-t-3xl" />
             
             <div className="flex items-start justify-between mb-8">
               <div>
-                <h2 className="text-2xl font-display font-black tracking-tighter italic mb-1">USAGE DASHBOARD</h2>
-                <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em]">Session Monitoring & Quota Estimates</p>
+                <h2 className="text-2xl font-display font-black tracking-tighter italic mb-1 text-white">USAGE DASHBOARD</h2>
+                <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em]">Session Monitoring & Quota Estimates</p>
               </div>
               <button 
                 onClick={() => setShowUsageModal(false)}
@@ -2966,14 +2964,14 @@ export default function App() {
 
             <div className="space-y-6">
               {/* Reads */}
-              <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="p-4 glassmorphism border neon-border-cyan/20 rounded-xl">
                 <div className="flex justify-between items-end mb-2">
                   <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60">Reads (Session)</span>
-                  <span className="text-xl font-mono font-bold text-white">{sessionStats.reads.toLocaleString()}</span>
+                  <span className="text-xl font-mono font-bold text-cyan-400 shadow-[0_0_8px_rgba(0,245,255,0.3)]">{sessionStats.reads.toLocaleString()}</span>
                 </div>
                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-blue-500 transition-all duration-500" 
+                    className="h-full bg-cyan-500 transition-all duration-500 shadow-[0_0_8px_rgba(0,245,255,0.8)]" 
                     style={{ width: `${Math.min((sessionStats.reads / 50000) * 100, 100)}%` }}
                   />
                 </div>
@@ -2981,14 +2979,14 @@ export default function App() {
               </div>
 
               {/* Writes */}
-              <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="p-4 glassmorphism border neon-border-violet/20 rounded-xl">
                 <div className="flex justify-between items-end mb-2">
                   <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60">Writes (Session)</span>
-                  <span className="text-xl font-mono font-bold text-white">{sessionStats.writes.toLocaleString()}</span>
+                  <span className="text-xl font-mono font-bold text-violet-400 shadow-[0_0_8px_rgba(160,32,240,0.3)]">{sessionStats.writes.toLocaleString()}</span>
                 </div>
                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-purple-500 transition-all duration-500" 
+                    className="h-full bg-violet-500 transition-all duration-500 shadow-[0_0_8px_rgba(160,32,240,0.8)]" 
                     style={{ width: `${Math.min((sessionStats.writes / 20000) * 100, 100)}%` }}
                   />
                 </div>
@@ -2996,14 +2994,14 @@ export default function App() {
               </div>
 
               {/* Deletes */}
-              <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+              <div className="p-4 glassmorphism border neon-border-violet/20 rounded-xl">
                 <div className="flex justify-between items-end mb-2">
                   <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60">Deletes (Session)</span>
-                  <span className="text-xl font-mono font-bold text-white">{sessionStats.deletes.toLocaleString()}</span>
+                  <span className="text-xl font-mono font-bold text-violet-400 shadow-[0_0_8px_rgba(160,32,240,0.3)]">{sessionStats.deletes.toLocaleString()}</span>
                 </div>
                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-red-500 transition-all duration-500" 
+                    className="h-full bg-violet-500 transition-all duration-500 shadow-[0_0_8px_rgba(160,32,240,0.8)]" 
                     style={{ width: `${Math.min((sessionStats.deletes / 20000) * 100, 100)}%` }}
                   />
                 </div>
@@ -3011,14 +3009,14 @@ export default function App() {
               </div>
 
               {/* AI Extractions */}
-              <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-lg">
+              <div className="p-4 glassmorphism border neon-border-cyan/20 rounded-xl">
                 <div className="flex justify-between items-end mb-2">
-                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-purple-400">AI Extractions (Session)</span>
+                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-cyan-400 shadow-[0_0_8px_rgba(0,245,255,0.3)]">AI Extractions (Session)</span>
                   <span className="text-xl font-mono font-bold text-white">{usageStats.extractions.toLocaleString()}</span>
                 </div>
                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-purple-500 transition-all duration-500" 
+                    className="h-full bg-cyan-500 transition-all duration-500 shadow-[0_0_8px_rgba(0,245,255,0.8)]" 
                     style={{ width: `${Math.min((usageStats.extractions / 1500) * 100, 100)}%` }}
                   />
                 </div>
@@ -3026,14 +3024,14 @@ export default function App() {
               </div>
 
               {/* AI Searches */}
-              <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+              <div className="p-4 glassmorphism border neon-border-violet/20 rounded-xl">
                 <div className="flex justify-between items-end mb-2">
-                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-blue-400">AI Searches (Session)</span>
+                  <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-violet-400 shadow-[0_0_8px_rgba(160,32,240,0.3)]">AI Searches (Session)</span>
                   <span className="text-xl font-mono font-bold text-white">{usageStats.searches.toLocaleString()}</span>
                 </div>
                 <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-blue-500 transition-all duration-500" 
+                    className="h-full bg-violet-500 transition-all duration-500 shadow-[0_0_8px_rgba(160,32,240,0.8)]" 
                     style={{ width: `${Math.min((usageStats.searches / 1500) * 100, 100)}%` }}
                   />
                 </div>
@@ -3066,16 +3064,16 @@ export default function App() {
       {/* Manual Entry Modal */}
       {manualEntryData && (
         <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
-          <div className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-6 sm:p-8 relative rounded-2xl my-auto">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 rounded-t-2xl" />
+          <div className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 relative rounded-3xl my-auto">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 rounded-t-3xl" />
             
             <div className="flex items-start justify-between mb-8">
               <div>
                 <div className="flex items-center gap-3 mb-1">
-                  <Plus className="w-5 h-5 text-purple-400" />
-                  <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase">Manual Entry</h2>
+                  <Plus className="w-5 h-5 text-violet-400" />
+                  <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase text-white">Manual Entry</h2>
                 </div>
-                <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em] truncate max-w-[200px]">
+                <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em] truncate max-w-[200px]">
                   File: {manualEntryData.fileName}
                 </p>
               </div>
@@ -3095,7 +3093,7 @@ export default function App() {
                   type="text"
                   value={manualEntryData.plateNumber}
                   onChange={(e) => setManualEntryData({ ...manualEntryData, plateNumber: e.target.value.toUpperCase() })}
-                  className="w-full bg-white/5 border border-white/10 p-4 rounded-xl font-display font-bold text-lg focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-lg focus:outline-none transition-all placeholder:text-white/10"
                   placeholder="E.G. ABC-1234"
                 />
               </div>
@@ -3106,7 +3104,7 @@ export default function App() {
                   type="date"
                   value={manualEntryData.date}
                   onChange={(e) => setManualEntryData({ ...manualEntryData, date: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 p-4 rounded-xl font-display font-bold text-lg focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-lg focus:outline-none transition-all"
                 />
               </div>
 
@@ -3115,7 +3113,7 @@ export default function App() {
                 <textarea 
                   value={manualEntryData.service}
                   onChange={(e) => setManualEntryData({ ...manualEntryData, service: e.target.value })}
-                  className="w-full bg-white/5 border border-white/10 p-4 rounded-xl font-display font-bold text-base focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all min-h-[100px]"
+                  className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-base focus:outline-none transition-all min-h-[100px] placeholder:text-white/10"
                   placeholder="E.G. Oil Change - 15000 KES, Tire Rotation - 5000 KES..."
                 />
               </div>
@@ -3123,7 +3121,7 @@ export default function App() {
               <button 
                 onClick={handleManualAdd}
                 disabled={isProcessing}
-                className="w-full py-5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-display font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-lg shadow-purple-600/20 flex items-center justify-center gap-3"
+                className="w-full py-5 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 disabled:opacity-50 text-white font-display font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)] flex items-center justify-center gap-3"
                 title="Save this manual entry to the database"
               >
                 {isProcessing ? (
@@ -3138,8 +3136,6 @@ export default function App() {
             </div>
           </div>
         </div>
-      )}
-        </>
       )}
       
       {/* AI Chat Assistant */}
@@ -3176,11 +3172,11 @@ export default function App() {
                   });
                   setIsFabOpen(false);
                 }}
-                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:border-blue-500/50 transition-all group"
+                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-violet transition-all group"
               >
-                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-blue-400 transition-colors">Manual Entry</span>
-                <div className="p-2 bg-blue-500/20 rounded-xl border border-blue-500/30">
-                  <Plus className="w-4 h-4 text-blue-400" />
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-violet-400 transition-colors">Manual Entry</span>
+                <div className="p-2 bg-violet-500/20 rounded-xl border border-violet-500/30">
+                  <Plus className="w-4 h-4 text-violet-400" />
                 </div>
               </motion.button>
 
@@ -3188,11 +3184,11 @@ export default function App() {
               <motion.label
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:border-emerald-500/50 transition-all group cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-cyan transition-all group cursor-pointer"
               >
-                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-emerald-400 transition-colors">AI Fleet Scan</span>
-                <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30">
-                  <Zap className="w-4 h-4 text-emerald-400" />
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-cyan-400 transition-colors">AI Fleet Scan</span>
+                <div className="p-2 bg-cyan-500/20 rounded-xl border border-cyan-500/30">
+                  <Zap className="w-4 h-4 text-cyan-400" />
                 </div>
                 <input 
                   type="file" 
@@ -3222,8 +3218,8 @@ export default function App() {
             }
           }}
           className={cn(
-            "w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all border border-emerald-400/20 relative overflow-hidden group",
-            isFabOpen ? "bg-zinc-800 text-white" : "bg-emerald-600 text-white"
+            "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.4)] transition-all border relative overflow-hidden group",
+            isFabOpen ? "bg-zinc-800 text-white border-white/20" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50"
           )}
         >
           <AnimatePresence mode="wait">
@@ -3273,7 +3269,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-6 sm:p-8 rounded-2xl shadow-2xl relative my-auto"
+              className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 rounded-3xl shadow-2xl relative my-auto"
             >
               <button 
                 onClick={() => {
@@ -3288,18 +3284,18 @@ export default function App() {
               </button>
 
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Key className="w-8 h-8 text-amber-500" />
+                <div className="w-16 h-16 bg-violet-500/10 border border-violet-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0_0_15px_rgba(160,32,240,0.3)]">
+                  <Key className="w-8 h-8 text-violet-400" />
                 </div>
                 <h3 className="text-xl font-display font-bold text-white uppercase tracking-wider mb-2">Unlock Services</h3>
-                <p className="text-xs text-white/40 font-mono uppercase tracking-widest">
+                <p className="text-xs text-violet-400/60 font-mono uppercase tracking-widest">
                   Enter the master password to continue using AI and advanced features.
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-display font-bold text-white/40 uppercase tracking-widest ml-1">Password</label>
+                  <label className="text-[10px] font-display font-bold text-violet-400/40 uppercase tracking-widest ml-1">Password</label>
                   <input 
                     type="password"
                     value={servicePasswordInput}
@@ -3309,8 +3305,8 @@ export default function App() {
                     }}
                     onKeyDown={(e) => e.key === 'Enter' && handleUnlockService()}
                     className={cn(
-                      "w-full bg-white/5 border p-4 rounded-xl text-white font-mono focus:outline-none transition-all",
-                      servicePasswordError ? "border-red-500" : "border-white/10 focus:border-amber-500/50"
+                      "w-full bg-black/40 border p-4 rounded-xl text-white font-mono focus:outline-none transition-all",
+                      servicePasswordError ? "border-red-500" : "neon-border-violet"
                     )}
                     placeholder="••••••••"
                     autoFocus
@@ -3324,7 +3320,7 @@ export default function App() {
 
                 <button 
                   onClick={handleUnlockService}
-                  className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-black font-display font-bold uppercase tracking-widest text-xs rounded-xl transition-all active:scale-[0.98]"
+                  className="w-full py-4 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 text-white font-display font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)] active:scale-[0.98]"
                 >
                   Unlock Now
                 </button>
@@ -3350,6 +3346,8 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+        </>
+      )}
     </div>
   );
 }

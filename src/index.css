@@ -8,8 +8,47 @@
   
   --color-bg: #0a0a0c;
   --color-ink: #ffffff;
-  --color-line: rgba(255, 255, 255, 0.1);
-  --color-accent: #a855f7; /* Purple accent to match truck lights */
+  --color-line: rgba(255, 255, 255, 0.05);
+  --color-accent: #a020f0; /* Electric Violet */
+  --color-cyan: #00f5ff; /* Cyan */
+  --color-violet: #a020f0;
+}
+
+@layer utilities {
+  .neon-glow-cyan {
+    box-shadow: 0 0 15px rgba(0, 245, 255, 0.3), inset 0 0 5px rgba(0, 245, 255, 0.2);
+  }
+  .neon-glow-violet {
+    box-shadow: 0 0 15px rgba(160, 32, 240, 0.3), inset 0 0 5px rgba(160, 32, 240, 0.2);
+  }
+  .neon-border-cyan {
+    border-color: rgba(0, 245, 255, 0.5);
+    box-shadow: 0 0 15px rgba(0, 245, 255, 0.3), inset 0 0 5px rgba(0, 245, 255, 0.2);
+  }
+  .neon-border-violet {
+    border-color: rgba(160, 32, 240, 0.5);
+    box-shadow: 0 0 15px rgba(160, 32, 240, 0.3), inset 0 0 5px rgba(160, 32, 240, 0.2);
+  }
+  .glassmorphism {
+    background-color: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .shimmer-ai {
+    background: linear-gradient(
+      90deg,
+      rgba(160, 32, 240, 0.1) 0%,
+      rgba(0, 245, 255, 0.2) 50%,
+      rgba(160, 32, 240, 0.1) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 3s infinite linear;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 body {
@@ -20,12 +59,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   position: relative;
-  background-image: linear-gradient(to bottom, rgba(10, 10, 12, 0.85), rgba(10, 10, 12, 0.95)), url('https://images.unsplash.com/photo-1591768793355-74d7c80b0e17?auto=format&fit=crop&q=80&w=2070');
-  background-size: cover;
-  background-position: center;
-  background-attachment: scroll;
+  background-image: radial-gradient(circle at 50% 0%, rgba(160, 32, 240, 0.15), transparent 50%),
+                    radial-gradient(circle at 100% 100%, rgba(0, 245, 255, 0.1), transparent 50%);
+  background-attachment: fixed;
   touch-action: manipulation;
-  overscroll-behavior-y: contain; /* Prevents accidental pull-to-refresh */
+  overscroll-behavior-y: contain;
 }
 
 @layer base {

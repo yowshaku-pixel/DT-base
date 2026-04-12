@@ -160,8 +160,10 @@ export default function AIChatAssistant({
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-colors",
-          isOpen ? "bg-red-500 text-white" : "bg-purple-600 text-white"
+          "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
+          isOpen 
+            ? "bg-zinc-800 text-white border-white/20" 
+            : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
         )}
       >
         {isOpen ? <X className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
@@ -174,17 +176,17 @@ export default function AIChatAssistant({
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-50 w-[90vw] md:w-[600px] h-[800px] max-h-[85vh] bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-24 right-6 z-50 w-[90vw] md:w-[600px] h-[800px] max-h-[85vh] glassmorphism rounded-2xl shadow-2xl flex flex-col overflow-hidden neon-border-violet"
           >
             {/* Header */}
-            <div className="p-4 border-b border-white/10 bg-gradient-to-r from-purple-900/20 to-zinc-900 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
+            <div className="p-4 border-b border-white/10 bg-gradient-to-r from-violet-900/20 to-zinc-900 flex items-center justify-between shimmer-ai">
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center shadow-[0_0_15px_rgba(0,245,255,0.3)]">
                   <Bot className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider">DT.Base AI</h3>
-                  <p className="text-[10px] text-white/40 font-mono uppercase">Fleet Analyst Active</p>
+                  <p className="text-[10px] text-cyan-400/60 font-mono uppercase">Fleet Analyst Active</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -343,14 +345,14 @@ export default function AIChatAssistant({
                   rows={Math.min(5, input.split('\n').length || 1)}
                   disabled={isLocked}
                   className={cn(
-                    "w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all resize-none min-h-[44px] max-h-[200px]",
+                    "w-full bg-black/40 border neon-border-violet rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/20 focus:outline-none transition-all resize-none min-h-[44px] max-h-[200px]",
                     isLocked && "opacity-50 cursor-not-allowed"
                   )}
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading || isLocked}
-                  className="mb-1 p-2.5 bg-purple-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-500 transition-colors shrink-0"
+                  className="mb-1 p-2.5 bg-gradient-to-br from-violet-600 to-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-violet-500 hover:to-cyan-400 transition-all shadow-[0_0_15px_rgba(0,245,255,0.3)] shrink-0"
                 >
                   <Send className="w-4 h-4" />
                 </button>
