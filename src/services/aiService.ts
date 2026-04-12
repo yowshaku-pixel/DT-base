@@ -17,11 +17,14 @@ function getAIErrorMessage(err: any): string {
   const isNetworkError = 
     message.includes("Failed to fetch") || 
     message.includes("NetworkError") ||
+    message.includes("Load failed") ||
+    message.includes("connection error") ||
     errString.includes("Failed to fetch") ||
-    errString.includes("TypeError: Load failed");
+    errString.includes("TypeError: Load failed") ||
+    errString.includes("NetworkError");
 
   if (isNetworkError) {
-    return "AI connection error. Please check your internet connection or verify your API key configuration.";
+    return "AI connection error. This usually happens due to unstable internet or API rate limits. Please check your connection and try again.";
   }
   
   if (message.includes("API key not valid")) {

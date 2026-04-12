@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins, Settings } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
@@ -115,6 +115,7 @@ export default function App() {
   const [sessionStats, setSessionStats] = useState({ reads: 0, writes: 0, deletes: 0 });
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [showMarketPricesModal, setShowMarketPricesModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [manualEntryData, setManualEntryData] = useState<{
     fileName: string;
     plateNumber: string;
@@ -570,7 +571,9 @@ export default function App() {
                              errorMessage.includes("internal error") || 
                              errorMessage.includes("xhr error") ||
                              errorMessage.includes("rpc failed") ||
-                             errorMessage.includes("failed to fetch");
+                             errorMessage.includes("failed to fetch") ||
+                             errorMessage.includes("connection error") ||
+                             errorMessage.includes("load failed");
  
         const isTimeout = errorMessage.includes("timed out");
 
@@ -768,7 +771,17 @@ export default function App() {
             const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
             
             const resetMsg = `Daily Quota Reached. Reset in ${diffHours}h ${diffMins}m (at Midnight).`;
-            setError(resetMsg);
+            setError(
+              <div className="flex flex-col gap-1">
+                <span>{resetMsg}</span>
+                <button 
+                  onClick={handleSelectKey}
+                  className="text-[10px] underline hover:text-white transition-colors text-left"
+                >
+                  Switch to a different API key or a Paid plan to continue now
+                </button>
+              </div> as any
+            );
             
             setUploadLog(prev => prev.map(e => 
               e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: "Daily limit reached. Try again after midnight." } : e
@@ -789,9 +802,10 @@ export default function App() {
           localCompletedCount++;
           setProgress(prev => ({ ...prev, current: localCompletedCount, failed: localFailedCount }));
           
-          // 10-second delay between requests to stay within free tier rate limits (approx 6 RPM)
+          // 15-second delay between requests to stay within free tier rate limits (approx 4 RPM)
+          // This is safer for localhost and shared environments
           if (localCompletedCount < queuedItems.length && !shouldStopRef.current) {
-            await new Promise(r => setTimeout(r, 10000));
+            await new Promise(r => setTimeout(r, 15000));
           }
         }
       }
@@ -889,7 +903,17 @@ export default function App() {
         const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
         
         const resetMsg = `Daily Quota Reached. Reset in ${diffHours}h ${diffMins}m (at Midnight).`;
-        setError(resetMsg);
+        setError(
+          <div className="flex flex-col gap-1">
+            <span>{resetMsg}</span>
+            <button 
+              onClick={handleSelectKey}
+              className="text-[10px] underline hover:text-white transition-colors text-left"
+            >
+              Switch to a different API key or a Paid plan to continue now
+            </button>
+          </div> as any
+        );
         
         setUploadLog(prev => prev.map(e => 
           e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: "Daily limit reached. Try again after midnight." } : e
@@ -1444,35 +1468,12 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 px-1.5 py-1 bg-white/5 border border-white/10 rounded-none text-[6px] font-mono text-white/30 uppercase tracking-tighter">
-              <span>PWA: {pwaStatus}</span>
-            </div>
-
             <button 
-              onClick={() => setShowUsageModal(true)}
-              className="px-2 py-1 bg-white/5 border border-white/10 rounded-none text-[7px] text-white/40 font-mono hover:bg-white/10 transition-colors flex items-center gap-1.5"
-              title="View session statistics and quota usage"
+              onClick={() => setShowSettingsModal(true)}
+              className="p-2 bg-white/5 border border-white/10 hover:bg-white/10 transition-all rounded-none text-white/40 hover:text-white"
+              title="Open Settings"
             >
-              <div className="w-1 h-1 rounded-full bg-green-500" />
-              STATS
-            </button>
-
-            <button 
-              onClick={() => setShowUsageModal(true)}
-              className="px-2 py-1 bg-white/5 border border-white/10 rounded-none text-[7px] text-white/40 font-mono hover:bg-white/10 transition-colors flex items-center gap-1.5"
-              title="View session statistics and quota usage"
-            >
-              <div className="w-1 h-1 rounded-full bg-green-500" />
-              STATS
-            </button>
-
-            <button 
-              onClick={() => setShowMarketPricesModal(true)}
-              className="px-2 py-1 bg-white/5 border border-white/10 rounded-none text-[7px] text-white/40 font-mono hover:bg-white/10 transition-colors flex items-center gap-1.5"
-              title="View tracked market prices for parts and services"
-            >
-              <Tag className="w-2 h-2 text-amber-500" />
-              MARKET
+              <Settings className="w-4 h-4" />
             </button>
 
             {deferredPrompt && (
@@ -1486,30 +1487,21 @@ export default function App() {
               </button>
             )}
             
-            {user ? (
-              <div className="flex items-center gap-2 px-2 py-1.5 bg-white/5 border border-white/10 rounded-none">
-                <span className="text-[7px] opacity-40 font-mono truncate max-w-[60px]">{user.email}</span>
-                <button 
-                  onClick={logout}
-                  className="p-1 hover:bg-white/10 transition-all rounded-none"
-                  title="Logout"
-                >
-                  <LogOut className="w-2.5 h-2.5 opacity-40" />
-                </button>
+            {user ? null : null}
+            
+            <div className="hidden">
+              <div 
+                className="flex items-center gap-2 px-2 py-1.5 bg-white/5 border border-white/10 rounded-none"
+                title="Cloud synchronization status"
+              >
+                <Database className={cn(
+                  "w-2 h-2",
+                  isCloudConnected === true ? "text-green-500" : "text-red-500"
+                )} />
+                <span className="text-[7px] font-mono text-white/20 uppercase tracking-widest">
+                  {isCloudConnected ? "Sync" : "Off"}
+                </span>
               </div>
-            ) : null}
-
-            <div 
-              className="flex items-center gap-2 px-2 py-1.5 bg-white/5 border border-white/10 rounded-none"
-              title="Cloud synchronization status"
-            >
-              <Database className={cn(
-                "w-2 h-2",
-                isCloudConnected === true ? "text-green-500" : "text-red-500"
-              )} />
-              <span className="text-[7px] font-mono text-white/20 uppercase tracking-widest">
-                {isCloudConnected ? "Sync" : "Off"}
-              </span>
             </div>
 
             {!isServiceUnlocked && (
@@ -1587,10 +1579,15 @@ export default function App() {
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <div className="flex flex-col">
-                <span className="text-sm font-display font-medium">{error}</span>
-                {error.includes("Daily Quota Reached") && (
+                <div className="text-sm font-display font-medium">{error}</div>
+                {typeof error === 'string' && error.includes("Daily Quota Reached") && (
                   <p className="text-[10px] opacity-60 mt-1">
                     You can still add records manually using the "Add Manually" button on failed items in the log below.
+                  </p>
+                )}
+                {typeof error === 'string' && (error.includes("Failed to fetch") || error.includes("connection error")) && (
+                  <p className="text-[10px] opacity-60 mt-1">
+                    This is often caused by unstable internet or browser extensions blocking the request. Try refreshing or using a different browser.
                   </p>
                 )}
               </div>
@@ -1979,19 +1976,22 @@ export default function App() {
         </div>
 
         <div className="flex items-end gap-2">
-          <button 
-            onClick={() => setShowLatestOnly(!showLatestOnly)}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 p-2.5 rounded-full border transition-all font-display font-bold text-[10px] uppercase tracking-[0.2em]",
-              showLatestOnly 
-                ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/20" 
-                : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white"
-            )}
-            title="Toggle Latest Only"
-          >
-            <Clock className={cn("w-3.5 h-3.5", showLatestOnly ? "animate-pulse" : "")} />
-            {showLatestOnly ? "Latest" : "All"}
-          </button>
+            <div className="flex flex-col items-center gap-1">
+              <button 
+                onClick={() => setShowLatestOnly(!showLatestOnly)}
+                className={cn(
+                  "flex-1 w-full flex items-center justify-center gap-2 p-2.5 rounded-full border transition-all font-display font-bold text-[10px] uppercase tracking-[0.2em]",
+                  showLatestOnly 
+                    ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/20" 
+                    : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white"
+                )}
+                title="Toggle Latest Only"
+              >
+                <Clock className={cn("w-3.5 h-3.5", showLatestOnly ? "animate-pulse" : "")} />
+                {showLatestOnly ? "Latest" : "All"}
+              </button>
+              <span className="text-[8px] font-mono text-white/30 uppercase tracking-widest">{filteredRecords.length} Filtered</span>
+            </div>
           
           <button 
             onClick={() => {
@@ -2017,35 +2017,35 @@ export default function App() {
       </div>
 
       {/* Trouble Finding Section */}
-      <div className="mb-12 p-6 bg-white/5 border border-white/10 rounded-2xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">Having trouble finding History?</h3>
-            <p className="text-[10px] font-display font-medium text-white/40 uppercase tracking-[0.2em]">Let the AI search the entire database for similar or related records</p>
+      <div className="mb-8 p-4 bg-white/5 border border-white/10 rounded-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <h3 className="font-display font-bold text-xs text-white uppercase tracking-widest">Trouble finding History?</h3>
+            <p className="text-[9px] font-display font-medium text-white/30 uppercase tracking-widest">AI can search the entire database</p>
           </div>
           <div className="flex items-center gap-2">
             <button 
               onClick={handleTroubleFinding}
               disabled={isTroubleFindingLoading || records.length === 0}
-              className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-xl transition-all active:scale-95 shadow-lg shadow-purple-900/20"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-bold uppercase tracking-[0.2em] text-[9px] rounded-lg transition-all active:scale-95"
               title="Use AI to search for similar or related records across the entire database"
             >
               {isTroubleFindingLoading ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  AI is searching...
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Searching...
                 </>
               ) : (
                 <>
-                  <Zap className="w-3.5 h-3.5 fill-current" />
-                  Ask AI to Find History
+                  <Zap className="w-3 h-3 fill-current" />
+                  Ask AI
                 </>
               )}
             </button>
             {isTroubleFindingLoading && (
               <button 
                 onClick={handleStopTroubleFinding}
-                className="px-4 py-3 bg-red-500/20 hover:bg-red-500/40 text-red-400 font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-xl transition-all active:scale-95 border border-red-500/30"
+                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/40 text-red-400 font-display font-bold uppercase tracking-[0.2em] text-[9px] rounded-lg transition-all active:scale-95 border border-red-500/30"
                 title="Stop AI search"
               >
                 Stop
@@ -2524,20 +2524,7 @@ export default function App() {
 
       {/* Stats */}
       <footer className="mt-8 flex flex-col gap-8 font-display font-bold text-[10px] uppercase tracking-[0.2em] opacity-40">
-        <div className="flex justify-between items-center">
-          <div className="flex gap-4 font-display font-bold">
-            <span>Total Records: {totalCount !== null ? totalCount : records.length}</span>
-            <span>Filtered: {filteredRecords.length}</span>
-            <button 
-              onClick={() => fetchRecords()}
-              disabled={isRefreshing}
-              className="ml-4 text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1.5 active:scale-95 disabled:opacity-30"
-              title="Bypass cache and fetch directly from server"
-            >
-              <RefreshCw className={cn("w-2.5 h-2.5", isRefreshing && "animate-spin")} />
-              <span>Force Sync</span>
-            </button>
-          </div>
+        <div className="flex justify-center items-center">
           <div className="flex items-center gap-4">
             {isCloudConnected === false && (
               <button 
@@ -2550,81 +2537,6 @@ export default function App() {
             )}
           </div>
         </div>
-
-        {/* Danger Zone */}
-        {!isProcessing && records.length > 0 && (
-          <div className="mt-12 pt-8 border-t border-white/10 border-dashed opacity-100">
-            <div className="flex flex-col items-center gap-4">
-              <p className="font-display font-bold uppercase tracking-[0.2em] text-[11px] text-red-500">Danger Zone</p>
-              
-              {!showPasswordPrompt ? (
-                <div className="flex flex-wrap justify-center gap-4">
-                  <button 
-                    onClick={() => {
-                      setShowPasswordPrompt(true);
-                      setDangerAction('clearDuplicates');
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
-                    title="Remove duplicate records from the database (requires password)"
-                  >
-                    <ListFilter className="w-4 h-4" />
-                    <span className="text-xs font-display font-bold uppercase tracking-[0.2em]">Clear Duplicates</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3 w-full max-w-xs relative">
-                  <button 
-                    onClick={() => {
-                      setShowPasswordPrompt(false);
-                      setPasswordInput('');
-                      setPasswordError(false);
-                      setDangerAction(null);
-                    }}
-                    className="absolute -top-8 right-0 p-1 hover:bg-white/10 rounded-full transition-colors"
-                    title="Close"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                  <input 
-                    type="password"
-                    placeholder={`ENTER PASSWORD TO CLEAR DUPLICATES...`}
-                    className={cn(
-                      "w-full bg-white/5 border p-3 font-display font-medium text-xs focus:outline-none text-white",
-                      passwordError ? "border-red-500" : "border-white/10"
-                    )}
-                    value={passwordInput}
-                    onChange={(e) => {
-                      setPasswordInput(e.target.value);
-                      setPasswordError(false);
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && handleClearDuplicates()}
-                    autoFocus
-                  />
-                  {passwordError && <p className="text-[9px] text-red-400 font-display font-bold">INCORRECT PASSWORD</p>}
-                  <div className="flex gap-2 w-full">
-                    <button 
-                      onClick={handleClearDuplicates}
-                      className="flex-1 bg-red-500/20 border border-red-500/50 text-red-100 py-2 text-[10px] font-display font-bold uppercase tracking-[0.2em] hover:bg-red-500/40 transition-all"
-                    >
-                      CONFIRM
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setShowPasswordPrompt(false);
-                        setPasswordInput('');
-                        setPasswordError(false);
-                        setDangerAction(null);
-                      }}
-                      className="flex-1 border border-white/10 py-2 text-[10px] font-display font-bold uppercase tracking-[0.2em] hover:bg-white/5 transition-all text-white"
-                    >
-                      CANCEL
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </footer>
 
       {/* Market Prices Modal */}
@@ -2707,6 +2619,214 @@ export default function App() {
                 >
                   Close
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettingsModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-8 relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500" />
+              
+              <button 
+                onClick={() => setShowSettingsModal(false)}
+                className="absolute top-6 right-6 p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all z-10"
+                title="Close Settings"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="mb-8">
+                <h2 className="text-2xl font-display font-black tracking-tighter italic mb-2">SETTINGS</h2>
+                <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em]">Application Configuration & Tools</p>
+              </div>
+
+              <div className="space-y-6">
+                {/* Database Stats */}
+                <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-lg flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-purple-400 mb-1">Total Records</span>
+                    <span className="text-2xl font-display font-bold text-white tracking-tighter">{totalCount !== null ? totalCount : records.length}</span>
+                  </div>
+                  <Database className="w-8 h-8 text-purple-500/20" />
+                </div>
+                {/* User Info */}
+                {user && (
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 mb-1">Authenticated User</span>
+                      <span className="text-xs font-mono text-white">{user.email}</span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        logout();
+                        setShowSettingsModal(false);
+                      }}
+                      className="p-2 bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 transition-all rounded-lg"
+                      title="Logout"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Status Section */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                    <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">PWA Status</span>
+                    <span className="text-[10px] font-mono text-purple-400 uppercase tracking-widest">{pwaStatus}</span>
+                  </div>
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
+                    <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Cloud Sync</span>
+                    <div className="flex items-center gap-2">
+                      <Database className={cn(
+                        "w-3 h-3",
+                        isCloudConnected === true ? "text-green-500" : "text-red-500"
+                      )} />
+                      <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                        {isCloudConnected ? "Connected" : "Offline"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tools Section */}
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => {
+                      setShowUsageModal(true);
+                      setShowSettingsModal(false);
+                    }}
+                    className="w-full p-4 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between hover:bg-white/10 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Zap className="w-4 h-4 text-green-500" />
+                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Usage Statistics</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/40 transition-colors" />
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      setShowMarketPricesModal(true);
+                      setShowSettingsModal(false);
+                    }}
+                    className="w-full p-4 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between hover:bg-white/10 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Tag className="w-4 h-4 text-amber-500" />
+                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Market Database</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/40 transition-colors" />
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      fetchRecords();
+                      setShowSettingsModal(false);
+                    }}
+                    disabled={isRefreshing}
+                    className="w-full p-4 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between hover:bg-white/10 transition-all group disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <RefreshCw className={cn("w-4 h-4 text-blue-400", isRefreshing && "animate-spin")} />
+                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Force Cloud Sync</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/40 transition-colors" />
+                  </button>
+                </div>
+
+                {/* Advanced Section */}
+                {!isServiceUnlocked && (
+                  <button 
+                    onClick={() => {
+                      setShowServicePasswordPrompt(true);
+                      setShowSettingsModal(false);
+                    }}
+                    className="w-full p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center justify-between hover:bg-amber-500/20 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Key className="w-4 h-4 text-amber-500" />
+                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-amber-500">Unlock Advanced Services</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-amber-500/40 group-hover:text-amber-500/60 transition-colors" />
+                  </button>
+                )}
+
+                {/* Danger Zone */}
+                {records.length > 0 && (
+                  <div className="pt-6 border-t border-white/10">
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-red-500 mb-4">Danger Zone</p>
+                    
+                    {!showPasswordPrompt ? (
+                      <button 
+                        onClick={() => {
+                          setShowPasswordPrompt(true);
+                          setDangerAction('clearDuplicates');
+                        }}
+                        className="w-full p-4 bg-red-500/5 border border-red-500/20 rounded-lg flex items-center justify-between hover:bg-red-500/10 transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <ListFilter className="w-4 h-4 text-red-500" />
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-red-400">Clear Duplicates</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-red-500/20 group-hover:text-red-500/40 transition-colors" />
+                      </button>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <input 
+                            type="password"
+                            placeholder="ENTER PASSWORD..."
+                            className={cn(
+                              "w-full bg-white/5 border p-3 font-mono text-xs focus:outline-none text-white rounded-lg",
+                              passwordError ? "border-red-500" : "border-white/10"
+                            )}
+                            value={passwordInput}
+                            onChange={(e) => {
+                              setPasswordInput(e.target.value);
+                              setPasswordError(false);
+                            }}
+                            onKeyDown={(e) => e.key === 'Enter' && handleClearDuplicates()}
+                            autoFocus
+                          />
+                          <button 
+                            onClick={() => {
+                              setShowPasswordPrompt(false);
+                              setPasswordInput('');
+                              setPasswordError(false);
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {passwordError && <p className="text-[8px] text-red-400 font-display font-bold uppercase tracking-widest">Incorrect Password</p>}
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={handleClearDuplicates}
+                            className="flex-1 bg-red-500/20 border border-red-500/50 text-red-100 py-2 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-red-500/40 transition-all rounded-lg"
+                          >
+                            Confirm Clear
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-white/5 flex justify-center">
+                <p className="text-[8px] text-white/20 font-mono uppercase tracking-[0.3em]">DT.Base v2.4.0 • Secure Fleet Management</p>
               </div>
             </motion.div>
           </div>

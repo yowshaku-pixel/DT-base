@@ -32,12 +32,15 @@ export function getSupabaseErrorMessage(err: any): string {
   const isNetworkError = 
     message.includes("Failed to fetch") || 
     message.includes("NetworkError") ||
+    message.includes("Load failed") ||
+    message.includes("connection error") ||
     details.includes("Failed to fetch") ||
     errString.includes("Failed to fetch") ||
-    errString.includes("TypeError: Load failed");
+    errString.includes("TypeError: Load failed") ||
+    errString.includes("NetworkError");
 
   if (isNetworkError) {
-    return "Network connection error. Please check your internet connection or verify that your Supabase URL is correct and reachable.";
+    return "Network connection error. This could be due to unstable internet or a temporary service outage. Please check your connection and try again.";
   }
 
   if (typeof err === 'string') return err;
