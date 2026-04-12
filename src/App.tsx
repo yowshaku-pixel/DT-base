@@ -2212,14 +2212,14 @@ export default function App() {
       )}
 
       {/* Maintenance History Header */}
-      <div className="flex justify-between items-end mb-6 px-2">
-        <div className="flex flex-col gap-1">
-          <h2 className="font-display font-bold uppercase tracking-[0.3em] text-[10px] text-purple-400">Log History</h2>
-          <div className="flex items-center gap-3">
-            <h3 className="font-display font-bold text-lg text-white tracking-tight">Maintenance Records</h3>
+      {showHistory && (
+        <div className="flex justify-between items-end mb-6 px-2">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-display font-bold uppercase tracking-[0.3em] text-[10px] text-purple-400">Log History</h2>
+            <div className="flex items-center gap-3">
+              <h3 className="font-display font-bold text-lg text-white tracking-tight">Maintenance Records</h3>
+            </div>
           </div>
-        </div>
-        {showHistory && (
           <div className="flex gap-3">
             <button 
               onClick={() => toggleAll(true)}
@@ -2236,8 +2236,8 @@ export default function App() {
               Collapse
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {showHistory && (
         <div className="flex flex-col gap-3">
