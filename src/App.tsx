@@ -124,6 +124,7 @@ export default function App() {
   const [passwordError, setPasswordError] = useState(false);
   const [expandedPlates, setExpandedPlates] = useState<Record<string, boolean>>({});
   const [showHistory, setShowHistory] = useState(false);
+  
   const [showDateRangeReport, setShowDateRangeReport] = useState(false);
   const [showLatestOnly, setShowLatestOnly] = useState(false);
   const [uploadLog, setUploadLog] = useState<UploadLogEntry[]>([]);
@@ -150,6 +151,14 @@ export default function App() {
 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Auto-show history when searching
+  useEffect(() => {
+    const hasActiveFilter = !!(searchQuery || serviceFilter || secondaryServiceFilter || startDate || endDate);
+    if (hasActiveFilter) {
+      setShowHistory(true);
+    }
+  }, [searchQuery, serviceFilter, secondaryServiceFilter, startDate, endDate]);
   const [troubleFindingAnswer, setTroubleFindingAnswer] = useState<string | null>(null);
   const [isTroubleFindingLoading, setIsTroubleFindingLoading] = useState(false);
   const troubleStopRef = useRef(false);
@@ -1994,6 +2003,7 @@ export default function App() {
               setSecondaryServiceFilter('');
               setStartDate('');
               setEndDate('');
+              setShowHistory(false);
             }}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 p-2.5 rounded-full border transition-all font-display font-bold text-[10px] uppercase tracking-[0.2em]",
@@ -2217,7 +2227,9 @@ export default function App() {
           <div className="flex flex-col gap-1">
             <h2 className="font-display font-bold uppercase tracking-[0.3em] text-[10px] text-purple-400">Log History</h2>
             <div className="flex items-center gap-3">
-              <h3 className="font-display font-bold text-lg text-white tracking-tight">Maintenance Records</h3>
+              <h3 className="font-display font-bold text-lg text-white tracking-tight">
+                {(searchQuery || serviceFilter || secondaryServiceFilter || startDate || endDate) ? 'Search Results' : 'Maintenance Records'}
+              </h3>
             </div>
           </div>
           <div className="flex gap-3">
