@@ -1476,7 +1476,16 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="mb-4 md:mb-6 border-b border-white/5 pb-4 glassmorphism p-4 rounded-3xl neon-border-violet">
+      <header className="relative mb-4 md:mb-6 border-b border-white/5 pb-4 glassmorphism p-4 rounded-3xl neon-border-violet">
+        {/* Settings Button - Moved to top right as requested */}
+        <button 
+          onClick={() => setShowSettingsModal(true)}
+          className="absolute top-4 right-4 p-2 bg-white/5 border border-white/10 hover:bg-white/10 transition-all rounded-full text-white/40 hover:text-white hover:neon-glow-violet z-10"
+          title="Open Settings"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-600/20 border border-purple-500/30 rounded-2xl">
@@ -1489,14 +1498,6 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            <button 
-              onClick={() => setShowSettingsModal(true)}
-              className="p-2 bg-white/5 border border-white/10 hover:bg-white/10 transition-all rounded-full text-white/40 hover:text-white hover:neon-glow-violet"
-              title="Open Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-
             {deferredPrompt && (
               <button 
                 onClick={handleInstallClick}
