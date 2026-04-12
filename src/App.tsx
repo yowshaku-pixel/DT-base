@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins, Settings } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
@@ -57,9 +57,7 @@ export default function App() {
       return { extractions: 0, searches: 0 };
     }
   });
-  const [isServiceUnlocked, setIsServiceUnlocked] = useState(() => {
-    return localStorage.getItem('dtbase_service_unlocked') === 'true';
-  });
+  const [isServiceUnlocked, setIsServiceUnlocked] = useState(false);
   const [showServicePasswordPrompt, setShowServicePasswordPrompt] = useState(false);
   const [servicePasswordInput, setServicePasswordInput] = useState('');
   const [servicePasswordError, setServicePasswordError] = useState(false);
@@ -67,10 +65,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('dtbase_usage_stats', JSON.stringify(usageStats));
   }, [usageStats]);
-
-  useEffect(() => {
-    localStorage.setItem('dtbase_service_unlocked', isServiceUnlocked.toString());
-  }, [isServiceUnlocked]);
 
   const [isAppUnlocked, setIsAppUnlocked] = useState(false);
   const [appPasswordInput, setAppPasswordInput] = useState('');
@@ -97,6 +91,33 @@ export default function App() {
     }
   };
 
+  const handleExportData = () => {
+    if (records.length === 0) return;
+    
+    // Create CSV content
+    const headers = ['Plate Number', 'Date', 'Service Type', 'File Name'];
+    const csvRows = [
+      headers.join(','),
+      ...records.map(r => [
+        `"${r.plate_number}"`,
+        `"${new Date(r.service_date).toLocaleString()}"`,
+        `"${r.service_description}"`,
+        `"${r.file_name || ''}"`
+      ].join(','))
+    ];
+    
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `fleet_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const [isFabOpen, setIsFabOpen] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [dangerAction, setDangerAction] = useState<'clearAll' | 'clearDuplicates' | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
@@ -1458,7 +1479,7 @@ export default function App() {
       <header className="mb-4 md:mb-6 border-b border-white/5 pb-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-600/20 border border-purple-500/30 rounded-none">
+            <div className="p-2 bg-purple-600/20 border border-purple-500/30 rounded-2xl">
               <Truck className="w-6 h-6 text-purple-400" strokeWidth={1.5} />
             </div>
             <div>
@@ -1470,7 +1491,7 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-2">
             <button 
               onClick={() => setShowSettingsModal(true)}
-              className="p-2 bg-white/5 border border-white/10 hover:bg-white/10 transition-all rounded-none text-white/40 hover:text-white"
+              className="p-2 bg-white/5 border border-white/10 hover:bg-white/10 transition-all rounded-full text-white/40 hover:text-white"
               title="Open Settings"
             >
               <Settings className="w-4 h-4" />
@@ -1479,7 +1500,7 @@ export default function App() {
             {deferredPrompt && (
               <button 
                 onClick={handleInstallClick}
-                className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white hover:bg-purple-500 transition-all active:scale-95 rounded-none"
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white hover:bg-purple-500 transition-all active:scale-95 rounded-xl"
                 title="Install DT.Base as a Progressive Web App"
               >
                 <Download className="w-3 h-3" />
@@ -1491,7 +1512,7 @@ export default function App() {
             
             <div className="hidden">
               <div 
-                className="flex items-center gap-2 px-2 py-1.5 bg-white/5 border border-white/10 rounded-none"
+                className="flex items-center gap-2 px-2 py-1.5 bg-white/5 border border-white/10 rounded-lg"
                 title="Cloud synchronization status"
               >
                 <Database className={cn(
@@ -1507,41 +1528,13 @@ export default function App() {
             {!isServiceUnlocked && (
               <button 
                 onClick={() => setShowServicePasswordPrompt(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 transition-all rounded-none"
+                className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 transition-all rounded-xl"
                 title="Enter password to unlock AI and advanced features"
               >
                 <Key className="w-3 h-3" />
                 <span className="text-[8px] font-display font-bold uppercase tracking-widest">Unlock Services</span>
               </button>
             )}
-
-            <label 
-              onClick={(e) => {
-                if (!isServiceUnlocked) {
-                  e.preventDefault();
-                  setShowServicePasswordPrompt(true);
-                }
-              }}
-              className={cn(
-                "flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all active:scale-95 !rounded-none",
-                (isProcessing || !user || !isServiceUnlocked) && "opacity-50"
-              )}
-              style={{ borderRadius: '0px !important' }}
-              title={!isServiceUnlocked ? "Unlock services to add images" : "Select images to add to the processing queue"}
-            >
-              {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-              <span className="text-[10px] font-display font-bold uppercase tracking-widest">
-                {isProcessing ? `${progress.current}/${progress.total}` : "Add to Queue"}
-              </span>
-              <input 
-                type="file" 
-                multiple 
-                accept="image/*" 
-                className="hidden" 
-                onChange={handleFileUpload}
-                disabled={isProcessing || !user}
-              />
-            </label>
           </div>
         </div>
       </header>
@@ -2410,11 +2403,11 @@ export default function App() {
 
       {/* Date Range Summary Report Modal */}
       {showDateRangeReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            className="relative w-full max-w-2xl bg-[#0d0d0f] border border-white/10 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[85vh]"
+            className="relative w-full max-w-2xl bg-[#0d0d0f] border border-white/10 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
           >
             <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/[0.02]">
               <div className="flex flex-col gap-1">
@@ -2427,7 +2420,8 @@ export default function App() {
               </div>
               <button 
                 onClick={() => setShowDateRangeReport(false)}
-                className="p-2 hover:bg-white/5 rounded-full transition-colors text-white/40 hover:text-white"
+                className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+                title="Close Report"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2543,7 +2537,7 @@ export default function App() {
       <AnimatePresence>
         {showMarketPricesModal && (
           <div 
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto"
             onClick={() => setShowMarketPricesModal(false)}
           >
             <motion.div 
@@ -2551,11 +2545,11 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-[#0a0a0c] border border-white/10 w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh]"
+              className="bg-[#0a0a0c] border border-white/10 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] rounded-2xl my-auto"
             >
-              <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+              <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between bg-white/5">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-500/20 rounded-none border border-amber-500/30">
+                  <div className="p-2 bg-amber-500/20 rounded-lg border border-amber-500/30">
                     <Tag className="w-4 h-4 text-amber-400" />
                   </div>
                   <div>
@@ -2565,9 +2559,10 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => setShowMarketPricesModal(false)}
-                  className="p-2 hover:bg-white/5 transition-colors"
+                  className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+                  title="Close Market Database"
                 >
-                  <X className="w-5 h-5 text-white/40" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
@@ -2628,144 +2623,257 @@ export default function App() {
       {/* Settings Modal */}
       <AnimatePresence>
         {showSettingsModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-8 relative overflow-hidden"
+              className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-6 sm:p-8 relative rounded-2xl my-auto"
             >
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500" />
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 rounded-t-2xl" />
               
-              <button 
-                onClick={() => setShowSettingsModal(false)}
-                className="absolute top-6 right-6 p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all z-10"
-                title="Close Settings"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="mb-8">
-                <h2 className="text-2xl font-display font-black tracking-tighter italic mb-2">SETTINGS</h2>
-                <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em]">Application Configuration & Tools</p>
+              <div className="flex items-start justify-between mb-8">
+                <div>
+                  <h2 className="text-2xl font-display font-black tracking-tighter italic mb-1">SETTINGS</h2>
+                  <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em]">Application Configuration & Tools</p>
+                </div>
+                <button 
+                  onClick={() => setShowSettingsModal(false)}
+                  className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+                  title="Close Settings"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              <div className="space-y-6">
-                {/* Database Stats */}
-                <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-lg flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-purple-400 mb-1">Total Records</span>
-                    <span className="text-2xl font-display font-bold text-white tracking-tighter">{totalCount !== null ? totalCount : records.length}</span>
+              <div className="space-y-10">
+                {/* Section: Overview */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-3 bg-purple-500 rounded-full" />
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-white/40">System Overview</p>
                   </div>
-                  <Database className="w-8 h-8 text-purple-500/20" />
-                </div>
-                {/* User Info */}
-                {user && (
-                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 mb-1">Authenticated User</span>
-                      <span className="text-xs font-mono text-white">{user.email}</span>
+                  <div className="grid grid-cols-1 gap-3">
+                    {/* Database Stats */}
+                    <div className="p-6 bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-3xl flex items-center justify-between group hover:from-purple-500/15 transition-all shadow-xl shadow-purple-900/10">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-purple-400 mb-1">Fleet Database</span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-4xl font-display font-bold text-white tracking-tighter">{totalCount !== null ? totalCount : records.length}</span>
+                          <span className="text-xs font-display font-bold text-white/30 uppercase tracking-widest">Records</span>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-purple-500/20 rounded-2xl border border-purple-500/30 shadow-inner">
+                        <Database className="w-7 h-7 text-purple-400" />
+                      </div>
                     </div>
+
+                    {/* User Info */}
+                    {user && (
+                      <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between group hover:bg-white/[0.07] transition-all">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:border-white/20 transition-all">
+                            <UserIcon className="w-6 h-6 text-white/30" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/30 mb-0.5">Operator</span>
+                            <span className="text-xs font-mono text-white/90 truncate max-w-[160px]">{user.email}</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            logout();
+                            setShowSettingsModal(false);
+                          }}
+                          className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 hover:border-red-500/40 transition-all rounded-xl shadow-lg shadow-red-900/20"
+                          title="Logout"
+                        >
+                          <LogOut className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section: Connectivity */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-3 bg-blue-500 rounded-full" />
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-white/40">Connectivity</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex flex-col gap-4 group hover:bg-white/[0.06] transition-all">
+                      <div className="flex items-center justify-between">
+                        <Smartphone className="w-4 h-4 text-white/20" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-white/30 block mb-1">PWA Status</span>
+                        <span className="text-[10px] font-mono text-purple-400 font-bold uppercase tracking-widest">{pwaStatus}</span>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex flex-col gap-4 group hover:bg-white/[0.06] transition-all">
+                      <div className="flex items-center justify-between">
+                        <Cloud className={cn(
+                          "w-4 h-4",
+                          isCloudConnected ? "text-green-500" : "text-red-500"
+                        )} />
+                        <div className={cn(
+                          "w-1.5 h-1.5 rounded-full",
+                          isCloudConnected ? "bg-green-500" : "bg-red-500"
+                        )} />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-white/30 block mb-1">Cloud Sync</span>
+                        <span className={cn(
+                          "text-[10px] font-mono uppercase tracking-widest font-bold",
+                          isCloudConnected ? "text-green-500/80" : "text-red-500/80"
+                        )}>
+                          {isCloudConnected ? "Connected" : "Offline"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section: Tools */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-3 bg-emerald-500 rounded-full" />
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-white/40">Fleet Tools</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
                     <button 
                       onClick={() => {
-                        logout();
+                        setShowUsageModal(true);
                         setShowSettingsModal(false);
                       }}
-                      className="p-2 bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 transition-all rounded-lg"
-                      title="Logout"
+                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
                     >
-                      <LogOut className="w-4 h-4" />
+                      <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-green-500/10 rounded-xl border border-green-500/20 group-hover:bg-green-500/20 transition-all">
+                          <Zap className="w-4 h-4 text-green-500" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Usage Statistics</span>
+                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Quota & Performance</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        setShowMarketPricesModal(true);
+                        setShowSettingsModal(false);
+                      }}
+                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 group-hover:bg-amber-500/20 transition-all">
+                          <Tag className="w-4 h-4 text-amber-500" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Market Database</span>
+                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Price Reference Logs</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+
+                    <button 
+                      onClick={handleExportData}
+                      disabled={records.length === 0}
+                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-purple-500/10 rounded-xl border border-purple-500/20 group-hover:bg-purple-500/20 transition-all">
+                          <Download className="w-4 h-4 text-purple-400" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Export Fleet Data</span>
+                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Download CSV Report</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        fetchRecords();
+                        setShowSettingsModal(false);
+                      }}
+                      disabled={isRefreshing}
+                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/20 group-hover:bg-blue-500/20 transition-all">
+                          <RefreshCw className={cn("w-4 h-4 text-blue-400", isRefreshing && "animate-spin")} />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Force Cloud Sync</span>
+                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Manual Data Refresh</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
                     </button>
                   </div>
-                )}
-
-                {/* Status Section */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
-                    <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">PWA Status</span>
-                    <span className="text-[10px] font-mono text-purple-400 uppercase tracking-widest">{pwaStatus}</span>
-                  </div>
-                  <div className="p-4 bg-white/5 border border-white/10 rounded-lg">
-                    <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Cloud Sync</span>
-                    <div className="flex items-center gap-2">
-                      <Database className={cn(
-                        "w-3 h-3",
-                        isCloudConnected === true ? "text-green-500" : "text-red-500"
-                      )} />
-                      <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
-                        {isCloudConnected ? "Connected" : "Offline"}
-                      </span>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Tools Section */}
-                <div className="space-y-3">
-                  <button 
-                    onClick={() => {
-                      setShowUsageModal(true);
-                      setShowSettingsModal(false);
-                    }}
-                    className="w-full p-4 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between hover:bg-white/10 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Zap className="w-4 h-4 text-green-500" />
-                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Usage Statistics</span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/40 transition-colors" />
-                  </button>
-
-                  <button 
-                    onClick={() => {
-                      setShowMarketPricesModal(true);
-                      setShowSettingsModal(false);
-                    }}
-                    className="w-full p-4 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between hover:bg-white/10 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Tag className="w-4 h-4 text-amber-500" />
-                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Market Database</span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/40 transition-colors" />
-                  </button>
-
-                  <button 
-                    onClick={() => {
-                      fetchRecords();
-                      setShowSettingsModal(false);
-                    }}
-                    disabled={isRefreshing}
-                    className="w-full p-4 bg-white/5 border border-white/10 rounded-lg flex items-center justify-between hover:bg-white/10 transition-all group disabled:opacity-50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <RefreshCw className={cn("w-4 h-4 text-blue-400", isRefreshing && "animate-spin")} />
-                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Force Cloud Sync</span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-white/20 group-hover:text-white/40 transition-colors" />
-                  </button>
+                {/* Section: Advanced */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-3 bg-amber-500 rounded-full" />
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-amber-500/40">Restricted</p>
+                  </div>
+                  {!isServiceUnlocked ? (
+                    <button 
+                      onClick={() => {
+                        setShowServicePasswordPrompt(true);
+                        setShowSettingsModal(false);
+                      }}
+                      className="w-full p-5 bg-amber-500/[0.03] border border-amber-500/20 rounded-3xl flex items-center justify-between hover:bg-amber-500/[0.08] hover:border-amber-500/40 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                          <Key className="w-5 h-5 text-amber-500" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[11px] font-display font-bold uppercase tracking-[0.2em] text-amber-500/90">Unlock Advanced Services</span>
+                          <span className="text-[8px] font-mono text-amber-500/40 uppercase tracking-widest">Master Access Required</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-amber-500/40 group-hover:text-amber-500/60 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => setIsServiceUnlocked(false)}
+                      className="w-full p-5 bg-green-500/[0.03] border border-green-500/20 rounded-3xl flex items-center justify-between hover:bg-green-500/[0.08] hover:border-green-500/40 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-green-500/10 rounded-2xl border border-green-500/20">
+                          <Key className="w-5 h-5 text-green-500" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[11px] font-display font-bold uppercase tracking-[0.2em] text-green-500/90">Advanced Services Active</span>
+                          <span className="text-[8px] font-mono text-green-500/40 uppercase tracking-widest">Tap to Relock System</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-[10px] font-mono text-green-500/60 font-bold uppercase tracking-widest">UNLOCKED</span>
+                      </div>
+                    </button>
+                  )}
                 </div>
 
-                {/* Advanced Section */}
-                {!isServiceUnlocked && (
-                  <button 
-                    onClick={() => {
-                      setShowServicePasswordPrompt(true);
-                      setShowSettingsModal(false);
-                    }}
-                    className="w-full p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-center justify-between hover:bg-amber-500/20 transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Key className="w-4 h-4 text-amber-500" />
-                      <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-amber-500">Unlock Advanced Services</span>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-amber-500/40 group-hover:text-amber-500/60 transition-colors" />
-                  </button>
-                )}
-
-                {/* Danger Zone */}
+                {/* Section: Danger Zone */}
                 {records.length > 0 && (
-                  <div className="pt-6 border-t border-white/10">
-                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-red-500 mb-4">Danger Zone</p>
+                  <div className="space-y-4 pt-6 border-t border-white/5">
+                    <div className="flex items-center gap-2 px-1">
+                      <AlertTriangle className="w-3 h-3 text-red-500" />
+                      <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-red-500/60">Danger Zone</p>
+                    </div>
                     
                     {!showPasswordPrompt ? (
                       <button 
@@ -2773,23 +2881,28 @@ export default function App() {
                           setShowPasswordPrompt(true);
                           setDangerAction('clearDuplicates');
                         }}
-                        className="w-full p-4 bg-red-500/5 border border-red-500/20 rounded-lg flex items-center justify-between hover:bg-red-500/10 transition-all group"
+                        className="w-full p-4 bg-red-500/[0.02] border border-red-500/10 rounded-2xl flex items-center justify-between hover:bg-red-500/[0.06] hover:border-red-500/30 transition-all group"
                       >
-                        <div className="flex items-center gap-3">
-                          <ListFilter className="w-4 h-4 text-red-500" />
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-red-400">Clear Duplicates</span>
+                        <div className="flex items-center gap-4">
+                          <div className="p-2.5 bg-red-500/10 rounded-xl border border-red-500/20">
+                            <ListFilter className="w-4 h-4 text-red-500" />
+                          </div>
+                          <div className="flex flex-col items-start">
+                            <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-red-400/80">Clear Duplicates</span>
+                            <span className="text-[8px] font-mono text-red-500/30 uppercase tracking-widest">Permanent Data Cleanup</span>
+                          </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-red-500/20 group-hover:text-red-500/40 transition-colors" />
+                        <ChevronRight className="w-4 h-4 text-red-500/20 group-hover:text-red-500/40 group-hover:translate-x-0.5 transition-all" />
                       </button>
                     ) : (
-                      <div className="space-y-3">
+                      <div className="p-5 bg-red-500/[0.03] border border-red-500/20 rounded-3xl space-y-5 shadow-2xl shadow-red-900/10">
                         <div className="relative">
                           <input 
                             type="password"
-                            placeholder="ENTER PASSWORD..."
+                            placeholder="ENTER MASTER PASSWORD..."
                             className={cn(
-                              "w-full bg-white/5 border p-3 font-mono text-xs focus:outline-none text-white rounded-lg",
-                              passwordError ? "border-red-500" : "border-white/10"
+                              "w-full bg-black/60 border p-4 font-mono text-xs focus:outline-none text-white rounded-2xl placeholder:text-white/10 transition-all",
+                              passwordError ? "border-red-500" : "border-white/10 focus:border-red-500/50"
                             )}
                             value={passwordInput}
                             onChange={(e) => {
@@ -2805,20 +2918,18 @@ export default function App() {
                               setPasswordInput('');
                               setPasswordError(false);
                             }}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/20 hover:text-white"
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white p-1.5 bg-white/5 rounded-full transition-all"
                           >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
-                        {passwordError && <p className="text-[8px] text-red-400 font-display font-bold uppercase tracking-widest">Incorrect Password</p>}
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={handleClearDuplicates}
-                            className="flex-1 bg-red-500/20 border border-red-500/50 text-red-100 py-2 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-red-500/40 transition-all rounded-lg"
-                          >
-                            Confirm Clear
-                          </button>
-                        </div>
+                        {passwordError && <p className="text-[8px] text-red-400 font-display font-bold uppercase tracking-widest text-center">Incorrect Password</p>}
+                        <button 
+                          onClick={handleClearDuplicates}
+                          className="w-full bg-red-600 hover:bg-red-500 text-white py-4 text-[11px] font-display font-black uppercase tracking-[0.3em] transition-all rounded-2xl shadow-xl shadow-red-900/40 active:scale-[0.98]"
+                        >
+                          Confirm Data Wipe
+                        </button>
                       </div>
                     )}
                   </div>
@@ -2835,20 +2946,22 @@ export default function App() {
 
       {/* Usage Stats Modal */}
       {showUsageModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-8 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500" />
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-6 sm:p-8 relative rounded-2xl my-auto">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 rounded-t-2xl" />
             
-            <button 
-              onClick={() => setShowUsageModal(false)}
-              className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="mb-8">
-              <h2 className="text-2xl font-display font-black tracking-tighter italic mb-2">USAGE DASHBOARD</h2>
-              <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em]">Session Monitoring & Quota Estimates</p>
+            <div className="flex items-start justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-display font-black tracking-tighter italic mb-1">USAGE DASHBOARD</h2>
+                <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em]">Session Monitoring & Quota Estimates</p>
+              </div>
+              <button 
+                onClick={() => setShowUsageModal(false)}
+                className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+                title="Close Dashboard"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <div className="space-y-6">
@@ -2952,23 +3065,27 @@ export default function App() {
 
       {/* Manual Entry Modal */}
       {manualEntryData && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-md glass-panel p-8 relative animate-in fade-in zoom-in duration-300">
-            <button 
-              onClick={() => setManualEntryData(null)}
-              className="absolute right-6 top-6 p-2 hover:bg-white/10 rounded-full transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="mb-8">
-              <div className="flex items-center gap-3 mb-2">
-                <Plus className="w-5 h-5 text-purple-400" />
-                <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase">Manual Entry</h2>
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+          <div className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-6 sm:p-8 relative rounded-2xl my-auto">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 rounded-t-2xl" />
+            
+            <div className="flex items-start justify-between mb-8">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <Plus className="w-5 h-5 text-purple-400" />
+                  <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase">Manual Entry</h2>
+                </div>
+                <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em] truncate max-w-[200px]">
+                  File: {manualEntryData.fileName}
+                </p>
               </div>
-              <p className="text-[10px] text-white/40 font-mono uppercase tracking-[0.2em] truncate">
-                File: {manualEntryData.fileName}
-              </p>
+              <button 
+                onClick={() => setManualEntryData(null)}
+                className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+                title="Close Manual Entry"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             <div className="space-y-6">
@@ -3035,16 +3152,128 @@ export default function App() {
           onUnlockRequest={() => setShowServicePasswordPrompt(true)}
         />
       )}
+      
+      {/* Floating Action Hub */}
+      <div className="fixed bottom-6 right-24 z-50 flex flex-col items-end gap-3">
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.8 }}
+              className="flex flex-col items-end gap-3 mb-2"
+            >
+              {/* Manual Entry Solution */}
+              <motion.button
+                whileHover={{ scale: 1.05, x: -5 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setManualEntryData({
+                    fileName: 'Manual Entry',
+                    plateNumber: '',
+                    date: new Date().toISOString().split('T')[0],
+                    service: ''
+                  });
+                  setIsFabOpen(false);
+                }}
+                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:border-blue-500/50 transition-all group"
+              >
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-blue-400 transition-colors">Manual Entry</span>
+                <div className="p-2 bg-blue-500/20 rounded-xl border border-blue-500/30">
+                  <Plus className="w-4 h-4 text-blue-400" />
+                </div>
+              </motion.button>
+
+              {/* AI Scan Solution */}
+              <motion.label
+                whileHover={{ scale: 1.05, x: -5 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:border-emerald-500/50 transition-all group cursor-pointer"
+              >
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-emerald-400 transition-colors">AI Fleet Scan</span>
+                <div className="p-2 bg-emerald-500/20 rounded-xl border border-emerald-500/30">
+                  <Zap className="w-4 h-4 text-emerald-400" />
+                </div>
+                <input 
+                  type="file" 
+                  multiple 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    handleFileUpload(e);
+                    setIsFabOpen(false);
+                  }}
+                  disabled={isProcessing || !user}
+                />
+              </motion.label>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Main Toggle Button */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => {
+            if (!isServiceUnlocked) {
+              setShowServicePasswordPrompt(true);
+            } else {
+              setIsFabOpen(!isFabOpen);
+            }
+          }}
+          className={cn(
+            "w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all border border-emerald-400/20 relative overflow-hidden group",
+            isFabOpen ? "bg-zinc-800 text-white" : "bg-emerald-600 text-white"
+          )}
+        >
+          <AnimatePresence mode="wait">
+            {isFabOpen ? (
+              <motion.div
+                key="close"
+                initial={{ rotate: -90, opacity: 0 }}
+                animate={{ rotate: 0, opacity: 1 }}
+                exit={{ rotate: 90, opacity: 0 }}
+              >
+                <X className="w-6 h-6" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="plus"
+                initial={{ rotate: 90, opacity: 0 }}
+                animate={{ rotate: 0, opacity: 1 }}
+                exit={{ rotate: -90, opacity: 0 }}
+                className="flex items-center justify-center"
+              >
+                {isProcessing ? (
+                  <div className="relative flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 animate-spin opacity-20" />
+                    <span className="absolute text-[8px] font-bold">{progress.current}</span>
+                  </div>
+                ) : (
+                  <Plus className="w-6 h-6" />
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          {/* Tooltip on hover (Desktop) */}
+          {!isFabOpen && (
+            <div className="absolute right-full mr-4 px-3 py-1.5 bg-zinc-900 border border-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+              <span className="text-[10px] font-display font-bold uppercase tracking-widest text-white/60">Add to Fleet</span>
+            </div>
+          )}
+        </motion.button>
+      </div>
 
       {/* Service Password Modal */}
       <AnimatePresence>
         {showServicePasswordPrompt && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-zinc-900 border border-white/10 p-8 rounded-2xl shadow-2xl relative"
+              className="w-full max-w-md bg-[#0a0a0c] border border-white/10 p-6 sm:p-8 rounded-2xl shadow-2xl relative my-auto"
             >
               <button 
                 onClick={() => {
@@ -3052,9 +3281,10 @@ export default function App() {
                   setServicePasswordInput('');
                   setServicePasswordError(false);
                 }}
-                className="absolute top-4 right-4 p-2 hover:bg-white/5 rounded-full transition-colors"
+                className="absolute top-4 right-4 p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white z-10"
+                title="Close Unlock Modal"
               >
-                <X className="w-5 h-5 text-white/40" />
+                <X className="w-5 h-5" />
               </button>
 
               <div className="text-center mb-8">
