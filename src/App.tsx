@@ -2217,13 +2217,6 @@ export default function App() {
           <h2 className="font-display font-bold uppercase tracking-[0.3em] text-[10px] text-purple-400">Log History</h2>
           <div className="flex items-center gap-3">
             <h3 className="font-display font-bold text-lg text-white tracking-tight">Maintenance Records</h3>
-            <button 
-              onClick={() => setShowHistory(!showHistory)}
-              className="text-[9px] font-display font-bold uppercase tracking-[0.2em] px-2.5 py-1 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all text-white/60"
-              title="Toggle visibility of the maintenance log history"
-            >
-              {showHistory ? 'Hide' : 'Show'}
-            </button>
           </div>
         </div>
         {showHistory && (
@@ -2742,6 +2735,30 @@ export default function App() {
                     <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-white/40">Fleet Tools</p>
                   </div>
                   <div className="grid grid-cols-1 gap-2">
+                    <button 
+                      onClick={() => setShowHistory(!showHistory)}
+                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-violet-500/10 rounded-xl border border-violet-500/20 group-hover:bg-violet-500/20 transition-all">
+                          <Eye className={cn("w-4 h-4", showHistory ? "text-violet-400" : "text-white/20")} />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Maintenance Log</span>
+                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">{showHistory ? 'Visible' : 'Hidden'}</span>
+                        </div>
+                      </div>
+                      <div className={cn(
+                        "w-8 h-4 rounded-full transition-all relative border",
+                        showHistory ? "bg-violet-500/20 border-violet-500/40" : "bg-white/5 border-white/10"
+                      )}>
+                        <div className={cn(
+                          "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
+                          showHistory ? "right-0.5 bg-violet-400" : "left-0.5 bg-white/20"
+                        )} />
+                      </div>
+                    </button>
+
                     <button 
                       onClick={() => {
                         setShowUsageModal(true);
