@@ -25,6 +25,7 @@ body {
   background-position: center;
   background-attachment: scroll;
   touch-action: manipulation;
+  overscroll-behavior-y: contain; /* Prevents accidental pull-to-refresh */
 }
 
 @layer base {

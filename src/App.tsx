@@ -133,6 +133,23 @@ export default function App() {
   const troubleStopRef = useRef(false);
   const [marketPrices, setMarketPrices] = useState<MarketPrice[]>([]);
 
+  // Prevent accidental refresh/close
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasActiveWork = isProcessing || isTroubleFindingLoading || uploadLog.some(entry => entry.status === 'queued' || entry.status === 'processing');
+      
+      if (hasActiveWork) {
+        e.preventDefault();
+        // Modern browsers ignore the custom string but require it for the dialog to show
+        e.returnValue = 'You have active processes running. Are you sure you want to leave?';
+        return 'You have active processes running. Are you sure you want to leave?';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isProcessing, isTroubleFindingLoading, uploadLog]);
+
   // API Key Selection Check
   useEffect(() => {
     const checkApiKey = async () => {
