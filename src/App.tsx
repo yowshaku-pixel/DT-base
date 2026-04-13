@@ -2441,10 +2441,18 @@ export default function App() {
                 Object.entries(groupedRecords).map(([plate, plateRecords]) => {
                   // Group by service type for this plate
                   const serviceGroups: Record<string, string[]> = {};
+                  const seenRecords = new Set<string>();
+
                   plateRecords.forEach(r => {
                     const desc = r.service_description.toLowerCase().trim();
+                    const date = r.service_date;
+                    const duplicateKey = `${date}|${desc}`;
+                    
+                    if (seenRecords.has(duplicateKey)) return; // Skip duplicate
+                    seenRecords.add(duplicateKey);
+
                     if (!serviceGroups[desc]) serviceGroups[desc] = [];
-                    serviceGroups[desc].push(r.service_date);
+                    serviceGroups[desc].push(date);
                   });
 
                   return (

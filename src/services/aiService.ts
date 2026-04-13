@@ -140,12 +140,21 @@ export async function analyzeMaintenanceData(
     }
   }
 
-  // Format records for the AI
-  const formattedRecords = filteredRecords.map(r => ({
-    plate: r.plate_number,
-    date: r.service_date,
-    desc: r.service_description
-  }));
+  // Format records for the AI (Deduplicated)
+  const seenRecords = new Set<string>();
+  const formattedRecords = [];
+
+  for (const r of filteredRecords) {
+    const key = `${normalizePlate(r.plate_number)}|${r.service_date}|${r.service_description.toLowerCase().trim()}`;
+    if (seenRecords.has(key)) continue;
+    seenRecords.add(key);
+    
+    formattedRecords.push({
+      plate: r.plate_number,
+      date: r.service_date,
+      desc: r.service_description
+    });
+  }
 
   // Format market prices for the AI
   const formattedMarketPrices = marketPrices.map(p => ({
@@ -155,10 +164,17 @@ export async function analyzeMaintenanceData(
     date: p.last_updated
   }));
 
-  // Pre-calculate truck summary for precision (on the filtered set)
+  // Pre-calculate truck summary for precision (on the filtered set, Deduplicated)
   const truckSummary: Record<string, { count: number, originalPlates: string[] }> = {};
+  const seenSummaryRecords = new Set<string>();
+
   filteredRecords.forEach(r => {
     const norm = normalizePlate(r.plate_number);
+    const key = `${norm}|${r.service_date}|${r.service_description.toLowerCase().trim()}`;
+    
+    if (seenSummaryRecords.has(key)) return;
+    seenSummaryRecords.add(key);
+
     let found = false;
     for (const key in truckSummary) {
       if (arePlatesSimilar(key, norm)) {
