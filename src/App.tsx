@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
@@ -57,7 +57,13 @@ export default function App() {
       return { extractions: 0, searches: 0 };
     }
   });
-  const [isServiceUnlocked, setIsServiceUnlocked] = useState(false);
+  const [isServiceUnlocked, setIsServiceUnlocked] = useState(() => {
+    try {
+      return localStorage.getItem('dtbase_service_unlocked') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
   const [showServicePasswordPrompt, setShowServicePasswordPrompt] = useState(false);
   const [servicePasswordInput, setServicePasswordInput] = useState('');
   const [servicePasswordError, setServicePasswordError] = useState(false);
@@ -65,6 +71,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('dtbase_usage_stats', JSON.stringify(usageStats));
   }, [usageStats]);
+
+  useEffect(() => {
+    localStorage.setItem('dtbase_service_unlocked', String(isServiceUnlocked));
+  }, [isServiceUnlocked]);
 
   const [isAppUnlocked, setIsAppUnlocked] = useState(false);
   const [appPasswordInput, setAppPasswordInput] = useState('');
@@ -138,6 +148,16 @@ export default function App() {
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [showMarketPricesModal, setShowMarketPricesModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [isAuditMode, setIsAuditMode] = useState(false);
+  const [auditResults, setAuditResults] = useState<{
+    fileName: string;
+    plate: string;
+    date: string;
+    service: string;
+    isDuplicate: boolean;
+    isPotential: boolean;
+    matchId?: string;
+  }[]>([]);
   const [manualEntryData, setManualEntryData] = useState<{
     fileName: string;
     plateNumber: string;
@@ -705,7 +725,7 @@ export default function App() {
     } finally {
       setIsProcessing(false);
     }
-  }, [user, supabase]);
+  }, [user, supabase, isServiceUnlocked]);
 
   const startBatchProcessing = useCallback(async () => {
     if (!supabase || !user || isProcessing) return;
@@ -743,38 +763,99 @@ export default function App() {
             throw new Error("No readable records found in this image.");
           }
 
-          for (const record of result.records) {
-            if (shouldStopRef.current) break;
-            
-            const { data: recordData, error: recordError } = await supabase
-              .from('maintenance_records')
-              .insert({
-                plate_number: record.plate_number,
-                service_date: record.service_date,
-                service_description: record.service_description,
-                confidence: record.confidence,
-                user_id: user.id,
-                file_name: entry.fileName,
-                created_at: new Date().toISOString()
-              })
-              .select()
-              .single();
+          if (isAuditMode) {
+            // Audit Mode: Check for duplicates instead of saving
+            const newAuditResults = [];
+            const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '').trim() : '';
+            const normalizeDate = (d: string) => {
+              if (!d) return '';
+              // Handle YYYY-MM-DD
+              const matchYMD = d.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+              if (matchYMD) {
+                const [_, y, m, day] = matchYMD;
+                return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+              }
+              // Handle DD/MM/YYYY
+              const matchDMY = d.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+              if (matchDMY) {
+                const [_, day, m, y] = matchDMY;
+                return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+              }
+              return d.trim();
+            };
 
-            if (recordError) throw recordError;
-            setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-
-            if (recordData) {
-              const { error: imageError } = await supabase
-                .from('maintenance_record_images')
-                .insert({
-                  record_id: recordData.id,
-                  image_data: entry.imageData,
-                  user_id: user.id,
-                  created_at: new Date().toISOString()
-                });
+            for (const record of result.records) {
+              const normExtractedDesc = normalize(record.service_description);
+              const normExtractedDate = normalizeDate(record.service_date);
               
-              if (imageError) throw imageError;
+              const match = records.find(r => {
+                const plateMatch = arePlatesSimilar(r.plate_number, record.plate_number);
+                const dateMatch = normalizeDate(r.service_date) === normExtractedDate;
+                const normDbDesc = normalize(r.service_description);
+                
+                // Match if plate and date are same, AND descriptions are very similar
+                const descMatch = normDbDesc === normExtractedDesc || 
+                                 normDbDesc.includes(normExtractedDesc) || 
+                                 normExtractedDesc.includes(normDbDesc) ||
+                                 // Check if they share at least 3 common words (for longer descriptions)
+                                 (normExtractedDesc.length > 10 && normDbDesc.length > 10 && 
+                                  normExtractedDesc.split('').filter(char => normDbDesc.includes(char)).length / normExtractedDesc.length > 0.8);
+                
+                return plateMatch && dateMatch && descMatch;
+              });
+
+              // Also check for potential matches (same plate and date, but different description)
+              const potentialMatch = !match ? records.find(r => 
+                arePlatesSimilar(r.plate_number, record.plate_number) && 
+                normalizeDate(r.service_date) === normExtractedDate
+              ) : null;
+
+              newAuditResults.push({
+                fileName: entry.fileName,
+                plate: record.plate_number,
+                date: record.service_date,
+                service: record.service_description,
+                isDuplicate: !!match,
+                isPotential: !!potentialMatch,
+                matchId: match?.id || potentialMatch?.id
+              });
+            }
+            setAuditResults(prev => [...newAuditResults, ...prev]);
+          } else {
+            // Normal Mode: Save to database
+            for (const record of result.records) {
+              if (shouldStopRef.current) break;
+              
+              const { data: recordData, error: recordError } = await supabase
+                .from('maintenance_records')
+                .insert({
+                  plate_number: record.plate_number,
+                  service_date: record.service_date,
+                  service_description: record.service_description,
+                  confidence: record.confidence,
+                  user_id: user.id,
+                  file_name: entry.fileName,
+                  created_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+              if (recordError) throw recordError;
               setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+
+              if (recordData) {
+                const { error: imageError } = await supabase
+                  .from('maintenance_record_images')
+                  .insert({
+                    record_id: recordData.id,
+                    image_data: entry.imageData,
+                    user_id: user.id,
+                    created_at: new Date().toISOString()
+                  });
+                
+                if (imageError) throw imageError;
+                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+              }
             }
           }
           
@@ -791,7 +872,13 @@ export default function App() {
         } catch (err: any) {
           console.error(`[BATCH] Failed: ${entry.fileName}`, err);
           
-          if (err.message === "DAILY_QUOTA_EXCEEDED") {
+          const errorMsg = err.message || String(err);
+          const isQuotaError = errorMsg.includes("DAILY_QUOTA_EXCEEDED") || 
+                              errorMsg.includes("quota") || 
+                              errorMsg.includes("RESOURCE_EXHAUSTED") ||
+                              errorMsg.includes("429");
+
+          if (isQuotaError) {
             // Calculate time until midnight
             const now = new Date();
             const midnight = new Date();
@@ -803,18 +890,24 @@ export default function App() {
             const resetMsg = `Daily Quota Reached. Reset in ${diffHours}h ${diffMins}m (at Midnight).`;
             setError(
               <div className="flex flex-col gap-1">
-                <span>{resetMsg}</span>
+                <div className="flex items-center gap-2 text-amber-400">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="font-bold">Google AI Quota Reached</span>
+                </div>
+                <p className="text-[11px] opacity-80">{resetMsg}</p>
+                <p className="text-[10px] opacity-60 mt-1">Google limits free AI usage. You can wait until midnight or switch to your own API key to continue now.</p>
                 <button 
                   onClick={handleSelectKey}
-                  className="text-[10px] underline hover:text-white transition-colors text-left"
+                  className="mt-2 py-2 px-3 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2"
                 >
-                  Switch to a different API key or a Paid plan to continue now
+                  <Key className="w-3 h-3" />
+                  Switch API Key
                 </button>
               </div> as any
             );
             
             setUploadLog(prev => prev.map(e => 
-              e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: "Daily limit reached. Try again after midnight." } : e
+              e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: "Daily limit reached. Try again after midnight or switch API key." } : e
             ));
             
             // Stop the entire batch
@@ -858,7 +951,7 @@ export default function App() {
       setIsStopping(false);
       shouldStopRef.current = false;
     }
-  }, [user, supabase, uploadLog, isProcessing, fetchRecords, performExtractionWithRetry]);
+  }, [user, supabase, uploadLog, isProcessing, fetchRecords, performExtractionWithRetry, records, isAuditMode, isServiceUnlocked]);
 
   const stopBatchProcessing = useCallback(() => {
     setIsStopping(true);
@@ -1202,7 +1295,7 @@ export default function App() {
         setIsTroubleFindingLoading(false);
       }
     }
-  }, [records, searchQuery, serviceFilter, secondaryServiceFilter, startDate, endDate]);
+  }, [records, searchQuery, serviceFilter, secondaryServiceFilter, startDate, endDate, isServiceUnlocked, marketPrices]);
 
   const handleStopTroubleFinding = () => {
     troubleStopRef.current = true;
@@ -1828,6 +1921,99 @@ export default function App() {
             </p>
             <p className="text-[9px] font-display font-medium opacity-40 italic">
               * The "View" button is only available for the current session to save storage space.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Audit Results Section */}
+      {isAuditMode && auditResults.length > 0 && (
+        <div className="mb-12 glass-panel p-6 border-cyan-500/30 bg-cyan-500/5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+              <h2 className="font-display font-bold uppercase tracking-[0.2em] text-xs text-white">Audit Verification Results</h2>
+            </div>
+            <button 
+              onClick={() => setAuditResults([])}
+              className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-red-400 transition-all"
+            >
+              Clear Results
+            </button>
+          </div>
+          
+          <div className="max-h-80 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+            {auditResults.map((result, i) => (
+              <div key={i} className={cn(
+                "p-4 border rounded-xl flex flex-col gap-2 transition-all",
+                result.isDuplicate 
+                  ? "bg-green-500/10 border-green-500/20" 
+                  : result.isPotential
+                    ? "bg-amber-500/10 border-amber-500/20"
+                    : "bg-red-500/10 border-red-500/20"
+              )}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {result.isDuplicate ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    ) : result.isPotential ? (
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-400" />
+                    )}
+                    <span className={cn(
+                      "text-[10px] font-display font-bold uppercase tracking-widest",
+                      result.isDuplicate ? "text-green-400" : result.isPotential ? "text-amber-400" : "text-red-400"
+                    )}>
+                      {result.isDuplicate ? "Already Uploaded" : result.isPotential ? "Potential Match (Check Desc)" : "Missing from Database"}
+                    </span>
+                  </div>
+                  <span className="text-[9px] font-mono text-white/20 truncate max-w-[150px]" title={result.fileName}>
+                    {result.fileName}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <span className="text-[8px] font-display font-bold uppercase tracking-widest text-white/30 block mb-1">Plate</span>
+                    <span className="text-xs font-display font-bold text-white uppercase">{result.plate}</span>
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-display font-bold uppercase tracking-widest text-white/30 block mb-1">Date</span>
+                    <span className="text-xs font-mono font-bold text-white">{result.date}</span>
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-display font-bold uppercase tracking-widest text-white/30 block mb-1">Service</span>
+                    <span className="text-[10px] font-display font-medium text-white/80 line-clamp-1">{result.service}</span>
+                  </div>
+                </div>
+                
+                {(result.isDuplicate || result.isPotential) && result.matchId && (
+                  <div className="mt-1 pt-2 border-t border-white/5 flex justify-end">
+                    <button 
+                      onClick={() => {
+                        // Scroll to record or highlight it
+                        setSearchQuery(result.plate);
+                        setShowHistory(true);
+                        setIsAuditMode(false); // Exit audit mode to see it
+                      }}
+                      className={cn(
+                        "text-[9px] font-display font-bold uppercase tracking-widest hover:underline",
+                        result.isDuplicate ? "text-cyan-400" : "text-amber-400"
+                      )}
+                    >
+                      View Match in History
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          <div className="mt-4 p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
+            <p className="text-[10px] font-display font-medium text-cyan-300/80 leading-relaxed">
+              <span className="font-bold">Audit Mode Active:</span> These images were processed by AI but <span className="underline">not saved</span>. 
+              Green items are already in your database. Red items are missing and should be uploaded in normal mode.
             </p>
           </div>
         </div>
@@ -2775,6 +2961,33 @@ export default function App() {
                         <div className={cn(
                           "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
                           showHistory ? "right-0.5 bg-violet-400" : "left-0.5 bg-white/20"
+                        )} />
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        setIsAuditMode(!isAuditMode);
+                        if (!isAuditMode) setAuditResults([]); // Clear results when enabling
+                      }}
+                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
+                          <CheckCircle2 className={cn("w-4 h-4", isAuditMode ? "text-cyan-400" : "text-white/20")} />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Audit Mode (Verify Logs)</span>
+                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">{isAuditMode ? 'Active (No Saving)' : 'Inactive (Normal Mode)'}</span>
+                        </div>
+                      </div>
+                      <div className={cn(
+                        "w-8 h-4 rounded-full transition-all relative border",
+                        isAuditMode ? "bg-cyan-500/20 border-cyan-500/40" : "bg-white/5 border-white/10"
+                      )}>
+                        <div className={cn(
+                          "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
+                          isAuditMode ? "right-0.5 bg-cyan-400" : "left-0.5 bg-white/20"
                         )} />
                       </div>
                     </button>

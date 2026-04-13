@@ -85,18 +85,21 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
   try {
     console.log("[AI] Starting extraction with Gemini...");
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: {
-        parts: [
-          { text: systemInstruction },
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType,
+      model: "gemini-1.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: systemInstruction },
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType,
+              },
             },
-          },
-        ]
-      },
+          ]
+        }
+      ],
     });
 
     const text = result.text;
@@ -252,18 +255,23 @@ export async function analyzeMaintenanceData(
 
   try {
     console.log("[AI] Starting chat analysis with Gemini...");
-    const chat = ai.chats.create({
-      model: "gemini-3-flash-preview",
-      history: chatHistory.map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.content }]
-      })),
+    const result = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: [
+        ...chatHistory.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.content }]
+        })),
+        {
+          role: "user",
+          parts: [{ text: systemInstruction + "\n\nUser Query: " + query }]
+        }
+      ],
       config: {
-        systemInstruction: systemInstruction
+        maxOutputTokens: 1000,
       }
     });
 
-    const result = await chat.sendMessage({ message: query });
     return result.text || "I couldn't generate a response.";
   } catch (e: any) {
     console.error("[AI] AI Analysis Error:", e);
