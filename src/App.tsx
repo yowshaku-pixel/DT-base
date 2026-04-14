@@ -22,6 +22,7 @@ const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
 export default function App() {
   const MASTER_PASSWORD = import.meta.env.VITE_SERVICE_PASSWORD || 'adminjo';
   const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
+  const COMMON_SERVICES = ['Oil Change', 'Tires', 'Brakes', 'Service', 'Turbo', 'Clutch', 'Battery', 'Suspension', 'Bushes', 'Air Filter'];
 
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -1559,7 +1560,31 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0c] text-white p-4 md:p-12 max-w-7xl mx-auto flex flex-col">
+    <div className={cn(
+      "min-h-screen bg-[#0a0a0c] text-white p-4 md:p-12 max-w-7xl mx-auto flex flex-col transition-all duration-700",
+      isAuditMode && "shadow-[inset_0_0_100px_rgba(6,182,212,0.05)] ring-1 ring-cyan-500/10"
+    )}>
+      {/* Audit Mode Banner */}
+      {isAuditMode && (
+        <div className="mb-8 p-4 bg-cyan-600/20 border border-cyan-500/40 rounded-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500 shadow-[0_0_20px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/30 animate-pulse">
+          <div className="p-2 bg-cyan-500/20 rounded-lg">
+            <Eye className="w-5 h-5 text-cyan-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xs font-display font-bold uppercase tracking-widest text-cyan-200 mb-1">Audit Verification Mode Active</h3>
+            <p className="text-[10px] text-cyan-200/60 leading-relaxed uppercase tracking-wider">
+              The app is currently in <span className="text-white font-bold">Safe Mode</span>. AI extractions will be verified against existing records but <span className="text-cyan-400 font-bold underline">NOT saved</span> to the database.
+            </p>
+          </div>
+          <button 
+            onClick={() => setIsAuditMode(false)}
+            className="px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest text-cyan-400 transition-all"
+          >
+            Disable
+          </button>
+        </div>
+      )}
+
       {/* Quota Warning Banner */}
       {isQuotaExceeded && (
         <div className="mb-8 p-4 bg-blue-600/20 border border-blue-500/40 rounded-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -1680,9 +1705,14 @@ export default function App() {
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <div className="flex flex-col">
                 <div className="text-sm font-display font-medium">{error}</div>
-                {typeof error === 'string' && error.includes("Daily Quota Reached") && (
+                {typeof error === 'string' && (error.includes("Daily Quota Reached") || error.includes("AI_DAILY_QUOTA_EXCEEDED")) && (
                   <p className="text-[10px] opacity-60 mt-1">
                     You can still add records manually using the "Add Manually" button on failed items in the log below.
+                  </p>
+                )}
+                {typeof error === 'string' && error.includes("AI_RATE_LIMIT_EXCEEDED") && (
+                  <p className="text-[10px] opacity-60 mt-1">
+                    The free tier has a limit on how many images can be processed per minute. Please wait a moment and try retrying the failed items.
                   </p>
                 )}
                 {typeof error === 'string' && (error.includes("Failed to fetch") || error.includes("connection error")) && (
@@ -2148,6 +2178,26 @@ export default function App() {
               ))}
             </div>
           )}
+          <div className="mt-3 flex flex-wrap gap-1.5 ml-2">
+            {COMMON_SERVICES.map((s) => (
+              <button 
+                key={s} 
+                onClick={() => {
+                  if (serviceFilter === s) setServiceFilter('');
+                  else if (!serviceFilter) setServiceFilter(s);
+                  else setSecondaryServiceFilter(s);
+                }}
+                className={cn(
+                  "text-[8px] font-display font-bold uppercase tracking-widest px-2 py-1 rounded-lg transition-all border",
+                  (serviceFilter === s || secondaryServiceFilter === s)
+                    ? "bg-purple-600 border-purple-500 text-white shadow-[0_0_10px_rgba(168,85,247,0.3)]"
+                    : "bg-white/5 border-white/10 text-white/30 hover:bg-white/10 hover:text-white/60"
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="relative group">
@@ -2168,6 +2218,29 @@ export default function App() {
               onChange={(e) => setEndDate(e.target.value)}
               title="End date for filtering records"
             />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5 ml-2">
+            {[
+              { label: 'Today', days: 0 },
+              { label: '7D', days: 7 },
+              { label: '30D', days: 30 },
+              { label: '90D', days: 90 },
+              { label: '1Y', days: 365 }
+            ].map((preset) => (
+              <button 
+                key={preset.label}
+                onClick={() => {
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(end.getDate() - preset.days);
+                  setEndDate(end.toISOString().split('T')[0]);
+                  setStartDate(start.toISOString().split('T')[0]);
+                }}
+                className="text-[8px] font-display font-bold uppercase tracking-widest px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-white/30 hover:bg-white/10 hover:text-white/60 transition-all"
+              >
+                {preset.label}
+              </button>
+            ))}
           </div>
           {(startDate || endDate) && (
             <button 
@@ -2475,13 +2548,14 @@ export default function App() {
                     }
                   }}
                   className={cn(
-                    "flex items-center gap-2 px-8 py-4 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 font-display font-bold uppercase tracking-[0.2em] text-xs",
-                    !isServiceUnlocked && "opacity-50"
+                    "flex items-center gap-2 px-8 py-4 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 font-display font-bold uppercase tracking-[0.2em] text-xs relative overflow-hidden",
+                    !isServiceUnlocked && "opacity-50",
+                    isAuditMode && "bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/20"
                   )}
-                  title={!isServiceUnlocked ? "Unlock services to upload" : "Upload your first maintenance log image"}
+                  title={!isServiceUnlocked ? "Unlock services to upload" : isAuditMode ? "Start Audit Extraction" : "Upload your first maintenance log image"}
                 >
                   <Upload className="w-4 h-4" />
-                  Upload First Log
+                  {isAuditMode ? "Audit Extraction" : "Upload First Log"}
                   <input 
                     type="file" 
                     multiple 
@@ -3451,11 +3525,22 @@ export default function App() {
               <motion.label
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-cyan transition-all group cursor-pointer"
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 transition-all group cursor-pointer",
+                  isAuditMode ? "hover:neon-border-cyan border-cyan-500/30" : "hover:neon-border-cyan"
+                )}
               >
-                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-cyan-400 transition-colors">AI Fleet Scan</span>
-                <div className="p-2 bg-cyan-500/20 rounded-xl border border-cyan-500/30">
-                  <Zap className="w-4 h-4 text-cyan-400" />
+                <span className={cn(
+                  "text-[10px] font-display font-bold uppercase tracking-[0.2em] transition-colors",
+                  isAuditMode ? "text-cyan-400" : "text-white/40 group-hover:text-cyan-400"
+                )}>
+                  {isAuditMode ? "Audit Fleet Scan" : "AI Fleet Scan"}
+                </span>
+                <div className={cn(
+                  "p-2 rounded-xl border transition-all",
+                  isAuditMode ? "bg-cyan-500/40 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.4)]" : "bg-cyan-500/20 border-cyan-500/30"
+                )}>
+                  {isAuditMode ? <Eye className="w-4 h-4 text-white" /> : <Zap className="w-4 h-4 text-cyan-400" />}
                 </div>
                 <input 
                   type="file" 
@@ -3486,7 +3571,8 @@ export default function App() {
           }}
           className={cn(
             "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.4)] transition-all border relative overflow-hidden group",
-            isFabOpen ? "bg-zinc-800 text-white border-white/20" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50"
+            isFabOpen ? "bg-zinc-800 text-white border-white/20" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50",
+            isAuditMode && !isFabOpen && "shadow-[0_0_40px_rgba(6,182,212,0.6)] border-cyan-400 ring-2 ring-cyan-400/20"
           )}
         >
           <AnimatePresence mode="wait">

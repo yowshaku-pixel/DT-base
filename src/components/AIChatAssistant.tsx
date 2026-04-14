@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, X, MessageSquare, Loader2, Sparkles, Trash2, Key, AlertCircle } from 'lucide-react';
+import { Send, Bot, X, MessageSquare, Loader2, Sparkles, Trash2, Key, AlertCircle, Clock, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { MaintenanceRecord, ChatMessage, MarketPrice } from '../types';
@@ -121,12 +121,12 @@ export default function AIChatAssistant({
 
       if (isQuota) {
         setErrorType('quota');
-        content = "### ⚠️ Quota Exceeded\nYou have reached the daily limit for AI analysis. Please try again tomorrow.";
+        content = "### ⚠️ Daily AI Limit Reached\nAnni has processed a lot of data today! The free tier limit resets at **midnight**.\n\n**Next Steps:**\n- Use the **Search** and **Filters** on the main screen to find records manually.\n- If you have your own Gemini API key, you can add it in **Settings** to continue immediately.";
       } else if (isRate) {
         setErrorType('rate');
-        content = "### ⏳ Rate Limit Reached\nYou're sending questions too fast! Please wait about 60 seconds and try again.";
+        content = "### ⏳ Anni is Catching Her Breath\nYou're asking questions a bit too fast for the free tier.\n\n**Next Steps:**\n- Wait about **30-60 seconds** and try again.\n- Use the **Retry** button below.";
       } else {
-        content = `### ❌ Error\n${rawMessage}`;
+        content = `### ❌ Unexpected Error\nAnni encountered a technical hiccup: \`${rawMessage}\`\n\n**Next Steps:**\n- Try refreshing the page.\n- Check your internet connection.`;
       }
 
       const errorMessage: ChatMessage = {
@@ -301,14 +301,51 @@ export default function AIChatAssistant({
               ))}
               
               {errorType === 'quota' && (
-                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl space-y-3">
-                  <div className="flex items-center gap-2 text-red-400 text-xs font-bold">
+                <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-widest">
                     <AlertCircle className="w-4 h-4" />
-                    QUOTA EXCEEDED
+                    Daily Limit Reached
                   </div>
-                  <p className="text-[10px] text-white/60 font-mono">
-                    You've hit the daily limit. Please try again tomorrow.
+                  <p className="text-[10px] text-white/60 font-mono leading-relaxed">
+                    Anni's daily free-tier energy is spent. She'll be back at full strength after midnight.
                   </p>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        setIsOpen(false);
+                        // Scroll to filters
+                        document.querySelector('.grid.grid-cols-1.md\\:grid-cols-4')?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-[9px] font-bold uppercase rounded-lg transition-all"
+                    >
+                      Use Manual Filters
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {errorType === 'rate' && (
+                <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-center gap-2 text-blue-400 text-xs font-bold uppercase tracking-widest">
+                    <Clock className="w-4 h-4" />
+                    Rate Limit Active
+                  </div>
+                  <p className="text-[10px] text-white/60 font-mono leading-relaxed">
+                    You're moving faster than the free tier allows! Give Anni a minute to catch up.
+                  </p>
+                  <button 
+                    onClick={() => {
+                      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                      if (lastUserMsg) {
+                        setInput(lastUserMsg.content);
+                        handleSend();
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-[9px] font-bold uppercase rounded-lg transition-all"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Retry Now
+                  </button>
                 </div>
               )}
 
