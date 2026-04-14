@@ -303,6 +303,10 @@ export default function App() {
     localStorage.removeItem('dt_base_upload_log');
   };
 
+  const clearFailedUploads = () => {
+    setUploadLog(prev => prev.filter(e => e.status !== 'failed'));
+  };
+
   const removeLogEntry = (fileName: string, timestamp: number) => {
     setUploadLog(prev => prev.filter(entry => !(entry.fileName === fileName && entry.timestamp === timestamp)));
   };
@@ -1782,13 +1786,25 @@ export default function App() {
             <div className="flex items-center gap-3">
               <ListFilter className="w-4 h-4 text-purple-400" />
               <h2 className="font-display font-bold uppercase tracking-[0.2em] text-xs text-white">Recent Upload Activity</h2>
+              <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 bg-white/5 rounded-full border border-white/10">
+                <div className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
+                <span className="text-[8px] font-display font-bold uppercase tracking-widest text-white/40">Free Tier: ~1,500 requests/day</span>
+              </div>
             </div>
-            <button 
-              onClick={clearUploadLog}
-              className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-red-400 transition-all"
-            >
-              Clear Log
-            </button>
+            <div className="flex gap-4">
+              <button 
+                onClick={clearFailedUploads}
+                className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-amber-400 transition-all"
+              >
+                Clear Failed
+              </button>
+              <button 
+                onClick={clearUploadLog}
+                className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-red-400 transition-all"
+              >
+                Clear Log
+              </button>
+            </div>
           </div>
           
           <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">

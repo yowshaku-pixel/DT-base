@@ -185,8 +185,8 @@ export default function AIChatAssistant({
                   <Bot className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider">DT.Base AI</h3>
-                  <p className="text-[10px] text-cyan-400/60 font-mono uppercase">Fleet Analyst Active</p>
+                  <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider">Anni</h3>
+                  <p className="text-[10px] text-cyan-400/60 font-mono uppercase">DT.Base AI Analyst Active</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
@@ -341,7 +341,7 @@ export default function AIChatAssistant({
                       handleSend();
                     }
                   }}
-                  placeholder={isLocked ? "AI is locked..." : "Ask DT.Base AI... (Shift+Enter for new line)"}
+                  placeholder={isLocked ? "Anni is locked..." : "Ask Anni... (Shift+Enter for new line)"}
                   rows={Math.min(5, input.split('\n').length || 1)}
                   disabled={isLocked}
                   className={cn(

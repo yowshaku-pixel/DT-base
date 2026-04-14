@@ -31,8 +31,19 @@ function getAIErrorMessage(err: any): string {
     return "Invalid Gemini API key. Please check your configuration in AI Studio.";
   }
 
-  if (message.includes("429") || message.includes("quota") || message.includes("limit") || message.includes("RESOURCE_EXHAUSTED")) {
+  if (message.includes("404") || message.includes("NOT_FOUND")) {
+    return "AI model not found. This might be a temporary issue with the Gemini service or an incorrect model configuration. Please try again in a few minutes.";
+  }
+
+  const isDailyQuota = message.includes("billing details") || message.includes("plan") || message.includes("quota exceeded");
+  const isRateLimit = message.includes("429") || message.includes("quota") || message.includes("limit") || message.includes("RESOURCE_EXHAUSTED");
+
+  if (isDailyQuota) {
     return "AI daily quota exceeded. Google limits free usage; this will reset at midnight. Please try again later or use a different API key.";
+  }
+
+  if (isRateLimit) {
+    return "AI rate limit hit. Too many requests in a short time. The system will automatically retry in a few seconds.";
   }
 
   return message;
@@ -45,47 +56,26 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
 
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
-  const systemInstruction = `You are an expert at reading maintenance logs for trucks (both hand-written and digital). 
+  const systemInstruction = `Expert truck maintenance log extractor (hand-written/digital).
               
-              Task: Extract EVERY SINGLE maintenance entry and mechanical detail from the provided image.
+              Task: Extract EVERY entry. Do NOT summarize or skip.
               
-              Context:
-              - The image could be a photo of a notebook, a digital log, or a screenshot.
-              - Look for dates, truck plate numbers, and descriptions of mechanical work or parts.
-              - Fleet Knowledge:
-                * MB Axor MP3: KCL 054 to KCY 901B, and UAY 469L.
-                * MB Actros MP4: KCZ 945Y to KDS 849R.
+              Fleet:
+              - MB Axor MP3: KCL 054 to KCY 901B, UAY 469L.
+              - MB Actros MP4: KCZ 945Y to KDS 849R.
               
-              Data Structure:
-              - Plate Number: Identify the truck's main plate number. 
-                * IMPORTANT: Ignore any trailer numbers. A trailer number usually appears after a "/" or a "-". 
-                * Example: "Kcw 822 b/Zg 1361" -> Extract only "Kcw 822 b".
-                * Example: "Kcn 851 s /zf 7827 (Gadano)" -> Extract only "Kcn 851 s".
-                * Example: "Kdm 703 f - beko" -> Extract only "Kdm 703 f".
-                * Clean the plate number: remove extra spaces and ensure it's the primary truck ID.
-              - Date: The date the work was done. Convert to YYYY-MM-DD format. 
-                * IMPORTANT: Ensure the date is a VALID calendar date. (e.g., April has only 30 days; if the log says 31/04, use 30/04).
-                * If the date is missing or marked as "—", use the current date: ${new Date().toISOString().split('T')[0]}.
-              - Service Description: What was fixed or replaced. 
-                * **CRITICAL**: You MUST extract EVERY SINGLE item listed in the log. Do NOT summarize. Do NOT skip any entries.
-                * If there is a list (e.g., i, ii, iii or 1, 2, 3), extract EVERY numbered item.
-                * Include the general log description, specific spare parts, and any metadata like "Garage", "Supervisor", or "Fundi" (mechanic).
-                * **COST EXTRACTION**: If you see any prices, amounts, or currency (e.g., "5000", "KES 10,000", "50 USD"), extract them clearly. 
-                * Format the description to include costs like this: "[Part/Service Name] - [Amount] [Currency]".
+              Rules:
+              - Plate: Primary truck ID only. Ignore trailer numbers (after / or -). Clean spaces.
+              - Date: YYYY-MM-DD. If invalid/missing, use current: ${new Date().toISOString().split('T')[0]}.
+              - Description: Extract ALL items, numbered lists, parts, and costs (e.g., "[Part] - [Amount] [Currency]").
+              - Grouping: Combine items for SAME truck and SAME date into one record.
               
-              Important:
-              - GROUPING: If multiple maintenance items are found on the same page for the SAME TRUCK and SAME DATE, you MUST combine them into a SINGLE record. 
-              - Use a newline or a comma to separate items within the service_description.
-              - Only create separate records if the truck plate number or the date changes.
-              - Combine all related information (Maintenance log, Spare parts, Garage, Supervisor, Fundi) into a single detailed Service Description, but ENSURE NO ITEMS ARE OMITTED.
-              - If you are absolutely sure there are no maintenance records, return an empty array.
-              
-              Return the data in a structured JSON format with a "records" array containing objects with plate_number, service_date, service_description, and confidence.`;
+              Output: JSON { "records": [{ "plate_number", "service_date", "service_description", "confidence" }] }`;
 
   try {
     console.log("[AI] Starting extraction with Gemini...");
     const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: [
         {
           role: "user",
@@ -194,7 +184,7 @@ export async function analyzeMaintenanceData(
     }
   });
 
-  const systemInstruction = `You are an expert fleet maintenance analyst and master mechanic for DT.Base. 
+  const systemInstruction = `You are Anni, an expert fleet maintenance analyst and master mechanic for DT.Base. 
   You specialize in Mercedes-Benz trucks, specifically the **MB Axor MP3** and **MB Actros MP4**.
   
   Your task is to answer questions, summarize, analyze, and provide mechanical advice based on maintenance data.
@@ -256,7 +246,7 @@ export async function analyzeMaintenanceData(
   try {
     console.log("[AI] Starting chat analysis with Gemini...");
     const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: [
         ...chatHistory.map(msg => ({
           role: msg.role === 'user' ? 'user' : 'model',
