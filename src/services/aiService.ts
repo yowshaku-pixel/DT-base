@@ -35,15 +35,15 @@ function getAIErrorMessage(err: any): string {
     return "AI model not found. This might be a temporary issue with the Gemini service or an incorrect model configuration. Please try again in a few minutes.";
   }
 
-  const isDailyQuota = message.includes("billing details") || message.includes("plan") || (message.includes("quota") && message.includes("exceeded") && !message.includes("429"));
-  const isRateLimit = message.includes("429") || message.includes("RESOURCE_EXHAUSTED") || message.includes("rate limit");
+  const isDailyQuota = message.includes("billing details") || message.includes("plan") || message.includes("quota exceeded");
+  const isRateLimit = message.includes("429") || message.includes("quota") || message.includes("limit") || message.includes("RESOURCE_EXHAUSTED");
 
   if (isDailyQuota) {
-    return "AI_DAILY_QUOTA_EXCEEDED: You've reached the daily limit for free AI processing. This resets at midnight. You can still add records manually or use your own API key in Settings.";
+    return "AI daily quota exceeded. Google limits free usage; this will reset at midnight. Please try again later or use a different API key.";
   }
 
   if (isRateLimit) {
-    return "AI_RATE_LIMIT_EXCEEDED: You're sending requests too fast for the free tier. Please wait about 60 seconds and try again.";
+    return "AI rate limit hit. Too many requests in a short time. The system will automatically retry in a few seconds.";
   }
 
   return message;

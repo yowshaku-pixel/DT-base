@@ -22,7 +22,6 @@ const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
 export default function App() {
   const MASTER_PASSWORD = import.meta.env.VITE_SERVICE_PASSWORD || 'adminjo';
   const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
-  const COMMON_SERVICES = ['Oil Change', 'Tires', 'Brakes', 'Service', 'Turbo', 'Clutch', 'Battery', 'Suspension', 'Bushes', 'Air Filter'];
 
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -1471,7 +1470,7 @@ export default function App() {
 
   if (!isAuthReady || hasApiKey === null) {
     return (
-      <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center">
+      <div className="min-h-screen bg-[#050b1a] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
           <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40">Initialising DT.Base...</span>
@@ -1482,7 +1481,7 @@ export default function App() {
 
   if (!isAppUnlocked) {
     return (
-      <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#050b1a] flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md p-8 text-center">
           <div className="w-16 h-16 bg-amber-500/20 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
             <Key className="w-8 h-8 text-amber-400" />
@@ -1524,7 +1523,7 @@ export default function App() {
 
   if (hasApiKey === false) {
     return (
-      <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#050b1a] flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl p-8 text-center">
           <div className="w-16 h-16 bg-purple-600/20 border border-purple-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
             <Zap className="w-8 h-8 text-purple-400" />
@@ -1561,7 +1560,7 @@ export default function App() {
 
   return (
     <div className={cn(
-      "min-h-screen bg-[#0a0a0c] text-white p-4 md:p-12 max-w-7xl mx-auto flex flex-col transition-all duration-700",
+      "min-h-screen bg-[#050b1a] text-white p-4 md:p-12 max-w-7xl mx-auto flex flex-col transition-all duration-700",
       isAuditMode && "shadow-[inset_0_0_100px_rgba(6,182,212,0.05)] ring-1 ring-cyan-500/10"
     )}>
       {/* Audit Mode Banner */}
@@ -1705,14 +1704,9 @@ export default function App() {
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <div className="flex flex-col">
                 <div className="text-sm font-display font-medium">{error}</div>
-                {typeof error === 'string' && (error.includes("Daily Quota Reached") || error.includes("AI_DAILY_QUOTA_EXCEEDED")) && (
+                {typeof error === 'string' && error.includes("Daily Quota Reached") && (
                   <p className="text-[10px] opacity-60 mt-1">
                     You can still add records manually using the "Add Manually" button on failed items in the log below.
-                  </p>
-                )}
-                {typeof error === 'string' && error.includes("AI_RATE_LIMIT_EXCEEDED") && (
-                  <p className="text-[10px] opacity-60 mt-1">
-                    The free tier has a limit on how many images can be processed per minute. Please wait a moment and try retrying the failed items.
                   </p>
                 )}
                 {typeof error === 'string' && (error.includes("Failed to fetch") || error.includes("connection error")) && (
@@ -2178,26 +2172,6 @@ export default function App() {
               ))}
             </div>
           )}
-          <div className="mt-3 flex flex-wrap gap-1.5 ml-2">
-            {COMMON_SERVICES.map((s) => (
-              <button 
-                key={s} 
-                onClick={() => {
-                  if (serviceFilter === s) setServiceFilter('');
-                  else if (!serviceFilter) setServiceFilter(s);
-                  else setSecondaryServiceFilter(s);
-                }}
-                className={cn(
-                  "text-[8px] font-display font-bold uppercase tracking-widest px-2 py-1 rounded-lg transition-all border",
-                  (serviceFilter === s || secondaryServiceFilter === s)
-                    ? "bg-purple-600 border-purple-500 text-white shadow-[0_0_10px_rgba(168,85,247,0.3)]"
-                    : "bg-white/5 border-white/10 text-white/30 hover:bg-white/10 hover:text-white/60"
-                )}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="relative group">
@@ -2218,29 +2192,6 @@ export default function App() {
               onChange={(e) => setEndDate(e.target.value)}
               title="End date for filtering records"
             />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1.5 ml-2">
-            {[
-              { label: 'Today', days: 0 },
-              { label: '7D', days: 7 },
-              { label: '30D', days: 30 },
-              { label: '90D', days: 90 },
-              { label: '1Y', days: 365 }
-            ].map((preset) => (
-              <button 
-                key={preset.label}
-                onClick={() => {
-                  const end = new Date();
-                  const start = new Date();
-                  start.setDate(end.getDate() - preset.days);
-                  setEndDate(end.toISOString().split('T')[0]);
-                  setStartDate(start.toISOString().split('T')[0]);
-                }}
-                className="text-[8px] font-display font-bold uppercase tracking-widest px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-white/30 hover:bg-white/10 hover:text-white/60 transition-all"
-              >
-                {preset.label}
-              </button>
-            ))}
           </div>
           {(startDate || endDate) && (
             <button 

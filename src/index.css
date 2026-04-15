@@ -6,7 +6,7 @@
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-display: 'Space Grotesk', sans-serif;
   
-  --color-bg: #0a0a0c;
+  --color-bg: #050b1a;
   --color-ink: #ffffff;
   --color-line: rgba(255, 255, 255, 0.05);
   --color-accent: #a020f0; /* Electric Violet */
@@ -52,7 +52,7 @@
 }
 
 body {
-  background-color: #0a0a0c;
+  background-color: #050b1a;
   color: #ffffff;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -88,5 +88,5 @@ body {
 
 /* Simplified panel for better performance */
 .glass-panel {
-  @apply bg-[#121214] border border-white/5;
+  @apply bg-[#081025] border border-white/5;
 }
