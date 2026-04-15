@@ -38,6 +38,15 @@ export default function App() {
   const [progress, setProgress] = useState({ current: 0, total: 0, failed: 0 });
   const [failedFiles, setFailedFiles] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [notification, setNotification] = useState<{ message: string, type: 'info' | 'success' | 'warning' } | null>(null);
+
+  // Auto-clear notification
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [serviceFilter, setServiceFilter] = useState('');
   const [debouncedService, setDebouncedService] = useState('');
@@ -696,6 +705,12 @@ export default function App() {
       setIsProcessing(true);
       setError(null);
       const fileArray = Array.from(files);
+      
+      setNotification({
+        message: `Starting ${mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${fileArray.length} file(s)...`,
+        type: 'info'
+      });
+
       setProgress({ current: 0, total: fileArray.length, failed: 0 });
       
       const newEntries: UploadLogEntry[] = [];
@@ -902,6 +917,10 @@ export default function App() {
           }
           
           // Success!
+          setNotification({
+            message: `${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan completed successfully!`,
+            type: 'success'
+          });
           setUploadLog(prev => prev.map(e => 
             e.timestamp === entry.timestamp ? { ...e, status: 'success' } : e
           ));
@@ -1009,6 +1028,11 @@ export default function App() {
         e.timestamp === entry.timestamp ? { ...e, status: 'processing', error: undefined } : e
       ));
 
+      setNotification({
+        message: `Retrying ${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${entry.fileName}...`,
+        type: 'info'
+      });
+
       const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode);
 
       if (entry.mode === 'market') {
@@ -1079,6 +1103,10 @@ export default function App() {
     }
       
       // Success!
+      setNotification({
+        message: `${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Retry successful!`,
+        type: 'success'
+      });
       setUploadLog(prev => prev.map(e => 
         e.timestamp === entry.timestamp ? { ...e, status: 'success', error: undefined } : e
       ));
@@ -1694,6 +1722,34 @@ export default function App() {
               <p className="text-[11px] opacity-50 uppercase tracking-[0.5em] font-display font-bold mt-1">Mechanical History Log</p>
             </div>
           </div>
+
+          {/* Notifications */}
+          <AnimatePresence>
+            {notification && (
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                className={cn(
+                  "mt-6 p-4 rounded-2xl border backdrop-blur-md flex items-center gap-3 shadow-xl z-50",
+                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
+                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
+                  "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                )}
+              >
+                {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+                 notification.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : 
+                 <AlertTriangle className="w-4 h-4" />}
+                <span className="text-xs font-display font-bold uppercase tracking-widest">{notification.message}</span>
+                <button 
+                  onClick={() => setNotification(null)}
+                  className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
           
           <div className="flex flex-wrap items-center gap-2">
             {deferredPrompt && (
@@ -1742,9 +1798,25 @@ export default function App() {
         {isProcessing && (
           <div className="mt-4 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-display font-bold text-purple-400 uppercase tracking-widest animate-pulse">
-                {isStopping ? "Stopping..." : "Processing Queue..."}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-display font-bold text-purple-400 uppercase tracking-widest animate-pulse">
+                  {isStopping ? "Stopping..." : "Processing Queue..."}
+                </span>
+                {(() => {
+                  const activeEntry = uploadLog.find(e => e.status === 'processing');
+                  if (activeEntry?.mode) {
+                    return (
+                      <span className={cn(
+                        "text-[9px] px-2 py-0.5 rounded-full border font-display font-black uppercase tracking-widest",
+                        activeEntry.mode === 'market' ? "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.3)]" : "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                      )}>
+                        {activeEntry.mode} Mode
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
               {!isStopping && (
                 <button 
                   onClick={stopBatchProcessing}
@@ -1911,7 +1983,17 @@ export default function App() {
                     entry.status === 'queued' ? "bg-blue-500" : "bg-white/20"
                   )} />
                   <div className="flex flex-col overflow-hidden">
-                    <span className="text-[11px] font-mono truncate opacity-80" title={entry.fileName}>{entry.fileName}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono truncate opacity-80" title={entry.fileName}>{entry.fileName}</span>
+                      {entry.mode && (
+                        <span className={cn(
+                          "text-[8px] px-1 rounded border font-display font-bold uppercase tracking-tighter",
+                          entry.mode === 'market' ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                        )}>
+                          {entry.mode}
+                        </span>
+                      )}
+                    </div>
                     {entry.status === 'failed' && entry.error && (
                       <span className="text-[8px] font-mono text-red-400/60 truncate" title={entry.error}>
                         {entry.error}
