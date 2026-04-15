@@ -42,6 +42,10 @@ function getAIErrorMessage(err: any): string {
     return "AI daily quota exceeded. Google limits free usage; this will reset at midnight. Please try again later or use a different API key.";
   }
 
+  if (message.includes("503") || message.includes("high demand") || message.includes("Service Unavailable")) {
+    return "The AI model is currently overloaded (High Demand). This is a temporary issue with Google's servers. Please wait a few seconds and try again.";
+  }
+
   if (isRateLimit) {
     return "AI rate limit hit. Too many requests in a short time. The system will automatically retry in a few seconds.";
   }
@@ -75,7 +79,7 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
   try {
     console.log("[AI] Starting extraction with Gemini...");
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: [
         {
           role: "user",
@@ -126,7 +130,7 @@ export async function extractMarketPrices(base64Image: string, mimeType: string)
   try {
     console.log("[AI] Starting market price extraction with Gemini...");
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: [
         {
           role: "user",
@@ -296,7 +300,7 @@ export async function analyzeMaintenanceData(
   try {
     console.log("[AI] Starting chat analysis with Gemini...");
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: [
         ...chatHistory.map(msg => ({
           role: msg.role === 'user' ? 'user' : 'model',
