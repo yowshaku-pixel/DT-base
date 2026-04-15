@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
-import { extractMaintenanceData, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
+import { extractMaintenanceData, extractMarketPrices, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
 import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
 import { supabase, getSupabaseErrorMessage } from './supabase';
 import { User } from '@supabase/supabase-js';
@@ -14,6 +14,7 @@ interface UploadLogEntry {
   error?: string;
   timestamp: number;
   imageData?: string; // Base64 image data for viewing
+  mode?: 'fleet' | 'market';
 }
 
 const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
@@ -587,14 +588,17 @@ export default function App() {
     base64: string, 
     fileName: string, 
     logId: string | number, // timestamp or fileName
-    isBatch: boolean = true
+    isBatch: boolean = true,
+    mode: 'fleet' | 'market' = 'fleet'
   ): Promise<any> => {
     const retries = 7;
     let currentDelay = 5000;
     
     for (let i = 0; i < retries; i++) {
       try {
-        const extractionPromise = extractMaintenanceData(base64, 'image/jpeg');
+        const extractionPromise = mode === 'market' 
+          ? extractMarketPrices(base64, 'image/jpeg')
+          : extractMaintenanceData(base64, 'image/jpeg');
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow.")), 90000)
         );
@@ -669,7 +673,7 @@ export default function App() {
     }
   }, []);
 
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, mode: 'fleet' | 'market' = 'fleet') => {
     if (!supabase) {
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
       return;
@@ -707,7 +711,8 @@ export default function App() {
             fileName: file.name,
             status: 'queued',
             timestamp: Date.now() + newEntries.length,
-            imageData: resizedBase64
+            imageData: resizedBase64,
+            mode
           });
         } catch (err) {
           console.error(`Error queuing ${file.name}:`, err);
@@ -759,15 +764,48 @@ export default function App() {
         try {
           if (!entry.imageData) throw new Error("Image data missing for queued item.");
 
-          const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false);
+          const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode);
           
           if (shouldStopRef.current) throw new Error("Processing stopped by user");
 
-          if (!result || !result.records || result.records.length === 0) {
-            throw new Error("No readable records found in this image.");
-          }
+          if (entry.mode === 'market') {
+            if (!result || !result.items || result.items.length === 0) {
+              throw new Error("No readable market prices found in this image.");
+            }
+            
+            // Save market prices to database
+            for (const item of result.items) {
+              if (shouldStopRef.current) break;
+              
+              const { error: marketError } = await supabase
+                .from('market_prices')
+                .insert({
+                  item_name: item.item_name,
+                  price: item.price,
+                  currency: item.currency,
+                  confirmed_by: 'AI Scan',
+                  last_updated: new Date().toISOString(),
+                  user_id: user.id
+                });
 
-          if (isAuditMode) {
+              if (marketError) {
+                console.error("Market save error:", marketError);
+                // Don't throw here to allow other items to save, but log it
+              }
+            }
+            
+            // Refresh market prices
+            const { data: updatedPrices } = await supabase
+              .from('market_prices')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('last_updated', { ascending: false });
+            if (updatedPrices) setMarketPrices(updatedPrices);
+
+          } else if (isAuditMode) {
+            if (!result || !result.records || result.records.length === 0) {
+              throw new Error("No readable records found in this image.");
+            }
             // Audit Mode: Check for duplicates instead of saving
             const newAuditResults = [];
             const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '').trim() : '';
@@ -971,13 +1009,42 @@ export default function App() {
         e.timestamp === entry.timestamp ? { ...e, status: 'processing', error: undefined } : e
       ));
 
-      const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false);
+      const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode);
 
-      if (!result || !result.records || result.records.length === 0) {
-        throw new Error("No readable records found in this image.");
-      }
+      if (entry.mode === 'market') {
+        if (!result || !result.items || result.items.length === 0) {
+          throw new Error("No readable market prices found in this image.");
+        }
+        
+        for (const item of result.items) {
+          const { error: marketError } = await supabase
+            .from('market_prices')
+            .insert({
+              item_name: item.item_name,
+              price: item.price,
+              currency: item.currency,
+              confirmed_by: 'AI Scan (Retry)',
+              last_updated: new Date().toISOString(),
+              user_id: user.id
+            });
+          if (marketError) throw marketError;
+          setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+        }
+        
+        // Refresh market prices
+        const { data: updatedPrices } = await supabase
+          .from('market_prices')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('last_updated', { ascending: false });
+        if (updatedPrices) setMarketPrices(updatedPrices);
 
-      for (const record of result.records) {
+      } else {
+        if (!result || !result.records || result.records.length === 0) {
+          throw new Error("No readable records found in this image.");
+        }
+
+        for (const record of result.records) {
         const { data: recordData, error: recordError } = await supabase
           .from('maintenance_records')
           .insert({
@@ -1009,6 +1076,7 @@ export default function App() {
           setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
         }
       }
+    }
       
       // Success!
       setUploadLog(prev => prev.map(e => 
@@ -2512,7 +2580,7 @@ export default function App() {
                     multiple 
                     accept="image/*"
                     className="hidden" 
-                    onChange={handleFileUpload}
+                    onChange={(e) => handleFileUpload(e, 'fleet')}
                     disabled={isProcessing}
                   />
                 </label>
@@ -3472,7 +3540,7 @@ export default function App() {
                 </div>
               </motion.button>
 
-              {/* AI Scan Solution */}
+              {/* AI Fleet Scan (Gallery) */}
               <motion.label
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
@@ -3485,13 +3553,13 @@ export default function App() {
                   "text-[10px] font-display font-bold uppercase tracking-[0.2em] transition-colors",
                   isAuditMode ? "text-cyan-400" : "text-white/40 group-hover:text-cyan-400"
                 )}>
-                  {isAuditMode ? "Audit Fleet Scan" : "AI Fleet Scan"}
+                  {isAuditMode ? "Audit Fleet Scan" : "Fleet Gallery Scan"}
                 </span>
                 <div className={cn(
                   "p-2 rounded-xl border transition-all",
                   isAuditMode ? "bg-cyan-500/40 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.4)]" : "bg-cyan-500/20 border-cyan-500/30"
                 )}>
-                  {isAuditMode ? <Eye className="w-4 h-4 text-white" /> : <Zap className="w-4 h-4 text-cyan-400" />}
+                  {isAuditMode ? <Eye className="w-4 h-4 text-white" /> : <Save className="w-4 h-4 text-cyan-400" />}
                 </div>
                 <input 
                   type="file" 
@@ -3499,7 +3567,78 @@ export default function App() {
                   accept="image/*" 
                   className="hidden" 
                   onChange={(e) => {
-                    handleFileUpload(e);
+                    handleFileUpload(e, 'fleet');
+                    setIsFabOpen(false);
+                  }}
+                  disabled={isProcessing || !user}
+                />
+              </motion.label>
+
+              {/* Fleet Camera Scan */}
+              <motion.label
+                whileHover={{ scale: 1.05, x: -5 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-cyan transition-all group cursor-pointer"
+              >
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-cyan-400 transition-colors">Fleet Camera Scan</span>
+                <div className="p-2 bg-cyan-500/20 rounded-xl border border-cyan-500/30">
+                  <Camera className="w-4 h-4 text-cyan-400" />
+                </div>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  capture="environment"
+                  className="hidden" 
+                  onChange={(e) => {
+                    handleFileUpload(e, 'fleet');
+                    setIsFabOpen(false);
+                  }}
+                  disabled={isProcessing || !user}
+                />
+              </motion.label>
+
+              <div className="h-px bg-white/5 mx-4 my-1" />
+
+              {/* Market Price Scan (Gallery) */}
+              <motion.label
+                whileHover={{ scale: 1.05, x: -5 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-amber transition-all group cursor-pointer"
+              >
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-amber-400 transition-colors">Market Gallery Scan</span>
+                <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-500/30">
+                  <Tag className="w-4 h-4 text-amber-400" />
+                </div>
+                <input 
+                  type="file" 
+                  multiple 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    handleFileUpload(e, 'market');
+                    setIsFabOpen(false);
+                  }}
+                  disabled={isProcessing || !user}
+                />
+              </motion.label>
+
+              {/* Market Camera Scan */}
+              <motion.label
+                whileHover={{ scale: 1.05, x: -5 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-amber transition-all group cursor-pointer"
+              >
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-amber-400 transition-colors">Market Camera Scan</span>
+                <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-500/30">
+                  <Camera className="w-4 h-4 text-amber-400" />
+                </div>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  capture="environment"
+                  className="hidden" 
+                  onChange={(e) => {
+                    handleFileUpload(e, 'market');
                     setIsFabOpen(false);
                   }}
                   disabled={isProcessing || !user}

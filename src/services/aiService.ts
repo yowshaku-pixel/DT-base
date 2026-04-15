@@ -105,6 +105,56 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
   }
 }
 
+export async function extractMarketPrices(base64Image: string, mimeType: string): Promise<{ items: { item_name: string, price: number, currency: string }[] }> {
+  if (!base64Image) {
+    return { items: [] };
+  }
+
+  const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
+
+  const systemInstruction = `Expert requisition and price list extractor.
+              
+              Task: Extract EVERY item and its unit price.
+              
+              Rules:
+              - Item Name: Full description of the part or service.
+              - Price: Unit price as a number.
+              - Currency: Default to KES unless specified.
+              
+              Output: JSON { "items": [{ "item_name", "price", "currency" }] }`;
+
+  try {
+    console.log("[AI] Starting market price extraction with Gemini...");
+    const result = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: systemInstruction },
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType,
+              },
+            },
+          ]
+        }
+      ],
+    });
+
+    const text = result.text;
+    console.log("[AI] Market extraction raw response:", text);
+
+    const jsonMatch = text?.match(/\{[\s\S]*\}/);
+    const cleanJson = jsonMatch ? jsonMatch[0] : text;
+    return JSON.parse(cleanJson || '{"items":[]}');
+  } catch (e: any) {
+    console.error("[AI] Market Extraction Error:", e);
+    throw new Error(getAIErrorMessage(e));
+  }
+}
+
 export async function analyzeMaintenanceData(
   query: string, 
   records: MaintenanceRecord[], 
