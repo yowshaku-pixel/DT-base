@@ -79,7 +79,7 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
   try {
     console.log("[AI] Starting extraction with Gemini...");
     const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: [
         {
           role: "user",
@@ -130,7 +130,7 @@ export async function extractMarketPrices(base64Image: string, mimeType: string)
   try {
     console.log("[AI] Starting market price extraction with Gemini...");
     const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: [
         {
           role: "user",
@@ -300,7 +300,7 @@ export async function analyzeMaintenanceData(
   try {
     console.log("[AI] Starting chat analysis with Gemini...");
     const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: [
         ...chatHistory.map(msg => ({
           role: msg.role === 'user' ? 'user' : 'model',
