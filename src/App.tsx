@@ -15,6 +15,7 @@ interface UploadLogEntry {
   timestamp: number;
   imageData?: string; // Base64 image data for viewing
   mode?: 'fleet' | 'market';
+  isAudit?: boolean;
 }
 
 const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
@@ -707,7 +708,7 @@ export default function App() {
       const fileArray = Array.from(files);
       
       setNotification({
-        message: `Starting ${mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${fileArray.length} file(s)...`,
+        message: `Starting ${isAuditMode ? 'Audit ' : ''}${mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${fileArray.length} file(s)...`,
         type: 'info'
       });
 
@@ -727,7 +728,8 @@ export default function App() {
             status: 'queued',
             timestamp: Date.now() + newEntries.length,
             imageData: resizedBase64,
-            mode
+            mode,
+            isAudit: isAuditMode
           });
         } catch (err) {
           console.error(`Error queuing ${file.name}:`, err);
@@ -749,7 +751,7 @@ export default function App() {
     } finally {
       setIsProcessing(false);
     }
-  }, [user, supabase, isServiceUnlocked]);
+  }, [user, supabase, isServiceUnlocked, isAuditMode]);
 
   const startBatchProcessing = useCallback(async () => {
     if (!supabase || !user || isProcessing) return;
@@ -918,7 +920,7 @@ export default function App() {
           
           // Success!
           setNotification({
-            message: `${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan completed successfully!`,
+            message: `${entry.isAudit ? 'Audit ' : ''}${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan completed successfully!`,
             type: 'success'
           });
           setUploadLog(prev => prev.map(e => 
@@ -1029,7 +1031,7 @@ export default function App() {
       ));
 
       setNotification({
-        message: `Retrying ${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${entry.fileName}...`,
+        message: `Retrying ${entry.isAudit ? 'Audit ' : ''}${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${entry.fileName}...`,
         type: 'info'
       });
 
@@ -1040,71 +1042,127 @@ export default function App() {
           throw new Error("No readable market prices found in this image.");
         }
         
-        for (const item of result.items) {
-          const { error: marketError } = await supabase
+        if (!entry.isAudit) {
+          for (const item of result.items) {
+            const { error: marketError } = await supabase
+              .from('market_prices')
+              .insert({
+                item_name: item.item_name,
+                price: item.price,
+                currency: item.currency,
+                confirmed_by: 'AI Scan (Retry)',
+                last_updated: new Date().toISOString(),
+                user_id: user.id
+              });
+            if (marketError) throw marketError;
+            setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+          }
+          
+          // Refresh market prices
+          const { data: updatedPrices } = await supabase
             .from('market_prices')
-            .insert({
-              item_name: item.item_name,
-              price: item.price,
-              currency: item.currency,
-              confirmed_by: 'AI Scan (Retry)',
-              last_updated: new Date().toISOString(),
-              user_id: user.id
-            });
-          if (marketError) throw marketError;
-          setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+            .select('*')
+            .eq('user_id', user.id)
+            .order('last_updated', { ascending: false });
+          if (updatedPrices) setMarketPrices(updatedPrices);
         }
-        
-        // Refresh market prices
-        const { data: updatedPrices } = await supabase
-          .from('market_prices')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('last_updated', { ascending: false });
-        if (updatedPrices) setMarketPrices(updatedPrices);
 
       } else {
         if (!result || !result.records || result.records.length === 0) {
           throw new Error("No readable records found in this image.");
         }
 
-        for (const record of result.records) {
-        const { data: recordData, error: recordError } = await supabase
-          .from('maintenance_records')
-          .insert({
-            plate_number: record.plate_number,
-            service_date: record.service_date,
-            service_description: record.service_description,
-            confidence: record.confidence,
-            user_id: user.id,
-            file_name: entry.fileName,
-            created_at: new Date().toISOString()
-          })
-          .select()
-          .single();
+        if (entry.isAudit) {
+          // Audit Mode: Check for duplicates instead of saving
+          const newAuditResults = [];
+          const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '').trim() : '';
+          const normalizeDate = (d: string) => {
+            if (!d) return '';
+            const matchYMD = d.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+            if (matchYMD) {
+              const [_, y, m, day] = matchYMD;
+              return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+            const matchDMY = d.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+            if (matchDMY) {
+              const [_, day, m, y] = matchDMY;
+              return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+            return d.trim();
+          };
 
-        if (recordError) throw recordError;
-        setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-
-        if (recordData) {
-          const { error: imageError } = await supabase
-            .from('maintenance_record_images')
-            .insert({
-              record_id: recordData.id,
-              image_data: entry.imageData,
-              user_id: user.id,
-              created_at: new Date().toISOString()
+          for (const record of result.records) {
+            const normExtractedDesc = normalize(record.service_description);
+            const normExtractedDate = normalizeDate(record.service_date);
+            
+            const match = records.find(r => {
+              const plateMatch = arePlatesSimilar(r.plate_number, record.plate_number);
+              const dateMatch = normalizeDate(r.service_date) === normExtractedDate;
+              const normDbDesc = normalize(r.service_description);
+              const descMatch = normDbDesc === normExtractedDesc || 
+                               normDbDesc.includes(normExtractedDesc) || 
+                               normExtractedDesc.includes(normDbDesc) ||
+                               (normExtractedDesc.length > 10 && normDbDesc.length > 10 && 
+                                normExtractedDesc.split('').filter(char => normDbDesc.includes(char)).length / normExtractedDesc.length > 0.8);
+              return plateMatch && dateMatch && descMatch;
             });
-          
-          if (imageError) throw imageError;
-          setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+
+            const potentialMatch = !match ? records.find(r => 
+              arePlatesSimilar(r.plate_number, record.plate_number) && 
+              normalizeDate(r.service_date) === normExtractedDate
+            ) : null;
+
+            newAuditResults.push({
+              fileName: entry.fileName,
+              plate: record.plate_number,
+              date: record.service_date,
+              service: record.service_description,
+              isDuplicate: !!match,
+              isPotential: !!potentialMatch,
+              matchId: match?.id || potentialMatch?.id
+            });
+          }
+          setAuditResults(prev => [...newAuditResults, ...prev]);
+        } else {
+          // Normal Mode: Save to database
+          for (const record of result.records) {
+            const { data: recordData, error: recordError } = await supabase
+              .from('maintenance_records')
+              .insert({
+                plate_number: record.plate_number,
+                service_date: record.service_date,
+                service_description: record.service_description,
+                confidence: record.confidence,
+                user_id: user.id,
+                file_name: entry.fileName,
+                created_at: new Date().toISOString()
+              })
+              .select()
+              .single();
+
+            if (recordError) throw recordError;
+            setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+
+            if (recordData) {
+              const { error: imageError } = await supabase
+                .from('maintenance_record_images')
+                .insert({
+                  record_id: recordData.id,
+                  image_data: entry.imageData,
+                  user_id: user.id,
+                  created_at: new Date().toISOString()
+                });
+              
+              if (imageError) throw imageError;
+              setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+            }
+          }
         }
       }
-    }
       
       // Success!
       setNotification({
-        message: `${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Retry successful!`,
+        message: `${entry.isAudit ? 'Audit ' : ''}${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Retry successful!`,
         type: 'success'
       });
       setUploadLog(prev => prev.map(e => 
@@ -1807,10 +1865,13 @@ export default function App() {
                   if (activeEntry?.mode) {
                     return (
                       <span className={cn(
-                        "text-[9px] px-2 py-0.5 rounded-full border font-display font-black uppercase tracking-widest",
-                        activeEntry.mode === 'market' ? "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.3)]" : "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                        "text-[9px] px-2 py-0.5 rounded-full border font-display font-black uppercase tracking-widest flex items-center gap-1.5",
+                        activeEntry.isAudit ? "bg-cyan-500/30 border-cyan-400 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]" :
+                        activeEntry.mode === 'market' ? "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.3)]" : 
+                        "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
                       )}>
-                        {activeEntry.mode} Mode
+                        {activeEntry.isAudit && <Eye className="w-3 h-3 animate-pulse" />}
+                        {activeEntry.mode} {activeEntry.isAudit ? "Audit" : "Mode"}
                       </span>
                     );
                   }
@@ -1987,10 +2048,13 @@ export default function App() {
                       <span className="text-[11px] font-mono truncate opacity-80" title={entry.fileName}>{entry.fileName}</span>
                       {entry.mode && (
                         <span className={cn(
-                          "text-[8px] px-1 rounded border font-display font-bold uppercase tracking-tighter",
-                          entry.mode === 'market' ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
+                          "text-[8px] px-1 rounded border font-display font-bold uppercase tracking-tighter flex items-center gap-1",
+                          entry.mode === 'market' ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-cyan-500/10 border-cyan-500/30 text-cyan-400",
+                          entry.isAudit && "border-white/40 text-white shadow-[0_0_5px_rgba(255,255,255,0.2)]"
                         )}>
+                          {entry.isAudit && <Eye className="w-2.5 h-2.5" />}
                           {entry.mode}
+                          {entry.isAudit && <span className="opacity-60 ml-0.5">Audit</span>}
                         </span>
                       )}
                     </div>
