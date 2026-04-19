@@ -20,22 +20,26 @@ interface AIChatAssistantProps {
   records: MaintenanceRecord[];
   marketPrices: MarketPrice[];
   onSaveMarketPrice: (item: string, price: number, currency: string) => Promise<void>;
+  onFocusInsight?: (plate: string | null, service: string | null, year: number | null) => void;
   isLocked?: boolean;
   onUnlockRequest?: () => void;
+  viewMode?: 'log' | 'analytics';
 }
 
 export default function AIChatAssistant({ 
   records, 
   marketPrices, 
   onSaveMarketPrice,
+  onFocusInsight,
   isLocked = false,
-  onUnlockRequest
+  onUnlockRequest,
+  viewMode = 'log'
 }: AIChatAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isShortMode, setIsShortMode] = useState(true);
+  const [isShortMode, setIsShortMode] = useState(false);
   const [errorType, setErrorType] = useState<'quota' | 'rate' | 'other' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const stopRef = useRef(false);
@@ -75,7 +79,8 @@ export default function AIChatAssistant({
         input + (isShortMode ? " (GIVE A VERY SHORT, CONCISE ANSWER)" : ""), 
         records, 
         updatedMessages, 
-        marketPrices
+        marketPrices,
+        viewMode
       );
       if (stopRef.current) return;
       
@@ -86,8 +91,27 @@ export default function AIChatAssistant({
         await onSaveMarketPrice(item, parseFloat(price), currency);
       }
 
+      // Detect Focus Insight
+      const focusMatch = response.match(/\[FOCUS_INSIGHT:\s*(.*?)\s*\|?\s*(.*?)\s*\|?\s*(\d{4})?\s*\]/);
+      if (focusMatch && onFocusInsight) {
+        const [, plate, service, year] = focusMatch;
+        onFocusInsight(
+          plate?.trim() || null,
+          service?.trim() || null,
+          year ? parseInt(year) : null
+        );
+      }
+
       // Clean response from tags
-      const cleanResponse = response.replace(/\[PRICE_CORRECTION:.*?\]/g, '').trim();
+      let cleanResponse = response
+        .replace(/\[PRICE_CORRECTION:.*?\]/g, '')
+        .replace(/\[FOCUS_INSIGHT:.*?\]/g, '')
+        .trim();
+
+      // Fallback if cleaning removed EVERYTHING (unlikely with new instructions but safe)
+      if (!cleanResponse && response.includes('[FOCUS_INSIGHT:')) {
+        cleanResponse = "I've updated the analytics view based on your request.";
+      }
 
       const assistantMessage: ChatMessage = {
         role: 'assistant',
@@ -247,29 +271,10 @@ export default function AIChatAssistant({
               {messages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
                   <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
-                    <MessageSquare className="w-6 h-6 text-white/20" />
+                    <Bot className="w-6 h-6 text-white/20" />
                   </div>
                   <div>
                     <p className="text-sm text-white/60 font-display">How can I help you today?</p>
-                    <p className="text-xs text-white/30 font-mono mt-1">Ask me to summarize logs, analyze patterns, or find specific truck info.</p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 w-full">
-                    {[
-                      "KCN 851 S: Summarize all logs",
-                      "Oil Change: Analyze across all trucks",
-                      "Overall: Total maintenance cost this month",
-                      "How much should a turbocharger for Axor MP3 cost?"
-                    ].map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        onClick={() => {
-                          setInput(suggestion);
-                        }}
-                        className="text-[10px] text-left px-3 py-2 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-colors text-white/40"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
                   </div>
                 </div>
               )}
@@ -336,12 +341,13 @@ export default function AIChatAssistant({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    // Check if Cmd/Ctrl + Enter was pressed to still allow a keyboard shortcut for sending if desired
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                       e.preventDefault();
                       handleSend();
                     }
                   }}
-                  placeholder={isLocked ? "Anni is locked..." : "Ask Anni... (Shift+Enter for new line)"}
+                  placeholder={isLocked ? "Anni is locked..." : "Ask Anni... (Enter for new line)"}
                   rows={Math.min(5, input.split('\n').length || 1)}
                   disabled={isLocked}
                   className={cn(

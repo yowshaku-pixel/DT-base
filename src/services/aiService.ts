@@ -53,23 +53,26 @@ function getAIErrorMessage(err: any): string {
   return message;
 }
 
-export async function extractMaintenanceData(base64Image: string, mimeType: string): Promise<ExtractionResult> {
+export async function extractMaintenanceData(base64Image: string, mimeType: string, fleetRegistry: string[] = []): Promise<ExtractionResult> {
   if (!base64Image) {
     return { records: [] };
   }
 
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
+  const registryContext = fleetRegistry.length > 0 
+    ? `\n\nKNOWN FLEET REGISTRY (Priority): \n${fleetRegistry.join(', ')}\nIf the plate number you extract looks like a typo of a plate in this list, use the plate from the registry instead.` 
+    : "";
 
   const systemInstruction = `Expert truck maintenance log extractor (hand-written/digital).
               
               Task: Extract EVERY entry. Do NOT summarize or skip.
               
-              Fleet:
+              Fleet Information:${registryContext}
               - MB Axor MP3: KCL 054 to KCY 901B, UAY 469L.
               - MB Actros MP4: KCZ 945Y to KDS 849R.
               
               Rules:
-              - Plate: Primary truck ID only. Ignore trailer numbers (after / or -). Clean spaces.
+              - Plate: Extract the MAIN plate number from the top/header of the document. If a different plate number is mentioned inside a specific line item (e.g., "for truck X"), IGNORE it for the 'plate_number' field and keep it only in the 'service_description'. Clean spaces.
               - Date: YYYY-MM-DD. If invalid/missing, use current: ${new Date().toISOString().split('T')[0]}.
               - Description: Extract ALL items, numbered lists, parts, and costs (e.g., "[Part] - [Amount] [Currency]").
               - Grouping: Combine items for SAME truck and SAME date into one record.
@@ -163,7 +166,8 @@ export async function analyzeMaintenanceData(
   query: string, 
   records: MaintenanceRecord[], 
   chatHistory: ChatMessage[] = [],
-  marketPrices: MarketPrice[] = []
+  marketPrices: MarketPrice[] = [],
+  viewMode: 'log' | 'analytics' = 'log'
 ): Promise<string> {
   
   // Smart Filtering: If the query mentions a specific truck, filter the records first
@@ -205,10 +209,10 @@ export async function analyzeMaintenanceData(
 
   // Format market prices for the AI
   const formattedMarketPrices = marketPrices.map(p => ({
-    item: p.item_name,
-    price: `${p.currency} ${p.price}`,
-    confirmed_by: p.confirmed_by,
-    date: p.last_updated
+    i: p.item_name,
+    p: `${p.currency} ${p.price}`,
+    c: p.confirmed_by,
+    d: p.last_updated
   }));
 
   // Pre-calculate truck summary for precision (on the filtered set, Deduplicated)
@@ -238,20 +242,52 @@ export async function analyzeMaintenanceData(
     }
   });
 
+  const analyticsContext = viewMode === 'analytics' ? `
+  **Analytic Context**:
+  The user is currently viewing the "Insights" dashboard. 
+  Focus on:
+  - Trends over time (monthly spikes/dips).
+  - Most frequent service types across the fleet.
+  - High-maintenance trucks vs efficient ones.
+  - Comparison of costs if available.
+  ` : "";
+
+  const focusInsightPulse = `
+  **Focus Insight Feature**:
+  If the user says "Focus insight" followed by a truck plate, a service type, or a time frame, you MUST trigger a focus action.
+  To do this, include the following tag at the very beginning or end of your response:
+  [FOCUS_INSIGHT: PlateNumber | ServiceName | Year]
+  
+  **IMPORTANT**: Even when triggering a focus action, you MUST provide a friendly and helpful textual response. 
+  For example: "Certainly! I've filtered the insights to show oil services for KDM 898 in 2026. You can see the trends in the charts below."
+  
+  Examples of Tags:
+  - User: "Focus insight on oil services this year" -> [FOCUS_INSIGHT: | oil service | 2026]
+  - User: "Focus insight on KDM898" -> [FOCUS_INSIGHT: KDM 898 | | ]
+  - User: "Focus insight on tires for KCL 054" -> [FOCUS_INSIGHT: KCL 054 | tires | ]
+
+  Rules for Tag:
+  - PlateNumber: Cleanized plate (e.g. KDM 898). Leave empty if not focusing on a specific truck.
+  - ServiceName: Simple service name (e.g. oil, brakes, tires). Leave empty if not focusing on a service.
+  - Year: 4-digit year. Leave empty if not focusing on a timeframe.
+  `;
+
   const systemInstruction = `You are Anni, an expert fleet maintenance analyst and master mechanic for DT.Base. 
   You specialize in Mercedes-Benz trucks, specifically the **MB Axor MP3** and **MB Actros MP4**.
   
   Your task is to answer questions, summarize, analyze, and provide mechanical advice based on maintenance data.
+  ${analyticsContext}
+  ${focusInsightPulse}
   
   **CRITICAL**: Be extremely CONCISE. Provide short, direct answers. Avoid long explanations unless specifically asked. Use bullet points for lists.
   
   **Market Knowledge (Confirmed Prices)**:
-  These are prices that have been confirmed or corrected by the user. ALWAYS prioritize these over internet search results.
-  ${JSON.stringify(formattedMarketPrices, null, 2)}
+  These are prices that have been confirmed or corrected by the user. ALWAYS prioritize these over internet search results (i=item, p=price, c=confirmed_by, d=date).
+  ${JSON.stringify(formattedMarketPrices)}
 
   **Truck Summary (PRE-CALCULATED COUNTS)**:
   Use these counts for accuracy when asked "how many records" or "how many times". 
-  ${Object.entries(truckSummary).map(([key, data]) => `- ${data.originalPlates[0]} (and similar: ${data.originalPlates.join(', ')}): ${data.count} records`).join('\n')}
+  ${Object.entries(truckSummary).map(([key, data]) => `- ${data.originalPlates[0]}: ${data.count} records`).join('\n')}
   ${filterNote}
 
   **Price Corrections**:
@@ -288,13 +324,8 @@ export async function analyzeMaintenanceData(
   Instructions:
   - Be concise, professional, and technically accurate.
   - Present lists and summaries in **Alphabetical order** by plate number unless requested otherwise.
-  - If asked to summarize, group by truck or by type of work.
-  - If asked to analyze, look for patterns (e.g., recurring issues with a specific truck).
-  - If asked to organize, provide a structured list or table-like format in markdown.
-  - If the data doesn't contain the answer, say so clearly.
-  
-  Current Data:
-  ${JSON.stringify(formattedRecords, null, 2)}
+  - If asked to summarize, group by truck or by type of work (compact format: p=plate, dt=date, d=desc).
+  ${JSON.stringify(formattedRecords.map(r => ({ p: r.plate, dt: r.date, d: r.desc })))}
   `;
 
   try {
@@ -312,7 +343,7 @@ export async function analyzeMaintenanceData(
         }
       ],
       config: {
-        maxOutputTokens: 1000,
+        maxOutputTokens: 4096,
       }
     });
 

@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { extractMaintenanceData, extractMarketPrices, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
-import { cn, resizeImage, arePlatesSimilar } from './lib/utils';
+import { cn, resizeImage, arePlatesSimilar, normalizePlate } from './lib/utils';
 import { supabase, getSupabaseErrorMessage } from './supabase';
 import { User } from '@supabase/supabase-js';
 import AIChatAssistant from './components/AIChatAssistant';
+import { Analytics } from './components/Analytics';
 import { motion, AnimatePresence } from 'motion/react';
+import { BarChart3 as BarChartIcon } from 'lucide-react';
 
 interface UploadLogEntry {
   fileName: string;
@@ -21,11 +23,596 @@ interface UploadLogEntry {
 const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
 // No limit - fetch all records for the user
 
+// --- Memoized Sub-components for Performance ---
+
+const PlateFolder = React.memo(({ 
+  plate, 
+  plateRecords, 
+  isExpanded, 
+  onToggle, 
+  onEdit, 
+  onToggleVerify,
+  onViewImage,
+  normalizePlate
+}: { 
+  plate: string, 
+  plateRecords: MaintenanceRecord[], 
+  isExpanded: boolean, 
+  onToggle: (p: string) => void,
+  onEdit: (r: MaintenanceRecord) => void,
+  onToggleVerify: (r: MaintenanceRecord) => void,
+  onViewImage: (r: MaintenanceRecord) => void,
+  normalizePlate: (p: string) => string
+}) => {
+  return (
+    <div className="glassmorphism rounded-3xl overflow-hidden transition-all hover:bg-white/[0.05] neon-border-violet/30">
+      <button 
+        onClick={() => onToggle(plate)}
+        className="w-full flex items-center justify-between p-3.5 px-5 text-white transition-all"
+        title={`Click to ${isExpanded ? 'collapse' : 'expand'} records for ${plate}`}
+      >
+        <div className="flex items-center gap-4">
+          <div className={cn(
+            "w-6 h-6 rounded-full flex items-center justify-center bg-white/5 border border-white/10 transition-transform",
+            isExpanded && "rotate-180"
+          )}>
+            <ChevronDown className="w-3 h-3 opacity-60" />
+          </div>
+          <div className="flex flex-col items-start">
+            <span className="font-display text-lg font-bold tracking-tight">{plate}</span>
+            <span className="text-[8px] opacity-40 font-mono uppercase tracking-widest">
+              {plateRecords.length} {plateRecords.length === 1 ? 'Entry' : 'Entries'}
+            </span>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5">Last Service</div>
+          <div className="text-[10px] font-mono font-bold text-purple-400/80">
+            {plateRecords.length > 0 ? plateRecords[0].service_date : 'No Records'}
+          </div>
+        </div>
+      </button>
+
+      {isExpanded && (
+        <div className="px-3 pb-3">
+          <div className="bg-black/20 rounded-2xl border border-white/5 divide-y divide-white/5">
+            {plateRecords.length > 0 ? (
+              plateRecords.map((record, index) => (
+                <div key={`${record.id}-${index}`} className="p-3 px-4 flex items-center justify-between gap-4 group hover:bg-white/[0.02] transition-colors">
+                  <div className="flex items-center gap-4 overflow-hidden">
+                    <div className="text-[9px] font-mono opacity-20 w-4">
+                      {(index + 1).toString().padStart(2, '0')}
+                    </div>
+                    <div className="overflow-hidden">
+                      <div className="text-[8px] font-display font-bold uppercase tracking-[0.2em] mb-0.5 flex flex-wrap items-center gap-2">
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded bg-white/5 border",
+                          normalizePlate(record.plate_number) !== normalizePlate(plate) && plate !== '⚠️ NEEDS REVIEW'
+                            ? "text-orange-400 border-orange-500/30 bg-orange-500/10" 
+                            : "text-white/40 border-white/10"
+                        )}>
+                          {record.plate_number}
+                        </span>
+                        <span className="opacity-20">•</span>
+                        <span>{record.service_date}</span>
+                        {record.file_name && (
+                          <>
+                            <span className="opacity-40">•</span>
+                            <span className="truncate max-w-[120px]">{record.file_name}</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-xs font-medium text-white/90 truncate">{record.service_description}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button 
+                      onClick={() => onToggleVerify(record)}
+                      className={cn(
+                        "p-2 border transition-all rounded-full flex items-center justify-center",
+                        record.verified 
+                          ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_10px_rgba(0,245,255,0.2)]" 
+                          : "bg-white/5 border-white/10 text-white/20 hover:text-white/40 hover:bg-white/10"
+                      )}
+                      title={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
+                    >
+                      <CheckCircle2 className={cn("w-3 h-3", record.verified && "animate-pulse")} />
+                    </button>
+                    <button 
+                      onClick={() => onEdit(record)}
+                      className="p-2 bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-all rounded-full"
+                      title="Edit this record"
+                    >
+                      <Settings className="w-3 h-3" />
+                    </button>
+                    <button 
+                      onClick={() => onViewImage(record)}
+                      className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full"
+                      title="View the original image for this record"
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center">
+                <p className="text-[10px] font-display font-bold uppercase tracking-widest opacity-20 italic">No records uploaded yet for this truck</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+const RecordsList = React.memo(({ 
+  groupedRecords, 
+  expandedPlates, 
+  onTogglePlate, 
+  onEditRecord, 
+  onToggleVerify,
+  onViewImage,
+  normalizePlate,
+  isProcessing,
+  user,
+  onUploadClick,
+  isServiceUnlocked,
+  setShowServicePasswordPrompt,
+  isAuditMode
+}: { 
+  groupedRecords: Record<string, MaintenanceRecord[]>,
+  expandedPlates: Record<string, boolean>,
+  onTogglePlate: (p: string) => void,
+  onEditRecord: (r: MaintenanceRecord) => void,
+  onViewImage: (r: MaintenanceRecord) => void,
+  normalizePlate: (p: string) => string,
+  isProcessing: boolean,
+  user: any,
+  onUploadClick: (e: any) => void,
+  isServiceUnlocked: boolean,
+  setShowServicePasswordPrompt: (b: boolean) => void,
+  isAuditMode: boolean,
+  onToggleVerify: (r: MaintenanceRecord) => void
+}) => {
+  if (Object.keys(groupedRecords).length === 0) {
+    return (
+      <div className="p-16 text-center border border-white/5 border-dashed rounded-3xl bg-white/[0.02] flex flex-col items-center gap-6">
+        <div className="w-16 h-16 bg-purple-600/10 rounded-full flex items-center justify-center border border-purple-500/20">
+          <Save className="w-8 h-8 text-purple-500/40" />
+        </div>
+        <div className="max-w-xs">
+          <h3 className="font-display font-bold text-lg text-white mb-2">Fresh Start</h3>
+          <p className="text-[11px] font-display font-medium text-white/40 leading-relaxed uppercase tracking-widest">
+            {isProcessing ? "Processing your uploads..." : "Your maintenance database is empty. Upload pictures of your logs to get started."}
+          </p>
+        </div>
+        {!isProcessing && user && (
+          <label 
+            onClick={(e) => {
+              if (!isServiceUnlocked) {
+                e.preventDefault();
+                setShowServicePasswordPrompt(true);
+              }
+            }}
+            className={cn(
+              "flex items-center gap-2 px-8 py-4 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 font-display font-bold uppercase tracking-[0.2em] text-xs relative overflow-hidden",
+              !isServiceUnlocked && "opacity-50",
+              isAuditMode && "bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/20"
+            )}
+            title={!isServiceUnlocked ? "Unlock services to upload" : isAuditMode ? "Start Audit Extraction" : "Upload your first maintenance log image"}
+          >
+            <Upload className="w-4 h-4" />
+            {isAuditMode ? "Audit Extraction" : "Upload First Log"}
+            <input 
+              type="file" 
+              multiple 
+              accept="image/*"
+              className="hidden" 
+              onChange={onUploadClick}
+              disabled={isProcessing}
+            />
+          </label>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {Object.entries(groupedRecords).map(([plate, plateRecords]) => (
+        <PlateFolder 
+          key={plate}
+          plate={plate}
+          plateRecords={plateRecords}
+          isExpanded={!!expandedPlates[plate]}
+          onToggle={onTogglePlate}
+          onEdit={onEditRecord}
+          onToggleVerify={onToggleVerify}
+          onViewImage={onViewImage}
+          normalizePlate={normalizePlate}
+        />
+      ))}
+    </div>
+  );
+});
+
+const SearchFilters = React.memo(({
+  searchQuery,
+  setSearchQuery,
+  descriptionQuery,
+  setDescriptionQuery,
+  isSearching,
+  isServiceUnlocked,
+  usageStats,
+  setShowServicePasswordPrompt,
+  recentSearches,
+  isAuditMode
+}: {
+  searchQuery: string,
+  setSearchQuery: (s: string) => void,
+  descriptionQuery: string,
+  setDescriptionQuery: (s: string) => void,
+  isSearching: boolean,
+  isServiceUnlocked: boolean,
+  usageStats: any,
+  setShowServicePasswordPrompt: (b: boolean) => void,
+  recentSearches: string[],
+  isAuditMode: boolean
+}) => {
+  // Local state for instant typing responsiveness
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+  const [localDesc, setLocalDesc] = useState(descriptionQuery);
+
+  // Sync internal state when external state changes (e.g. on Clear All)
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setLocalDesc(descriptionQuery);
+  }, [descriptionQuery]);
+
+  return (
+    <div className="relative group">
+      <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
+      <div className="flex flex-col gap-2">
+        <div className="relative">
+          {isSearching ? (
+            <Loader2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-purple-400 animate-spin" />
+          ) : (
+            <Search className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-60")} />
+          )}
+          <input 
+            type="text"
+            placeholder={!isServiceUnlocked && usageStats.searches >= 15 ? "Search limit reached..." : "Plate number..."}
+            className={cn(
+              "w-full bg-black/40 backdrop-blur-md border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
+              !isServiceUnlocked && usageStats.searches >= 15 ? "opacity-50 cursor-not-allowed border-white/10" : isAuditMode ? "neon-border-cyan border-cyan-500/50" : "neon-border-cyan"
+            )}
+            value={localSearch}
+            onChange={(e) => {
+              if (!isServiceUnlocked && usageStats.searches >= 15) {
+                setShowServicePasswordPrompt(true);
+                return;
+              }
+              const val = e.target.value;
+              setLocalSearch(val);
+              setSearchQuery(val); // Parent updates debounced value
+            }}
+            disabled={!isServiceUnlocked && usageStats.searches >= 15}
+            title="Search records by truck plate number"
+          />
+          {localSearch && (
+            <button 
+              onClick={() => {
+                setLocalSearch('');
+                setSearchQuery('');
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
+              title="Clear Search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="relative">
+           <Smartphone className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-40")} />
+           <input 
+            type="text"
+            placeholder="Description keyword..."
+            className={cn(
+              "w-full bg-black/40 backdrop-blur-md border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
+              isAuditMode ? "border-cyan-500/30 focus:border-cyan-500/60" : "border-white/10"
+            )}
+            value={localDesc}
+            onChange={(e) => {
+              const val = e.target.value;
+              setLocalDesc(val);
+              setDescriptionQuery(val);
+            }}
+            title="Optional: Search for this keyword specifically inside service descriptions"
+          />
+          {localDesc && (
+            <button 
+              onClick={() => {
+                setLocalDesc('');
+                setDescriptionQuery('');
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
+              title="Clear Description Filter"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      {recentSearches.length > 0 && !localSearch && (
+        <div className="mt-2 flex flex-wrap gap-1.5 ml-2">
+          {recentSearches.map((s, i) => (
+            <button 
+              key={i} 
+              onClick={() => {
+                setLocalSearch(s);
+                setSearchQuery(s);
+              }}
+              className={cn(
+                "text-[8px] font-mono bg-white/5 border border-white/5 px-2 py-0.5 rounded-full opacity-40 hover:opacity-100 transition-all font-bold",
+                isAuditMode ? "hover:bg-cyan-500/20 hover:border-cyan-500/30" : "hover:bg-purple-500/20 hover:border-purple-500/30"
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
+const EditRecordModal = React.memo(({ 
+  record, 
+  onClose, 
+  onSave, 
+  isProcessing 
+}: { 
+  record: MaintenanceRecord, 
+  onClose: () => void, 
+  onSave: (updatedRecord: MaintenanceRecord) => void,
+  isProcessing: boolean
+}) => {
+  const [localRecord, setLocalRecord] = useState(record);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+      <div className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 relative rounded-3xl my-auto">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 rounded-t-3xl" />
+        
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <Settings className="w-5 h-5 text-violet-400" />
+              <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase text-white">Edit Record</h2>
+            </div>
+            <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em] truncate max-w-[200px]">
+              Original: {record.file_name || 'Manual'}
+            </p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+            title="Close Edit"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Plate Number</label>
+            <input 
+              type="text"
+              value={localRecord.plate_number}
+              onChange={(e) => setLocalRecord({ ...localRecord, plate_number: e.target.value.toUpperCase() })}
+              className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-lg focus:outline-none transition-all placeholder:text-white/10 text-cyan-400"
+              placeholder="E.G. ABC-1234"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Service Date</label>
+            <input 
+              type="date"
+              value={localRecord.service_date}
+              onChange={(e) => setLocalRecord({ ...localRecord, service_date: e.target.value })}
+              className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-lg focus:outline-none transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Service Description</label>
+            <textarea 
+              value={localRecord.service_description}
+              onChange={(e) => setLocalRecord({ ...localRecord, service_description: e.target.value })}
+              className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-base focus:outline-none transition-all min-h-[100px] placeholder:text-white/10"
+              placeholder="E.G. Oil Change, Tire Rotation..."
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-4 glassmorphism border neon-border-violet/20 rounded-xl group cursor-pointer hover:neon-border-violet/40 transition-all" onClick={() => setLocalRecord({ ...localRecord, verified: !localRecord.verified })}>
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+                localRecord.verified ? "bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(0,245,255,0.3)]" : "bg-white/5 text-white/20"
+              )}>
+                <CheckCircle2 className={cn("w-5 h-5", localRecord.verified && "animate-pulse")} />
+              </div>
+              <div>
+                <h3 className="font-display font-black text-xs text-white uppercase tracking-tighter">Double Checked</h3>
+                <p className="text-[9px] text-white/40 font-mono uppercase">Confirm data accuracy</p>
+              </div>
+            </div>
+            <div className={cn(
+              "w-12 h-6 rounded-full relative transition-all duration-300",
+              localRecord.verified ? "bg-cyan-500" : "bg-white/10"
+            )}>
+              <div className={cn(
+                "absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300",
+                localRecord.verified ? "right-1" : "left-1"
+              )} />
+            </div>
+          </div>
+
+          <div className="flex gap-4">
+            <button 
+              onClick={onClose}
+              className="flex-1 py-4 border border-white/10 text-white font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-xl hover:bg-white/5 transition-all"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={() => onSave(localRecord)}
+              disabled={isProcessing}
+              className="flex-[2] py-4 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 disabled:opacity-50 text-white font-display font-black uppercase tracking-[0.2em] text-xs rounded-xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              {isProcessing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Changes
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const ManualEntryModal = React.memo(({ 
+  data, 
+  onClose, 
+  onSave, 
+  isProcessing 
+}: { 
+  data: any, 
+  onClose: () => void, 
+  onSave: (updatedData: any) => void,
+  isProcessing: boolean
+}) => {
+  const [localData, setLocalData] = useState(data);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+      <div className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 relative rounded-3xl my-auto">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 rounded-t-3xl" />
+        
+        <div className="flex items-start justify-between mb-8">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <Plus className="w-5 h-5 text-violet-400" />
+              <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase text-white">Manual Entry</h2>
+            </div>
+            <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em] truncate max-w-[200px]">
+              File: {data.fileName}
+            </p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+            title="Close Manual Entry"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Plate Number</label>
+            <input 
+              type="text"
+              value={localData.plateNumber}
+              onChange={(e) => setLocalData({ ...localData, plateNumber: e.target.value.toUpperCase() })}
+              className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-lg focus:outline-none transition-all placeholder:text-white/10"
+              placeholder="E.G. ABC-1234"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Service Date</label>
+            <input 
+              type="date"
+              value={localData.date}
+              onChange={(e) => setLocalData({ ...localData, date: e.target.value })}
+              className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-lg focus:outline-none transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Service Description</label>
+            <textarea 
+              value={localData.service}
+              onChange={(e) => setLocalData({ ...localData, service: e.target.value })}
+              className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-base focus:outline-none transition-all min-h-[100px] placeholder:text-white/10"
+              placeholder="E.G. Oil Change - 15000 KES, Tire Rotation - 5000 KES..."
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-4 glassmorphism border neon-border-violet/20 rounded-xl group cursor-pointer hover:neon-border-violet/40 transition-all" onClick={() => setLocalData({ ...localData, verified: !localData.verified })}>
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center transition-all",
+                localData.verified ? "bg-cyan-500/20 text-cyan-400 shadow-[0_0_15px_rgba(0,245,255,0.3)]" : "bg-white/5 text-white/20"
+              )}>
+                <CheckCircle2 className={cn("w-5 h-5", localData.verified && "animate-pulse")} />
+              </div>
+              <div>
+                <h3 className="font-display font-black text-xs text-white uppercase tracking-tighter">Verified Entry</h3>
+                <p className="text-[9px] text-white/40 font-mono uppercase">Marks as double-checked</p>
+              </div>
+            </div>
+            <div className={cn(
+              "w-12 h-6 rounded-full relative transition-all duration-300",
+              localData.verified ? "bg-cyan-500" : "bg-white/10"
+            )}>
+              <div className={cn(
+                "absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300",
+                localData.verified ? "right-1" : "left-1"
+              )} />
+            </div>
+          </div>
+
+          <button 
+            onClick={() => onSave(localData)}
+            disabled={isProcessing}
+            className="w-full py-5 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 disabled:opacity-50 text-white font-display font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)] flex items-center justify-center gap-3"
+            title="Save this manual entry to the database"
+          >
+            {isProcessing ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <Save className="w-5 h-5" />
+                Save Record
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export default function App() {
   const MASTER_PASSWORD = import.meta.env.VITE_SERVICE_PASSWORD || 'adminjo';
   const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
 
   const [user, setUser] = useState<User | null>(null);
+  const [viewMode, setViewMode] = useState<'log' | 'analytics'>('log');
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -39,6 +626,7 @@ export default function App() {
   const [progress, setProgress] = useState({ current: 0, total: 0, failed: 0 });
   const [failedFiles, setFailedFiles] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [descriptionQuery, setDescriptionQuery] = useState('');
   const [notification, setNotification] = useState<{ message: string, type: 'info' | 'success' | 'warning' } | null>(null);
 
   // Auto-clear notification
@@ -49,6 +637,7 @@ export default function App() {
     }
   }, [notification]);
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedDescription, setDebouncedDescription] = useState('');
   const [serviceFilter, setServiceFilter] = useState('');
   const [debouncedService, setDebouncedService] = useState('');
   const [secondaryServiceFilter, setSecondaryServiceFilter] = useState('');
@@ -139,6 +728,20 @@ export default function App() {
   };
 
   const [isFabOpen, setIsFabOpen] = useState(false);
+  const [fleetRegistry, setFleetRegistry] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('dtbase_fleet_registry');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null);
+  
+  useEffect(() => {
+    localStorage.setItem('dtbase_fleet_registry', JSON.stringify(fleetRegistry));
+  }, [fleetRegistry]);
+
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [dangerAction, setDangerAction] = useState<'clearAll' | 'clearDuplicates' | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
@@ -148,6 +751,7 @@ export default function App() {
   
   const [showDateRangeReport, setShowDateRangeReport] = useState(false);
   const [showLatestOnly, setShowLatestOnly] = useState(false);
+  const [showUploadLog, setShowUploadLog] = useState(true);
   const [uploadLog, setUploadLog] = useState<UploadLogEntry[]>([]);
   const [latestImage, setLatestImage] = useState<string | null>(null);
   const [isLoadingLatestImage, setIsLoadingLatestImage] = useState(false);
@@ -159,7 +763,8 @@ export default function App() {
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [showMarketPricesModal, setShowMarketPricesModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [isAuditMode, setIsAuditMode] = useState(false);
+  const [showFleetRegistryList, setShowFleetRegistryList] = useState(false);
+  const [isAuditMode, setIsAuditMode] = useState(false); // Used as "Confirm Duplicates Mode"
   const [auditResults, setAuditResults] = useState<{
     fileName: string;
     plate: string;
@@ -174,6 +779,7 @@ export default function App() {
     plateNumber: string;
     date: string;
     service: string;
+    verified?: boolean;
   } | null>(null);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [recentServiceFilters, setRecentServiceFilters] = useState<string[]>([]);
@@ -365,9 +971,10 @@ export default function App() {
 
   // Debounce search and filter to prevent excessive re-renders and Firestore reads
   useEffect(() => {
-    if (searchQuery) setIsSearching(true);
+    if (searchQuery || descriptionQuery) setIsSearching(true);
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
+      setDebouncedDescription(descriptionQuery);
       setIsSearching(false);
       if (searchQuery.length >= 3) {
         addToRecentSearches(searchQuery);
@@ -378,7 +985,18 @@ export default function App() {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchQuery, isServiceUnlocked]);
+  }, [searchQuery, descriptionQuery, isServiceUnlocked]);
+
+  // Logic to sync descriptionQuery with searchQuery by default
+  const lastSyncSearchRef = useRef('');
+  useEffect(() => {
+    if (searchQuery !== lastSyncSearchRef.current) {
+      if (!descriptionQuery || descriptionQuery === lastSyncSearchRef.current) {
+        setDescriptionQuery(searchQuery);
+      }
+      lastSyncSearchRef.current = searchQuery;
+    }
+  }, [searchQuery, descriptionQuery]);
 
   useEffect(() => {
     if (serviceFilter || secondaryServiceFilter) setIsFiltering(true);
@@ -478,7 +1096,6 @@ export default function App() {
     if (!user || !supabase) return;
     setIsRefreshing(true);
     try {
-      let allData: MaintenanceRecord[] = [];
       let from = 0;
       let to = 999;
       
@@ -491,10 +1108,12 @@ export default function App() {
         .range(from, to);
 
       if (error) throw error;
-
-      allData = data as MaintenanceRecord[];
+      
+      const rawRecords = data as MaintenanceRecord[];
       const total = count || 0;
       setTotalCount(total);
+
+      let allData = [...rawRecords];
 
       // If there are more than 1000, fetch the rest in batches (up to 10k)
       while (allData.length < total && allData.length < 10000) {
@@ -515,13 +1134,15 @@ export default function App() {
         allData = [...allData, ...(moreData as MaintenanceRecord[])];
       }
 
-      setRecords(allData);
+      // Final deduplication by ID just in case
+      const uniqueRecords = Array.from(new Map(allData.map(r => [r.id, r])).values());
+      setRecords(uniqueRecords);
       setIsCloudConnected(true);
       setError(null);
       setIsQuotaExceeded(false);
       
-      // Cache in localStorage for offline access
-      localStorage.setItem(`records_${user.id}`, JSON.stringify(allData));
+      // Cache in localStorage
+      localStorage.setItem(`records_${user.id}`, JSON.stringify(uniqueRecords));
     } catch (err: any) {
       console.warn("Fetch failed:", err);
       setIsCloudConnected(false);
@@ -608,7 +1229,7 @@ export default function App() {
       try {
         const extractionPromise = mode === 'market' 
           ? extractMarketPrices(base64, 'image/jpeg')
-          : extractMaintenanceData(base64, 'image/jpeg');
+          : extractMaintenanceData(base64, 'image/jpeg', fleetRegistry);
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow.")), 90000)
         );
@@ -783,7 +1404,12 @@ export default function App() {
 
           const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode);
           
-          if (shouldStopRef.current) throw new Error("Processing stopped by user");
+          if (shouldStopRef.current) {
+            setUploadLog(prev => prev.map(e => 
+              e.timestamp === entry.timestamp ? { ...e, status: 'queued', error: undefined } : e
+            ));
+            break;
+          }
 
           if (entry.mode === 'market') {
             if (!result || !result.items || result.items.length === 0) {
@@ -819,22 +1445,21 @@ export default function App() {
               .order('last_updated', { ascending: false });
             if (updatedPrices) setMarketPrices(updatedPrices);
 
-          } else if (isAuditMode) {
+          } else {
+            // Fleet Maintenance Mode (handles both Normal and Audit/Confirm Duplicates)
             if (!result || !result.records || result.records.length === 0) {
               throw new Error("No readable records found in this image.");
             }
-            // Audit Mode: Check for duplicates instead of saving
-            const newAuditResults = [];
-            const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '').trim() : '';
+
+            const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
+            const normalizePlate = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
             const normalizeDate = (d: string) => {
               if (!d) return '';
-              // Handle YYYY-MM-DD
               const matchYMD = d.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
               if (matchYMD) {
                 const [_, y, m, day] = matchYMD;
                 return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
               }
-              // Handle DD/MM/YYYY
               const matchDMY = d.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
               if (matchDMY) {
                 const [_, day, m, y] = matchDMY;
@@ -843,48 +1468,74 @@ export default function App() {
               return d.trim();
             };
 
-            for (const record of result.records) {
-              const normExtractedDesc = normalize(record.service_description);
-              const normExtractedDate = normalizeDate(record.service_date);
+            const getSimilarityScore = (s1: string, s2: string) => {
+              const str1 = normalize(s1);
+              const str2 = normalize(s2);
+              if (str1 === str2) return { score: 1.0, commonCount: 100 }; // Exact match is always 100%
+              if (!str1 || !str2) return { score: 0, commonCount: 0 };
               
-              const match = records.find(r => {
-                const plateMatch = arePlatesSimilar(r.plate_number, record.plate_number);
-                const dateMatch = normalizeDate(r.service_date) === normExtractedDate;
-                const normDbDesc = normalize(r.service_description);
-                
-                // Match if plate and date are same, AND descriptions are very similar
-                const descMatch = normDbDesc === normExtractedDesc || 
-                                 normDbDesc.includes(normExtractedDesc) || 
-                                 normExtractedDesc.includes(normDbDesc) ||
-                                 // Check if they share at least 3 common words (for longer descriptions)
-                                 (normExtractedDesc.length > 10 && normDbDesc.length > 10 && 
-                                  normExtractedDesc.split('').filter(char => normDbDesc.includes(char)).length / normExtractedDesc.length > 0.8);
-                
-                return plateMatch && dateMatch && descMatch;
-              });
+              const words1 = str1.split(/\s+/).filter(w => w.length > 2);
+              const words2 = str2.split(/\s+/).filter(w => w.length > 2);
+              
+              if (words1.length === 0 || words2.length === 0) {
+                return (str1.includes(str2) || str2.includes(str1)) ? { score: 0.8, commonCount: 1 } : { score: 0, commonCount: 0 };
+              }
 
-              // Also check for potential matches (same plate and date, but different description)
-              const potentialMatch = !match ? records.find(r => 
-                arePlatesSimilar(r.plate_number, record.plate_number) && 
-                normalizeDate(r.service_date) === normExtractedDate
-              ) : null;
+              const commonWords = words1.filter(w => words2.includes(w));
+              const score = commonWords.length / Math.max(words1.length, words2.length);
+              return { score, commonCount: commonWords.length };
+            };
 
-              newAuditResults.push({
-                fileName: entry.fileName,
-                plate: record.plate_number,
-                date: record.service_date,
-                service: record.service_description,
-                isDuplicate: !!match,
-                isPotential: !!potentialMatch,
-                matchId: match?.id || potentialMatch?.id
-              });
-            }
-            setAuditResults(prev => [...newAuditResults, ...prev]);
-          } else {
-            // Normal Mode: Save to database
             for (const record of result.records) {
               if (shouldStopRef.current) break;
-              
+
+              let isDuplicate = false;
+              let isPotential = false;
+              let matchId: string | undefined;
+
+              if (isAuditMode) {
+                const normExtractedDate = normalizeDate(record.service_date);
+                const normExtractedPlate = normalizePlate(record.plate_number);
+                
+                // Match against existing database records
+                const match = records.find(r => {
+                  const platesMatch = normalizePlate(r.plate_number) === normExtractedPlate;
+                  const datesMatch = normalizeDate(r.service_date) === normExtractedDate;
+                  const similarity = getSimilarityScore(r.service_description, record.service_description);
+                  
+                  // Rule: Plate + Date + 5 keywords (or exact match)
+                  const descMatch = similarity.commonCount >= 5 || normalize(r.service_description) === normalize(record.service_description);
+                  
+                  return platesMatch && datesMatch && descMatch;
+                });
+
+                if (match) {
+                  isDuplicate = true;
+                  matchId = match.id;
+                }
+
+                // Check for potential matches only if not a duplicate
+                // Rule: If plate & date match, but no 5 keywords similarity
+                isPotential = !isDuplicate && !!records.find(r => 
+                  normalizePlate(r.plate_number) === normExtractedPlate && 
+                  normalizeDate(r.service_date) === normExtractedDate
+                );
+                
+                setAuditResults(prev => [{
+                  fileName: entry.fileName,
+                  plate: record.plate_number,
+                  date: record.service_date,
+                  service: record.service_description,
+                  isDuplicate: isDuplicate,
+                  isPotential: isPotential,
+                  matchId
+                }, ...prev]);
+              }
+
+              // In Audit Mode, we skip saving both exact AND potential duplicates to prevent conflicts
+              if (isAuditMode && (isDuplicate || isPotential)) continue; 
+
+              // Save to database
               const { data: recordData, error: recordError } = await supabase
                 .from('maintenance_records')
                 .insert({
@@ -894,7 +1545,8 @@ export default function App() {
                   confidence: record.confidence,
                   user_id: user.id,
                   file_name: entry.fileName,
-                  created_at: new Date().toISOString()
+                  created_at: new Date().toISOString(),
+                  verified: false
                 })
                 .select()
                 .single();
@@ -918,18 +1570,26 @@ export default function App() {
             }
           }
           
-          // Success!
-          setNotification({
-            message: `${entry.isAudit ? 'Audit ' : ''}${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan completed successfully!`,
-            type: 'success'
-          });
-          setUploadLog(prev => prev.map(e => 
-            e.timestamp === entry.timestamp ? { ...e, status: 'success' } : e
-          ));
 
-          // Update usage stats on success
-          if (!isServiceUnlocked) {
-            setUsageStats(prev => ({ ...prev, uploads: prev.uploads + 1 }));
+          // Success (only if not stopped)
+          if (!shouldStopRef.current) {
+            setNotification({
+              message: `${entry.isAudit ? 'Audit ' : ''}${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan completed successfully!`,
+              type: 'success'
+            });
+            setUploadLog(prev => prev.map(e => 
+              e.timestamp === entry.timestamp ? { ...e, status: 'success' } : e
+            ));
+
+            // Update usage stats on success
+            if (!isServiceUnlocked) {
+              setUsageStats(prev => ({ ...prev, uploads: prev.uploads + 1 }));
+            }
+          } else {
+            // If stopped, put back in queue
+            setUploadLog(prev => prev.map(e => 
+              e.timestamp === entry.timestamp ? { ...e, status: 'queued', error: undefined } : e
+            ));
           }
 
         } catch (err: any) {
@@ -1074,8 +1734,8 @@ export default function App() {
 
         if (entry.isAudit) {
           // Audit Mode: Check for duplicates instead of saving
-          const newAuditResults = [];
-          const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9]/g, '').trim() : '';
+          const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
+          const normalizePlate = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
           const normalizeDate = (d: string) => {
             if (!d) return '';
             const matchYMD = d.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
@@ -1091,24 +1751,39 @@ export default function App() {
             return d.trim();
           };
 
+          const getSimilarityScore = (s1: string, s2: string) => {
+            const str1 = normalize(s1);
+            const str2 = normalize(s2);
+            if (str1 === str2) return { score: 1.0, commonCount: 100 };
+            if (!str1 || !str2) return { score: 0, commonCount: 0 };
+            
+            const words1 = str1.split(/\s+/).filter(w => w.length > 2);
+            const words2 = str2.split(/\s+/).filter(w => w.length > 2);
+            
+            if (words1.length === 0 || words2.length === 0) {
+              return (str1.includes(str2) || str2.includes(str1)) ? { score: 0.8, commonCount: 1 } : { score: 0, commonCount: 0 };
+            }
+
+            const commonWords = words1.filter(w => words2.includes(w));
+            const score = commonWords.length / Math.max(words1.length, words2.length);
+            return { score, commonCount: commonWords.length };
+          };
+
+          const newAuditResults: any[] = [];
           for (const record of result.records) {
-            const normExtractedDesc = normalize(record.service_description);
             const normExtractedDate = normalizeDate(record.service_date);
+            const normExtractedPlate = normalizePlate(record.plate_number);
             
             const match = records.find(r => {
-              const plateMatch = arePlatesSimilar(r.plate_number, record.plate_number);
-              const dateMatch = normalizeDate(r.service_date) === normExtractedDate;
-              const normDbDesc = normalize(r.service_description);
-              const descMatch = normDbDesc === normExtractedDesc || 
-                               normDbDesc.includes(normExtractedDesc) || 
-                               normExtractedDesc.includes(normDbDesc) ||
-                               (normExtractedDesc.length > 10 && normDbDesc.length > 10 && 
-                                normExtractedDesc.split('').filter(char => normDbDesc.includes(char)).length / normExtractedDesc.length > 0.8);
-              return plateMatch && dateMatch && descMatch;
+              const platesMatch = normalizePlate(r.plate_number) === normExtractedPlate;
+              const datesMatch = normalizeDate(r.service_date) === normExtractedDate;
+              const similarity = getSimilarityScore(r.service_description, record.service_description);
+              const descMatch = similarity.commonCount >= 5 || normalize(r.service_description) === normalize(record.service_description);
+              return platesMatch && datesMatch && descMatch;
             });
 
             const potentialMatch = !match ? records.find(r => 
-              arePlatesSimilar(r.plate_number, record.plate_number) && 
+              normalizePlate(r.plate_number) === normExtractedPlate && 
               normalizeDate(r.service_date) === normExtractedDate
             ) : null;
 
@@ -1207,9 +1882,10 @@ export default function App() {
     }
   }, [user, fetchRecords]);
 
-  const handleManualAdd = async () => {
-    if (!user || !manualEntryData || !supabase) return;
-    if (!manualEntryData.plateNumber || !manualEntryData.date || !manualEntryData.service) {
+  const handleManualAdd = async (dataOverride?: any) => {
+    const dataToUse = dataOverride || manualEntryData;
+    if (!user || !dataToUse || !supabase) return;
+    if (!dataToUse.plateNumber || !dataToUse.date || !dataToUse.service) {
       setError("Please fill in all fields for manual entry.");
       return;
     }
@@ -1221,20 +1897,21 @@ export default function App() {
       const { error } = await supabase
         .from('maintenance_records')
         .insert({
-          plate_number: manualEntryData.plateNumber.toUpperCase().trim(),
-          service_date: manualEntryData.date,
-          service_description: manualEntryData.service.trim(),
+          plate_number: dataToUse.plateNumber.toUpperCase().trim(),
+          service_date: dataToUse.date,
+          service_description: dataToUse.service.trim(),
           confidence: 1.0,
           user_id: user.id,
-          file_name: manualEntryData.fileName,
-          created_at: new Date().toISOString()
+          file_name: dataToUse.fileName,
+          created_at: new Date().toISOString(),
+          verified: !!dataToUse.verified
         });
       
       if (error) throw error;
       
       // Update log to success
       setUploadLog(prev => prev.map(entry => 
-        entry.fileName === manualEntryData.fileName && entry.status === 'failed' 
+        entry.fileName === dataToUse.fileName && entry.status === 'failed' 
           ? { ...entry, status: 'success', error: undefined } 
           : entry
       ));
@@ -1249,12 +1926,69 @@ export default function App() {
     }
   };
 
+  const handleToggleVerify = async (record: MaintenanceRecord) => {
+    if (!user || !supabase) return;
+    
+    try {
+      const { error } = await supabase
+        .from('maintenance_records')
+        .update({ verified: !record.verified })
+        .eq('id', record.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      
+      // Update local state for immediate feedback
+      setRecords(prev => prev.map(r => r.id === record.id ? { ...r, verified: !r.verified } : r));
+      
+      if (!record.verified) {
+        setNotification({ message: `Record verified successfully!`, type: 'success' });
+      }
+    } catch (err: any) {
+      setError(getSupabaseErrorMessage(err));
+    }
+  };
+
+  const handleEditRecord = async (recordOverride?: MaintenanceRecord) => {
+    const recordToUpdate = recordOverride || editingRecord;
+    if (!user || !recordToUpdate || !supabase) return;
+    
+    try {
+      setIsProcessing(true);
+      const { error } = await supabase
+        .from('maintenance_records')
+        .update({
+          plate_number: recordToUpdate.plate_number.toUpperCase().trim(),
+          service_date: recordToUpdate.service_date,
+          service_description: recordToUpdate.service_description,
+          verified: recordToUpdate.verified
+        })
+        .eq('id', recordToUpdate.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      
+      setNotification({ message: `Record for ${editingRecord.plate_number} updated successfully!`, type: 'success' });
+      setEditingRecord(null);
+      fetchRecords();
+    } catch (err: any) {
+      setError(getSupabaseErrorMessage(err));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const filteredRecords = useMemo(() => {
     const filtered = records.filter(record => {
       const searchLower = debouncedSearch.toLowerCase().trim();
+      const descLower = debouncedDescription.toLowerCase().trim();
+      
       const matchesSearch = !searchLower || 
         record.plate_number.toLowerCase().includes(searchLower) ||
         arePlatesSimilar(record.plate_number, searchLower);
+        
+      const matchesDescription = !descLower ||
+        record.service_description.toLowerCase().includes(descLower);
         
       const matchesService = record.service_description.toLowerCase().includes(debouncedService.toLowerCase());
       const matchesSecondaryService = record.service_description.toLowerCase().includes(debouncedSecondaryService.toLowerCase());
@@ -1263,11 +1997,11 @@ export default function App() {
       const matchesStartDate = !startDate || recordDate >= new Date(startDate);
       const matchesEndDate = !endDate || recordDate <= new Date(endDate);
 
-      return matchesSearch && matchesService && matchesSecondaryService && matchesStartDate && matchesEndDate;
+      return matchesSearch && matchesDescription && matchesService && matchesSecondaryService && matchesStartDate && matchesEndDate;
     });
 
     return filtered;
-  }, [records, debouncedSearch, debouncedService, debouncedSecondaryService, startDate, endDate]);
+  }, [records, debouncedSearch, debouncedDescription, debouncedService, debouncedSecondaryService, startDate, endDate]);
 
   // Fetch image for the latest record when it changes
   useEffect(() => {
@@ -1325,18 +2059,66 @@ export default function App() {
 
   const groupedRecords = useMemo(() => {
     const groups: Record<string, MaintenanceRecord[]> = {};
-    // Sort records by date descending within groups
+    const needsReview: MaintenanceRecord[] = [];
+    
+    // Sort records by date descending
     const sorted = [...filteredRecords].sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime());
     
     sorted.forEach(record => {
-      const plate = record.plate_number || 'UNKNOWN';
-      if (!groups[plate]) {
-        groups[plate] = [];
+      const plate = record.plate_number ? record.plate_number.toUpperCase().trim() : 'UNKNOWN';
+      const cleanRegistry = fleetRegistry.map(p => p.trim()).filter(p => p.length > 0);
+      
+      // Try to find a matching plate in the registry (Exact first, then similar)
+      const normalizedPlate = normalizePlate(plate);
+      const exactMatch = cleanRegistry.find(p => normalizePlate(p) === normalizedPlate);
+      const registryMatch = exactMatch || cleanRegistry.find(p => arePlatesSimilar(p, plate));
+      
+      if (registryMatch) {
+        // Group under the OFFICIAL registry name, not the typo name
+        if (!groups[registryMatch]) {
+          groups[registryMatch] = [];
+        }
+        groups[registryMatch].push(record);
+      } else if (cleanRegistry.length === 0) {
+        // If no registry, use plate as folder
+        if (!groups[plate]) {
+          groups[plate] = [];
+        }
+        groups[plate].push(record);
+      } else {
+        // Not in registry and registry exists -> Needs Review
+        needsReview.push(record);
       }
-      groups[plate].push(record);
     });
-    return groups;
-  }, [filteredRecords]);
+
+    // We return a specialized object that includes the Needs Review group first
+    const finalGroups: Record<string, MaintenanceRecord[]> = {};
+    if (needsReview.length > 0) {
+      finalGroups['⚠️ NEEDS REVIEW'] = needsReview;
+    }
+    
+    // Seed all registry plates to ensure they exist as folders
+    const cleanRegistry = fleetRegistry.map(p => p.trim()).filter(p => p.length > 0);
+    const isActuallyFiltering = !!(debouncedSearch || debouncedDescription || debouncedService || debouncedSecondaryService || startDate || endDate);
+
+    cleanRegistry.sort().forEach(p => {
+      // If filtering, only show folders with records. Otherwise show all registry folders.
+      if (!isActuallyFiltering) {
+        finalGroups[p] = groups[p] || [];
+      } else if (groups[p] && groups[p].length > 0) {
+        finalGroups[p] = groups[p];
+      }
+    });
+
+    // If no registry, just return the groups we found
+    if (cleanRegistry.length === 0) {
+      Object.keys(groups).sort().forEach(key => {
+        finalGroups[key] = groups[key];
+      });
+    }
+
+    return finalGroups;
+  }, [filteredRecords, fleetRegistry]);
 
   // Fetch Records
   useEffect(() => {
@@ -1415,6 +2197,30 @@ export default function App() {
       setError(getSupabaseErrorMessage(err));
     }
   };
+
+  const handleFocusInsight = useCallback((plate: string | null, service: string | null, year: number | null) => {
+    setViewMode('analytics');
+    
+    if (plate) {
+      setSearchQuery(plate);
+      setDebouncedSearch(plate);
+    }
+    
+    if (service) {
+      setServiceFilter(service);
+      setDebouncedService(service);
+    }
+    
+    if (year) {
+      setStartDate(`${year}-01-01`);
+      setEndDate(`${year}-12-31`);
+    }
+
+    setNotification({ 
+      message: `Focusing insights ${plate ? `on ${plate}` : ''} ${service ? `for ${service}` : ''}...`, 
+      type: 'info' 
+    });
+  }, []);
 
   const handleTroubleFinding = useCallback(async () => {
     if (!records.length) return;
@@ -1550,9 +2356,9 @@ export default function App() {
 
         sortedRecords.forEach(record => {
           // Check if this record is a duplicate of any already seen unique record
-          // We use the new plate similarity rule: > 5 matching characters at same positions
+          // We use 100% exact matching for plate (case-insensitive) and description
           const isDuplicate = uniqueRecords.some(unique => 
-            arePlatesSimilar(record.plate_number, unique.plate_number) &&
+            record.plate_number.toUpperCase().trim() === unique.plate_number.toUpperCase().trim() &&
             record.service_date === unique.service_date &&
             record.service_description.toLowerCase().trim() === unique.service_description.toLowerCase().trim()
           );
@@ -1591,6 +2397,93 @@ export default function App() {
       }
     } else {
       setPasswordError(true);
+    }
+  };
+
+  const [recheckingIndex, setRecheckingIndex] = useState<number | null>(null);
+
+  const recheckAuditResult = async (index: number) => {
+    const result = auditResults[index];
+    if (!result || !user || !supabase) return;
+    
+    setRecheckingIndex(index);
+    try {
+      // Force refresh records from DB to ensure we are checking against the latest state
+      const { data: latestRecords, error: fetchError } = await supabase
+        .from('maintenance_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('service_date', { ascending: false });
+
+      if (fetchError) throw fetchError;
+      if (latestRecords) setRecords(latestRecords);
+
+      const targetRecords = latestRecords || records;
+
+      // Use the same normalization and similarity logic from startBatchProcessing
+      const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
+      const normalizePlate = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
+      const normalizeDate = (d: string) => {
+        if (!d) return '';
+        const matchYMD = d.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+        if (matchYMD) {
+          const [_, y, m, day] = matchYMD;
+          return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        const matchDMY = d.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+        if (matchDMY) {
+          const [_, day, m, y] = matchDMY;
+          return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        return d.trim();
+      };
+
+      const getSimilarityScore = (s1: string, s2: string) => {
+        const str1 = normalize(s1);
+        const str2 = normalize(s2);
+        if (str1 === str2) return { score: 1.0, commonCount: 100 };
+        if (!str1 || !str2) return { score: 0, commonCount: 0 };
+        
+        const words1 = str1.split(/\s+/).filter(w => w.length > 2);
+        const words2 = str2.split(/\s+/).filter(w => w.length > 2);
+        
+        if (words1.length === 0 || words2.length === 0) {
+          return (str1.includes(str2) || str2.includes(str1)) ? { score: 0.8, commonCount: 1 } : { score: 0, commonCount: 0 };
+        }
+
+        const commonWords = words1.filter(w => words2.includes(w));
+        const score = commonWords.length / Math.max(words1.length, words2.length);
+        return { score, commonCount: commonWords.length };
+      };
+
+      const normExtractedDate = normalizeDate(result.date);
+      const normExtractedPlate = normalizePlate(result.plate);
+      
+      const match = targetRecords.find(r => {
+        const platesMatch = normalizePlate(r.plate_number) === normExtractedPlate;
+        const datesMatch = normalizeDate(r.service_date) === normExtractedDate;
+        const similarity = getSimilarityScore(r.service_description, result.service);
+        const descMatch = similarity.commonCount >= 5 || normalize(r.service_description) === normalize(result.service);
+        return platesMatch && datesMatch && descMatch;
+      });
+
+      const potentialMatch = !match ? targetRecords.find(r => 
+        normalizePlate(r.plate_number) === normExtractedPlate && 
+        normalizeDate(r.service_date) === normExtractedDate
+      ) : null;
+
+      const updatedResults = [...auditResults];
+      updatedResults[index] = {
+        ...result,
+        isDuplicate: !!match,
+        isPotential: !!potentialMatch,
+        matchId: match?.id || potentialMatch?.id
+      };
+      setAuditResults(updatedResults);
+    } catch (err) {
+      console.error("Recheck failed:", err);
+    } finally {
+      setRecheckingIndex(null);
     }
   };
 
@@ -1726,7 +2619,7 @@ export default function App() {
           <div className="flex-1">
             <h3 className="text-xs font-display font-bold uppercase tracking-widest text-cyan-200 mb-1">Audit Verification Mode Active</h3>
             <p className="text-[10px] text-cyan-200/60 leading-relaxed uppercase tracking-wider">
-              The app is currently in <span className="text-white font-bold">Safe Mode</span>. AI extractions will be verified against existing records but <span className="text-cyan-400 font-bold underline">NOT saved</span> to the database.
+              The app is currently in <span className="text-white font-bold">Verification Mode</span>. AI extractions will skip <span className="text-cyan-400 font-bold underline">duplicates</span> while <span className="text-green-400 font-bold">automatically saving</span> any unique new records.
             </p>
           </div>
           <button 
@@ -2008,32 +2901,46 @@ export default function App() {
       {uploadLog.length > 0 && (
         <div className="mb-12 glass-panel p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <ListFilter className="w-4 h-4 text-purple-400" />
+            <button 
+              onClick={() => setShowUploadLog(!showUploadLog)}
+              className="flex items-center gap-3 hover:opacity-80 transition-all group"
+            >
+              <div className={cn(
+                "w-5 h-5 rounded-full flex items-center justify-center bg-white/5 border border-white/10 transition-transform",
+                showUploadLog && "rotate-180"
+              )}>
+                <ChevronDown className="w-3 h-3 text-purple-400" />
+              </div>
               <h2 className="font-display font-bold uppercase tracking-[0.2em] text-xs text-white">Recent Upload Activity</h2>
               <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 bg-white/5 rounded-full border border-white/10">
                 <div className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
                 <span className="text-[8px] font-display font-bold uppercase tracking-widest text-white/40">Free Tier: ~1,500 requests/day</span>
               </div>
-            </div>
+            </button>
             <div className="flex gap-4">
-              <button 
-                onClick={clearFailedUploads}
-                className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-amber-400 transition-all"
-              >
-                Clear Failed
-              </button>
-              <button 
-                onClick={clearUploadLog}
-                className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-red-400 transition-all"
-              >
-                Clear Log
-              </button>
+              {showUploadLog && (
+                <>
+                  <button 
+                    onClick={clearFailedUploads}
+                    className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-amber-400 transition-all font-mono"
+                  >
+                    Clear Failed
+                  </button>
+                  <button 
+                    onClick={clearUploadLog}
+                    className="text-[10px] font-display font-bold uppercase tracking-[0.2em] opacity-40 hover:opacity-100 hover:text-red-400 transition-all font-mono"
+                  >
+                    Clear Log
+                  </button>
+                </>
+              )}
             </div>
           </div>
           
-          <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-            {uploadLog.map((entry, i) => (
+          {showUploadLog && (
+            <>
+              <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar animate-in fade-in duration-300">
+                {uploadLog.map((entry, i) => (
               <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded group/log">
                 <div className="flex items-center gap-3 overflow-hidden">
                   <div className={cn(
@@ -2083,7 +2990,8 @@ export default function App() {
                           fileName: entry.fileName, 
                           plateNumber: '', 
                           date: new Date().toISOString().split('T')[0], 
-                          service: '' 
+                          service: '',
+                          verified: false
                         })}
                         className="text-[9px] font-display font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 underline flex items-center gap-1"
                       >
@@ -2177,6 +3085,8 @@ export default function App() {
               * The "View" button is only available for the current session to save storage space.
             </p>
           </div>
+          </>
+          )}
         </div>
       )}
 
@@ -2213,13 +3123,13 @@ export default function App() {
                     ) : result.isPotential ? (
                       <AlertTriangle className="w-4 h-4 text-amber-400" />
                     ) : (
-                      <AlertCircle className="w-4 h-4 text-red-400" />
+                      <Zap className="w-4 h-4 text-cyan-400" />
                     )}
                     <span className={cn(
                       "text-[10px] font-display font-bold uppercase tracking-widest",
-                      result.isDuplicate ? "text-green-400" : result.isPotential ? "text-amber-400" : "text-red-400"
+                      result.isDuplicate ? "text-green-400" : result.isPotential ? "text-amber-400" : "text-cyan-400"
                     )}>
-                      {result.isDuplicate ? "Already Uploaded" : result.isPotential ? "Potential Match (Check Desc)" : "Missing from Database"}
+                      {result.isDuplicate ? "Already Uploaded" : result.isPotential ? "Potential Match (Conflict?)" : "New Entry Saved"}
                     </span>
                   </div>
                   <span className="text-[9px] font-mono text-white/20 truncate max-w-[150px]" title={result.fileName}>
@@ -2242,8 +3152,17 @@ export default function App() {
                   </div>
                 </div>
                 
-                {(result.isDuplicate || result.isPotential) && result.matchId && (
-                  <div className="mt-1 pt-2 border-t border-white/5 flex justify-end">
+                <div className="mt-1 pt-2 border-t border-white/5 flex items-center justify-between">
+                  <button 
+                    onClick={() => recheckAuditResult(i)}
+                    disabled={recheckingIndex === i}
+                    className="text-[9px] font-display font-bold uppercase tracking-widest text-white/40 hover:text-white flex items-center gap-1.5 transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn("w-2.5 h-2.5", recheckingIndex === i && "animate-spin")} />
+                    {recheckingIndex === i ? 'Checking...' : 'Check Again'}
+                  </button>
+                  
+                  {(result.isDuplicate || result.isPotential) && result.matchId && (
                     <button 
                       onClick={() => {
                         // Scroll to record or highlight it
@@ -2258,72 +3177,35 @@ export default function App() {
                     >
                       View Match in History
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ))}
           </div>
           
           <div className="mt-4 p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
-            <p className="text-[10px] font-display font-medium text-cyan-300/80 leading-relaxed">
-              <span className="font-bold">Audit Mode Active:</span> These images were processed by AI but <span className="underline">not saved</span>. 
-              Green items are already in your database. Red items are missing and should be uploaded in normal mode.
+            <p className="text-[10px] font-display font-medium text-cyan-300/80 leading-relaxed uppercase tracking-wider">
+              <span className="font-bold">Audit Mode Active:</span> Duplicates were <span className="underline">skipped</span> to protect your database, while all unique new records were <span className="text-green-400 font-bold">saved automatically</span>.
             </p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-        <div className="relative group">
-          <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
-          <div className="relative">
-            {isSearching ? (
-              <Loader2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-purple-400 animate-spin" />
-            ) : (
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
-            )}
-            <input 
-              type="text"
-              placeholder={!isServiceUnlocked && usageStats.searches >= 15 ? "Search limit reached..." : "Plate number..."}
-              className={cn(
-                "w-full bg-black/40 backdrop-blur-md border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
-                !isServiceUnlocked && usageStats.searches >= 15 ? "opacity-50 cursor-not-allowed border-white/10" : "neon-border-cyan"
-              )}
-              value={searchQuery}
-              onChange={(e) => {
-                if (!isServiceUnlocked && usageStats.searches >= 15) {
-                  setShowServicePasswordPrompt(true);
-                  return;
-                }
-                setSearchQuery(e.target.value);
-              }}
-              disabled={!isServiceUnlocked && usageStats.searches >= 15}
-              title="Search records by truck plate number"
+      {viewMode === 'log' ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+            <SearchFilters 
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              descriptionQuery={descriptionQuery}
+              setDescriptionQuery={setDescriptionQuery}
+              isSearching={isSearching}
+              isServiceUnlocked={isServiceUnlocked}
+              usageStats={usageStats}
+              setShowServicePasswordPrompt={setShowServicePasswordPrompt}
+              recentSearches={recentSearches}
+              isAuditMode={isAuditMode}
             />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
-                title="Clear Search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          {recentSearches.length > 0 && !searchQuery && (
-            <div className="mt-2 flex flex-wrap gap-1.5 ml-2">
-              {recentSearches.map((s, i) => (
-                <button 
-                  key={i} 
-                  onClick={() => setSearchQuery(s)}
-                  className="text-[8px] font-mono bg-white/5 hover:bg-purple-500/20 border border-white/5 hover:border-purple-500/30 px-2 py-0.5 rounded-full opacity-40 hover:opacity-100 transition-all"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
         
         <div className="relative group">
           <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Find Maintenance</label>
@@ -2439,6 +3321,7 @@ export default function App() {
           <button 
             onClick={() => {
               setSearchQuery('');
+              setDescriptionQuery('');
               setServiceFilter('');
               setSecondaryServiceFilter('');
               setStartDate('');
@@ -2447,11 +3330,11 @@ export default function App() {
             }}
             className={cn(
               "flex-1 flex items-center justify-center gap-2 p-2.5 rounded-full border transition-all font-display font-bold text-[10px] uppercase tracking-[0.2em]",
-              (searchQuery || serviceFilter || secondaryServiceFilter || startDate || endDate) 
+              (searchQuery || descriptionQuery || serviceFilter || secondaryServiceFilter || startDate || endDate) 
                 ? "bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30" 
                 : "bg-white/5 border-white/10 text-white/20 cursor-not-allowed"
             )}
-            disabled={!(searchQuery || serviceFilter || secondaryServiceFilter || startDate || endDate)}
+            disabled={!(searchQuery || descriptionQuery || serviceFilter || secondaryServiceFilter || startDate || endDate)}
             title="Clear All Filters"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -2692,114 +3575,21 @@ export default function App() {
       )}
 
       {showHistory && (
-        <div className="flex flex-col gap-3">
-          {Object.keys(groupedRecords).length === 0 ? (
-            <div className="p-16 text-center border border-white/5 border-dashed rounded-3xl bg-white/[0.02] flex flex-col items-center gap-6">
-              <div className="w-16 h-16 bg-purple-600/10 rounded-full flex items-center justify-center border border-purple-500/20">
-                <Save className="w-8 h-8 text-purple-500/40" />
-              </div>
-              <div className="max-w-xs">
-                <h3 className="font-display font-bold text-lg text-white mb-2">Fresh Start</h3>
-                <p className="text-[11px] font-display font-medium text-white/40 leading-relaxed uppercase tracking-widest">
-                  {isProcessing ? "Processing your uploads..." : "Your maintenance database is empty. Upload pictures of your logs to get started."}
-                </p>
-              </div>
-              {!isProcessing && user && (
-                <label 
-                  onClick={(e) => {
-                    if (!isServiceUnlocked) {
-                      e.preventDefault();
-                      setShowServicePasswordPrompt(true);
-                    }
-                  }}
-                  className={cn(
-                    "flex items-center gap-2 px-8 py-4 bg-purple-600 text-white cursor-pointer hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/20 font-display font-bold uppercase tracking-[0.2em] text-xs relative overflow-hidden",
-                    !isServiceUnlocked && "opacity-50",
-                    isAuditMode && "bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/20"
-                  )}
-                  title={!isServiceUnlocked ? "Unlock services to upload" : isAuditMode ? "Start Audit Extraction" : "Upload your first maintenance log image"}
-                >
-                  <Upload className="w-4 h-4" />
-                  {isAuditMode ? "Audit Extraction" : "Upload First Log"}
-                  <input 
-                    type="file" 
-                    multiple 
-                    accept="image/*"
-                    className="hidden" 
-                    onChange={(e) => handleFileUpload(e, 'fleet')}
-                    disabled={isProcessing}
-                  />
-                </label>
-              )}
-            </div>
-          ) : (
-            Object.entries(groupedRecords).map(([plate, plateRecords]) => (
-              <div key={plate} className="glassmorphism rounded-3xl overflow-hidden transition-all hover:bg-white/[0.05] neon-border-violet/30">
-                {/* Plate Header */}
-                <button 
-                  onClick={() => togglePlate(plate)}
-                  className="w-full flex items-center justify-between p-3.5 px-5 text-white transition-all"
-                  title={`Click to ${expandedPlates[plate] ? 'collapse' : 'expand'} records for ${plate}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center bg-white/5 border border-white/10 transition-transform",
-                      expandedPlates[plate] && "rotate-180"
-                    )}>
-                      <ChevronDown className="w-3 h-3 opacity-60" />
-                    </div>
-                    <div className="flex flex-col items-start">
-                      <span className="font-display text-lg font-bold tracking-tight">{plate}</span>
-                      <span className="text-[8px] opacity-40 font-mono uppercase tracking-widest">
-                        {plateRecords.length} {plateRecords.length === 1 ? 'Entry' : 'Entries'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5">Last Service</div>
-                    <div className="text-[10px] font-mono font-bold text-purple-400/80">{plateRecords[0].service_date}</div>
-                  </div>
-                </button>
-
-                {/* Records List */}
-                {expandedPlates[plate] && (
-                  <div className="px-3 pb-3">
-                    <div className="bg-black/20 rounded-2xl border border-white/5 divide-y divide-white/5">
-                      {plateRecords.map((record, index) => (
-                        <div key={record.id} className="p-3 px-4 flex items-center justify-between gap-4 group hover:bg-white/[0.02] transition-colors">
-                          <div className="flex items-center gap-4 overflow-hidden">
-                            <div className="text-[9px] font-mono opacity-20 w-4">
-                              {(index + 1).toString().padStart(2, '0')}
-                            </div>
-                            <div className="overflow-hidden">
-                              <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5 flex items-center gap-2">
-                                <span>{record.service_date}</span>
-                                {record.file_name && (
-                                  <>
-                                    <span className="opacity-40">•</span>
-                                    <span className="truncate max-w-[120px]">{record.file_name}</span>
-                                  </>
-                                )}
-                              </div>
-                              <div className="text-xs font-medium text-white/90 truncate">{record.service_description}</div>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => handleViewImage(record)}
-                            className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full"
-                            title="View the original image for this record"
-                          >
-                            View
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+        <RecordsList 
+          groupedRecords={groupedRecords}
+          expandedPlates={expandedPlates}
+          onTogglePlate={togglePlate}
+          onEditRecord={setEditingRecord}
+          onToggleVerify={handleToggleVerify}
+          onViewImage={handleViewImage}
+          normalizePlate={normalizePlate}
+          isProcessing={isProcessing}
+          user={user}
+          onUploadClick={(e) => handleFileUpload(e, 'fleet')}
+          isServiceUnlocked={isServiceUnlocked}
+          setShowServicePasswordPrompt={setShowServicePasswordPrompt}
+          isAuditMode={isAuditMode}
+        />
       )}
 
       {/* Image Modal */}
@@ -3222,6 +4012,34 @@ export default function App() {
 
                     <button 
                       onClick={() => {
+                        const nextMode = (viewMode as string) === 'log' ? 'analytics' : 'log';
+                        setViewMode(nextMode as any);
+                        if (nextMode === 'analytics') setShowSettingsModal(false);
+                      }}
+                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
+                          <BarChartIcon className={cn("w-4 h-4", (viewMode as string) === 'analytics' ? "text-cyan-400" : "text-white/20")} />
+                        </div>
+                        <div className="flex flex-col items-start">
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Fleet Insights</span>
+                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">{(viewMode as string) === 'analytics' ? 'Dashboard Active' : 'Show Analytics'}</span>
+                        </div>
+                      </div>
+                      <div className={cn(
+                        "w-8 h-4 rounded-full transition-all relative border",
+                        (viewMode as string) === 'analytics' ? "bg-cyan-500/20 border-cyan-500/40" : "bg-white/5 border-white/10"
+                      )}>
+                        <div className={cn(
+                          "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
+                          (viewMode as string) === 'analytics' ? "right-0.5 bg-cyan-400" : "left-0.5 bg-white/20"
+                        )} />
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => {
                         setIsAuditMode(!isAuditMode);
                         if (!isAuditMode) setAuditResults([]); // Clear results when enabling
                       }}
@@ -3324,6 +4142,50 @@ export default function App() {
                   </div>
                 </div>
 
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-3 bg-violet-500 rounded-full" />
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-violet-400/40">Processing Modes</p>
+                  </div>
+                  
+                  <button 
+                    onClick={() => setIsAuditMode(!isAuditMode)}
+                    className={cn(
+                      "w-full p-5 border rounded-3xl flex items-center justify-between transition-all group",
+                      isAuditMode 
+                        ? "bg-violet-500/[0.08] border-violet-500/40 shadow-[0_0_20px_rgba(139,92,246,0.1)]" 
+                        : "bg-white/[0.03] border-white/10 hover:bg-white/[0.08] hover:border-white/20"
+                    )}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "p-3 rounded-2xl border transition-all",
+                        isAuditMode ? "bg-violet-500/20 border-violet-500/40 shadow-[0_0_10px_rgba(139,92,246,0.3)]" : "bg-white/5 border-white/10"
+                      )}>
+                        <Eye className={cn("w-5 h-5", isAuditMode ? "text-violet-400" : "text-white/40")} />
+                      </div>
+                      <div className="flex flex-col items-start text-left">
+                        <span className={cn(
+                          "text-[11px] font-display font-bold uppercase tracking-[0.2em]",
+                          isAuditMode ? "text-violet-400" : "text-white/80"
+                        )}>Audit Upload Mode</span>
+                        <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">
+                          {isAuditMode ? "Don't save duplicates, only flag them" : "Save all extracted records to DB"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={cn(
+                      "w-10 h-5 rounded-full relative transition-all p-1",
+                      isAuditMode ? "bg-violet-600" : "bg-white/10"
+                    )}>
+                      <div className={cn(
+                        "w-3 h-3 bg-white rounded-full transition-all shadow-md",
+                        isAuditMode ? "translate-x-5" : "translate-x-0"
+                      )} />
+                    </div>
+                  </button>
+                </div>
+
                 {/* Section: Advanced */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 px-1">
@@ -3366,6 +4228,72 @@ export default function App() {
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                         <span className="text-[10px] font-mono text-green-500/60 font-bold uppercase tracking-widest">UNLOCKED</span>
+                      </div>
+                    </button>
+                  )}
+                </div>
+
+                {/* Section: Fleet Registry */}
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-3 h-3 text-cyan-400" />
+                      <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-cyan-400">Fleet Registry</p>
+                    </div>
+                    {isServiceUnlocked && (
+                      <button 
+                        onClick={() => setShowFleetRegistryList(!showFleetRegistryList)}
+                        className="text-[9px] font-display font-bold uppercase tracking-widest text-white/40 hover:text-cyan-400 transition-colors flex items-center gap-1.5"
+                      >
+                        {showFleetRegistryList ? (
+                          <><EyeOff className="w-3 h-3" /> Hide</>
+                        ) : (
+                          <><Eye className="w-3 h-3" /> Show</>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {isServiceUnlocked ? (
+                    showFleetRegistryList ? (
+                      <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
+                        <p className="text-[9px] text-white/40 uppercase tracking-widest leading-relaxed">
+                          Enter your known truck plates (one per line). Records matching these will be grouped normally. Others go to "Needs Review".
+                        </p>
+                        <textarea 
+                          value={fleetRegistry.join('\n')}
+                          onChange={(e) => setFleetRegistry(e.target.value.split('\n').map(p => p.toUpperCase()))}
+                          className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-3 font-mono text-xs text-cyan-400 focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
+                          placeholder="E.G.&#10;KCL 054&#10;KCY 901B&#10;UAY 469L..."
+                        />
+                        <div className="flex justify-between items-center text-[8px] font-mono text-white/20 uppercase tracking-[0.2em]">
+                          <span>{fleetRegistry.length} Plate(s) Registered</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => setShowFleetRegistryList(true)}
+                        className="w-full p-6 bg-white/[0.02] border border-white/5 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white/[0.05] transition-all group"
+                      >
+                        <div className="p-2 bg-white/5 rounded-full group-hover:bg-cyan-500/10 transition-all">
+                           <Eye className="w-3 h-3 text-white/20 group-hover:text-cyan-400" />
+                        </div>
+                        <p className="text-[8px] font-mono text-white/20 uppercase tracking-[0.2em]">List is Currently Hidden</p>
+                        <span className="text-[9px] font-display font-bold uppercase tracking-widest text-cyan-400/60 group-hover:text-cyan-400 transition-colors">Tap to View Registry</span>
+                      </button>
+                    )
+                  ) : (
+                    <button 
+                      onClick={() => {
+                        setShowServicePasswordPrompt(true);
+                        setShowSettingsModal(false);
+                      }}
+                      className="w-full p-6 bg-amber-500/[0.02] border border-amber-500/10 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 group hover:bg-amber-500/[0.05] hover:border-amber-500/30 transition-all"
+                    >
+                      <Lock className="w-4 h-4 text-amber-500/40 group-hover:text-amber-500 transition-all" />
+                      <div className="text-center">
+                        <p className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-amber-500/60 group-hover:text-amber-500 transition-colors">Registry Locked</p>
+                        <p className="text-[7px] font-mono text-white/20 uppercase tracking-widest mt-1">Unlock Advanced Services to Access</p>
                       </div>
                     </button>
                   )}
@@ -3432,7 +4360,7 @@ export default function App() {
                           onClick={handleClearDuplicates}
                           className="w-full bg-red-600 hover:bg-red-500 text-white py-4 text-[11px] font-display font-black uppercase tracking-[0.3em] transition-all rounded-2xl shadow-xl shadow-red-900/40 active:scale-[0.98]"
                         >
-                          Confirm Data Wipe
+                          {dangerAction === 'clearDuplicates' ? 'Confirm Duplicate Cleanup' : 'Confirm Total Data Wipe'}
                         </button>
                       </div>
                     )}
@@ -3566,82 +4494,33 @@ export default function App() {
           </div>
         </div>
       )}
+        </>
+      ) : (
+        <Analytics records={filteredRecords} />
+      )}
+
+      {/* Edit Record Modal */}
+      {editingRecord && (
+        <EditRecordModal 
+          record={editingRecord}
+          onClose={() => setEditingRecord(null)}
+          onSave={async (updated) => {
+            // We need to keep handleEditRecord but it expects state
+            // Let's modify handleEditRecord to take a record optionally
+            await handleEditRecord(updated);
+          }}
+          isProcessing={isProcessing}
+        />
+      )}
 
       {/* Manual Entry Modal */}
       {manualEntryData && (
-        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
-          <div className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 relative rounded-3xl my-auto">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 rounded-t-3xl" />
-            
-            <div className="flex items-start justify-between mb-8">
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <Plus className="w-5 h-5 text-violet-400" />
-                  <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase text-white">Manual Entry</h2>
-                </div>
-                <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em] truncate max-w-[200px]">
-                  File: {manualEntryData.fileName}
-                </p>
-              </div>
-              <button 
-                onClick={() => setManualEntryData(null)}
-                className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
-                title="Close Manual Entry"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Plate Number</label>
-                <input 
-                  type="text"
-                  value={manualEntryData.plateNumber}
-                  onChange={(e) => setManualEntryData({ ...manualEntryData, plateNumber: e.target.value.toUpperCase() })}
-                  className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-lg focus:outline-none transition-all placeholder:text-white/10"
-                  placeholder="E.G. ABC-1234"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Service Date</label>
-                <input 
-                  type="date"
-                  value={manualEntryData.date}
-                  onChange={(e) => setManualEntryData({ ...manualEntryData, date: e.target.value })}
-                  className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-lg focus:outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/60 block mb-2">Service Description</label>
-                <textarea 
-                  value={manualEntryData.service}
-                  onChange={(e) => setManualEntryData({ ...manualEntryData, service: e.target.value })}
-                  className="w-full bg-black/40 border neon-border-violet p-4 rounded-xl font-display font-bold text-base focus:outline-none transition-all min-h-[100px] placeholder:text-white/10"
-                  placeholder="E.G. Oil Change - 15000 KES, Tire Rotation - 5000 KES..."
-                />
-              </div>
-
-              <button 
-                onClick={handleManualAdd}
-                disabled={isProcessing}
-                className="w-full py-5 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 disabled:opacity-50 text-white font-display font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)] flex items-center justify-center gap-3"
-                title="Save this manual entry to the database"
-              >
-                {isProcessing ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <Save className="w-5 h-5" />
-                    Save Record
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ManualEntryModal 
+          data={manualEntryData}
+          onClose={() => setManualEntryData(null)}
+          onSave={handleManualAdd}
+          isProcessing={isProcessing}
+        />
       )}
       
       {/* AI Chat Assistant */}
@@ -3650,8 +4529,10 @@ export default function App() {
           records={records} 
           marketPrices={marketPrices}
           onSaveMarketPrice={handleSaveMarketPrice}
+          onFocusInsight={handleFocusInsight}
           isLocked={!isServiceUnlocked}
           onUnlockRequest={() => setShowServicePasswordPrompt(true)}
+          viewMode={viewMode}
         />
       )}
       
@@ -3674,7 +4555,8 @@ export default function App() {
                     fileName: 'Manual Entry',
                     plateNumber: '',
                     date: new Date().toISOString().split('T')[0],
-                    service: ''
+                    service: '',
+                    verified: false
                   });
                   setIsFabOpen(false);
                 }}
