@@ -44,7 +44,10 @@ export const Analytics: React.FC<AnalyticsProps> = ({ records, fleetRegistry }) 
       const registryMatch = cleanRegistry.find(p => normalizePlate(p) === normalizedRecordPlate) || 
                           cleanRegistry.find(p => arePlatesSimilar(p, plate));
 
-      const groupKey = registryMatch || plate;
+      // Group by normalized plate even if not in registry to avoid "KCH 054 T" vs "KCH 054T"
+      const existingKey = Object.keys(groups).find(k => normalizePlate(k) === normalizedRecordPlate);
+      const groupKey = registryMatch || existingKey || plate;
+      
       if (!groups[groupKey]) groups[groupKey] = [];
       groups[groupKey].push(record);
     });

@@ -54,8 +54,11 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
         if (!groups[registryMatch]) groups[registryMatch] = [];
         groups[registryMatch].push(record);
       } else if (cleanRegistry.length === 0) {
-        if (!groups[plate]) groups[plate] = [];
-        groups[plate].push(record);
+        // If no registry, fallback to grouping by normalized plate to avoid "KCH 054 T" vs "KCH 054T"
+        const existingKey = Object.keys(groups).find(k => normalizePlate(k) === normalizedRecordPlate);
+        const folderKey = existingKey || plate;
+        if (!groups[folderKey]) groups[folderKey] = [];
+        groups[folderKey].push(record);
       } else {
         needsReview.push(record);
       }

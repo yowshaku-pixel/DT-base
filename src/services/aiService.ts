@@ -42,8 +42,8 @@ function getAIErrorMessage(err: any): string {
     return "AI daily quota exceeded. Google limits free usage; this will reset at midnight. Please try again later or use a different API key.";
   }
 
-  if (message.includes("503") || message.includes("high demand") || message.includes("Service Unavailable")) {
-    return "The AI model is currently overloaded (High Demand). This is a temporary issue with Google's servers. Please wait a few seconds and try again.";
+  if (message.includes("503") || message.includes("500") || message.includes("high demand") || message.includes("Service Unavailable") || message.includes("error code: 6") || message.includes("xhr error") || message.includes("rpc failed")) {
+    return "The AI model is currently overloaded (High Demand/Proxy Error). This is a temporary issue with Google's servers. The system will automatically retry.";
   }
 
   if (isRateLimit) {

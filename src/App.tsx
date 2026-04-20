@@ -1315,8 +1315,12 @@ export default function App() {
         
         const isServerError = errorMessage.includes("500") || 
                              errorMessage.includes("internal error") || 
-                             errorMessage.includes("xhr error") ||
+                             errorMessage.includes("xhr error") || 
                              errorMessage.includes("rpc failed") ||
+                             errorMessage.includes("error code: 6") ||
+                             errorMessage.includes("overloaded") ||
+                             errorMessage.includes("proxy error") ||
+                             errorMessage.includes("high demand") ||
                              errorMessage.includes("failed to fetch") ||
                              errorMessage.includes("connection error") ||
                              errorMessage.includes("load failed");
@@ -1329,8 +1333,8 @@ export default function App() {
         }
 
         // Retry on rate limit, server error, or timeout
-        // Increased retries to 10 for rate limits to be more resilient
-        const maxRetries = isRateLimit ? 10 : retries;
+        // Increased retries to 10 for transient errors to be more resilient
+        const maxRetries = 10;
         if ((isRateLimit || isServerError || isTimeout) && i < maxRetries - 1) {
           const reason = isRateLimit ? "Rate limit" : isServerError ? "Network/Server error" : "Timeout";
           
@@ -2107,11 +2111,11 @@ export default function App() {
         }
         groups[registryMatch].push(record);
       } else if (cleanRegistry.length === 0) {
-        // If no registry, use plate as folder
-        if (!groups[plate]) {
-          groups[plate] = [];
-        }
-        groups[plate].push(record);
+        // If no registry, fallback to grouping by normalized plate to avoid "KCH 054 T" vs "KCH 054T"
+        const existingKey = Object.keys(groups).find(k => normalizePlate(k) === normalizedPlate);
+        const folderKey = existingKey || plate;
+        if (!groups[folderKey]) groups[folderKey] = [];
+        groups[folderKey].push(record);
       } else {
         // Not in registry and registry exists -> Needs Review
         needsReview.push(record);
