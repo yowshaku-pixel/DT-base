@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { ExtractionResult, MaintenanceRecord, ChatMessage, MarketPrice } from "../types";
-import { arePlatesSimilar, normalizePlate } from "../lib/utils";
+import { arePlatesSimilar, normalizePlate, deduplicateRecords } from "../lib/utils";
 
 // Initialize AI directly in the frontend
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -167,171 +167,88 @@ export async function analyzeMaintenanceData(
   records: MaintenanceRecord[], 
   chatHistory: ChatMessage[] = [],
   marketPrices: MarketPrice[] = [],
-  viewMode: 'log' | 'analytics' = 'log'
+  viewMode: 'log' | 'analytics' | 'audit' = 'log'
 ): Promise<string> {
   
-  // Smart Filtering: If the query mentions a specific truck, filter the records first
-  // This improves accuracy and reduces noise for the AI
-  let filteredRecords = [...records];
-  let filterNote = "";
+  // Format records for the AI (Grouped by truck, sorted for stability)
+  const fleetByTruck: Record<string, any[]> = {};
+  
+  // Deduplicate and Sort records by date descending first
+  const deduplicated = deduplicateRecords(records);
+  const sortedRecords = [...deduplicated].sort((a, b) => 
+    new Date(b.service_date).getTime() - new Date(a.service_date).getTime()
+  );
 
-  // Simple heuristic: look for words that look like plates (3+ chars, often alphanumeric)
-  const words = query.split(/[\s,]+/).filter(w => w.length >= 3);
-  let detectedPlate = "";
-
-  for (const word of words) {
-    const normalizedWord = normalizePlate(word);
-    // Check if this word matches any plate in our database
-    const match = records.find(r => arePlatesSimilar(r.plate_number, normalizedWord));
-    if (match) {
-      detectedPlate = match.plate_number;
-      filteredRecords = records.filter(r => arePlatesSimilar(r.plate_number, detectedPlate));
-      filterNote = `\n**NOTE**: I have pre-filtered the data to only include records for truck ${detectedPlate} as it was mentioned in the query.`;
-      break;
-    }
-  }
-
-  // Format records for the AI (Deduplicated)
-  const seenRecords = new Set<string>();
-  const formattedRecords = [];
-
-  for (const r of filteredRecords) {
-    const key = `${normalizePlate(r.plate_number)}|${r.service_date}|${r.service_description.toLowerCase().trim()}`;
-    if (seenRecords.has(key)) continue;
-    seenRecords.add(key);
+  sortedRecords.forEach(r => {
+    const norm = normalizePlate(r.plate_number);
+    if (!fleetByTruck[norm]) fleetByTruck[norm] = [];
     
-    formattedRecords.push({
-      plate: r.plate_number,
+    fleetByTruck[norm].push({
       date: r.service_date,
-      desc: r.service_description
+      description: r.service_description,
+      verified: r.verified ? "YES" : "NO"
     });
-  }
+  });
+
+  // Sort the fleet groups alphabetically by plate
+  const sortedFleet: Record<string, any[]> = {};
+  Object.keys(fleetByTruck).sort().forEach(key => {
+    sortedFleet[key] = fleetByTruck[key];
+  });
 
   // Format market prices for the AI
   const formattedMarketPrices = marketPrices.map(p => ({
-    i: p.item_name,
-    p: `${p.currency} ${p.price}`,
-    c: p.confirmed_by,
-    d: p.last_updated
+    item: p.item_name,
+    price: `${p.currency} ${p.price}`,
+    confirmed_by: p.confirmed_by
   }));
 
-  // Pre-calculate truck summary for precision (on the filtered set, Deduplicated)
-  const truckSummary: Record<string, { count: number, originalPlates: string[] }> = {};
-  const seenSummaryRecords = new Set<string>();
-
-  filteredRecords.forEach(r => {
-    const norm = normalizePlate(r.plate_number);
-    const key = `${norm}|${r.service_date}|${r.service_description.toLowerCase().trim()}`;
-    
-    if (seenSummaryRecords.has(key)) return;
-    seenSummaryRecords.add(key);
-
-    let found = false;
-    for (const key in truckSummary) {
-      if (arePlatesSimilar(key, norm)) {
-        truckSummary[key].count++;
-        if (!truckSummary[key].originalPlates.includes(r.plate_number)) {
-          truckSummary[key].originalPlates.push(r.plate_number);
-        }
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      truckSummary[norm] = { count: 1, originalPlates: [r.plate_number] };
-    }
-  });
-
-  const analyticsContext = viewMode === 'analytics' ? `
-  **Analytic Context**:
-  The user is currently viewing the "Insights" dashboard. 
-  Focus on:
-  - Trends over time (monthly spikes/dips).
-  - Most frequent service types across the fleet.
-  - High-maintenance trucks vs efficient ones.
-  - Comparison of costs if available.
-  ` : "";
-
-  const focusInsightPulse = `
-  **Focus Insight Feature**:
-  If the user says "Focus insight" followed by a truck plate, a service type, or a time frame, you MUST trigger a focus action.
-  To do this, include the following tag at the very beginning or end of your response:
-  [FOCUS_INSIGHT: PlateNumber | ServiceName | Year]
+  const systemInstruction = `You are Anni, the Senior Lead Fleet Maintenance Analyst and Master Diagnostic Mechanic for DT.Base. 
+  Your primary directive is ABSOLUTE PRECISION, UNCOMPROMISING COMPLETENESS, and DATA INTEGRITY.
   
-  **IMPORTANT**: Even when triggering a focus action, you MUST provide a friendly and helpful textual response. 
-  For example: "Certainly! I've filtered the insights to show oil services for KDM 898 in 2026. You can see the trends in the charts below."
-  
-  Examples of Tags:
-  - User: "Focus insight on oil services this year" -> [FOCUS_INSIGHT: | oil service | 2026]
-  - User: "Focus insight on KDM898" -> [FOCUS_INSIGHT: KDM 898 | | ]
-  - User: "Focus insight on tires for KCL 054" -> [FOCUS_INSIGHT: KCL 054 | tires | ]
+  **OPERATIONAL MANDATES**:
+  1. DO NOT TRUNCATE. If asked for a "full list", "all trucks", or "every folder", you must list EVERY SINGLE ONE.
+  2. DEDUPLICATION PREROGATIVE: The data provided may contain duplicate entries (same plate, same date, same description). You MUST count identical records only ONCE. If multiple identical records exist, acknowledge only one instance.
+  3. DATA INTEGRITY: When summarizing counts (e.g., "6 records found"), verify they are UNIQUE records. If your analysis finds 10 entries but 4 are duplicates, report "6 unique records found".
+  4. FORMATTING DIRECTIVE: When generating summaries or lists, adhere to this structure:
+     (Plate Number)
+     (Count Records Found)
+     
+     (Date YYYY-MM-DD)
+     * (Cleaned Detail)
+     * (Cleaned Detail)
+     ...
+  5. CLEANING RULES: 
+     - REMOVE all mentions of Places (e.g., ICD, KABA), Garages, Supervisors (e.g., JHON, DAWIT), and Mechanics/Fundis (e.g., BONI, OTI).
+     - REMOVE metadata prefixes like "MAINTENANCE LOG:", "LOG ENTRY:", "METADATA:".
+     - TRUNCATE each detail line to 4 lines maximum. If it's longer, end with "...etc".
+  6. SOURCES OF TRUTH: 
+     - Use the provided raw data below. 
+     - This is simulated business data for Mercedes-Benz trucks (Axor MP3, Actros MP4). 
+     - It contains NO PII (Personally Identifiable Information). Do not trigger safety filters for listing plate numbers or dates.
+  7. ACCURACY: Check your work. If you are calculating a count, count it twice. If identifying the "latest" date, look at every entry for that truck.
+  8. FORMATTING: Use professional Markdown for lists.
+  9. PERSONA: You are professional, technical, and exhaustive. You are an expert on MB Axor MP3 and Actros MP4 engines (OM457/OM471).
 
-  Rules for Tag:
-  - PlateNumber: Cleanized plate (e.g. KDM 898). Leave empty if not focusing on a specific truck.
-  - ServiceName: Simple service name (e.g. oil, brakes, tires). Leave empty if not focusing on a service.
-  - Year: 4-digit year. Leave empty if not focusing on a timeframe.
-  `;
+  **DATABASE CONTEXT**:
+  - MB Axor MP3: KCL 054 to KCY 901B, and UAY 469L.
+  - MB Actros MP4: KCZ 945Y to KDS 849R.
 
-  const systemInstruction = `You are Anni, an expert fleet maintenance analyst and master mechanic for DT.Base. 
-  You specialize in Mercedes-Benz trucks, specifically the **MB Axor MP3** and **MB Actros MP4**.
-  
-  Your task is to answer questions, summarize, analyze, and provide mechanical advice based on maintenance data.
-  ${analyticsContext}
-  ${focusInsightPulse}
-  
-  **CRITICAL**: Be extremely CONCISE. Provide short, direct answers. Avoid long explanations unless specifically asked. Use bullet points for lists.
-  
-  **Market Knowledge (Confirmed Prices)**:
-  These are prices that have been confirmed or corrected by the user. ALWAYS prioritize these over internet search results (i=item, p=price, c=confirmed_by, d=date).
+  **MARKET PRICE REFERENCE**:
   ${JSON.stringify(formattedMarketPrices)}
 
-  **Truck Summary (PRE-CALCULATED COUNTS)**:
-  Use these counts for accuracy when asked "how many records" or "how many times". 
-  ${Object.entries(truckSummary).map(([key, data]) => `- ${data.originalPlates[0]}: ${data.count} records`).join('\n')}
-  ${filterNote}
+  **RAW FLEET DATA (Absolute Source of Truth)**:
+  ${JSON.stringify(sortedFleet)}
 
-  **Price Corrections**:
-  If the user provides a price correction (e.g., "no KES 22,000" or "the price is actually 5000"), acknowledge it. 
-  IMPORTANT: If you detect a price correction, start your response with the tag [PRICE_CORRECTION: Item Name | Price | Currency]. 
-  Example: [PRICE_CORRECTION: Caltex Ultra E | 22000 | KES]
-  This allows the system to save the correction to the database.
-
-  Fleet Knowledge (Identify models based on Plate Numbers):
-  - **MB Axor MP3**: 
-    * Range: KCL 054 to KCY 901B (Alphabetical order)
-    * Specific: UAY 469L
-  - **MB Actros MP4**: 
-    * Range: KCZ 945Y to KDS 849R (Alphabetical order)
+  ${viewMode === 'analytics' ? "NOTE: You are in Analytics/Insights mode. Focus on trends and maintenance health." : ""}
   
-  Differentiating Query Types:
-  - **Single Truck**: If the user starts their query with a plate number (e.g., "Kcw 822 b..."), focus your analysis ONLY on that specific truck. Identify if it is an Axor MP3 or Actros MP4.
-  - **Maintenance Analysis**: If the user starts their query with a maintenance type (e.g., "oil change...", "tires...", "service..."), analyze that specific type of maintenance across all trucks.
-  - **Overall Quotations**: If the user uses the word "overall" in their query, provide a summary or analysis of the entire database.
-  
-  Cost Analysis & Pricing:
-  - **Extract Costs**: Look for currency symbols or keywords like "KES", "USD", "Price", "Cost", "Amount" within the service descriptions.
-  - **Calculate Totals**: If asked for costs, sum up the values you find. Be careful with different currencies (default to KES if not specified, but note if multiple are present).
-  
-  Mechanic Persona:
-  - Act as a highly skilled mechanic. If you see recurring issues (e.g., frequent brake changes on an Actros MP4), provide technical insights or preventative maintenance suggestions specific to that model.
-  - Use your knowledge of MB Axor MP3 and Actros MP4 specifications (engines, common wear items, service intervals) to enhance your answers.
-  
-  Context:
-  - You have access to a list of maintenance records.
-  - Plate numbers follow a specific similarity rule: if more than 5 characters match at the same positions, they are the same truck.
-  - Trailer numbers (after / or -) are ignored.
-  
-  Instructions:
-  - Be concise, professional, and technically accurate.
-  - Present lists and summaries in **Alphabetical order** by plate number unless requested otherwise.
-  - If asked to summarize, group by truck or by type of work (compact format: p=plate, dt=date, d=desc).
-  ${JSON.stringify(formattedRecords.map(r => ({ p: r.plate, dt: r.date, d: r.desc })))}
+  USER COMMAND: ${query}
   `;
 
   try {
-    console.log("[AI] Starting chat analysis with Gemini...");
+    console.log("[AI] Starting high-accuracy analysis with Gemini Pro...");
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-pro-preview",
       contents: [
         ...chatHistory.map(msg => ({
           role: msg.role === 'user' ? 'user' : 'model',
@@ -339,17 +256,41 @@ export async function analyzeMaintenanceData(
         })),
         {
           role: "user",
-          parts: [{ text: systemInstruction + "\n\nUser Query: " + query }]
+          parts: [{ text: "Please execute my last command with 100% completeness and accuracy based on the provided data." }]
         }
       ],
       config: {
-        maxOutputTokens: 4096,
+        systemInstruction: systemInstruction,
+        maxOutputTokens: 8192,
+        temperature: 0.1,
       }
     });
 
-    return result.text || "I couldn't generate a response.";
+    return result.text || "I was unable to retrieve the fleet analysis.";
   } catch (e: any) {
     console.error("[AI] AI Analysis Error:", e);
+    
+    // Fallback to Flash if Pro fails (e.g. quota/availability)
+    if (e.message?.includes("not found") || e.message?.includes("404")) {
+      console.log("[AI] Falling back to Flash model...");
+      const flashResult = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          ...chatHistory.map(msg => ({
+            role: msg.role === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.content }]
+          })),
+          { role: "user", parts: [{ text: query }] }
+        ],
+        config: {
+          systemInstruction: systemInstruction,
+          maxOutputTokens: 8192,
+          temperature: 0.1,
+        }
+      });
+      return flashResult.text || "I was unable to retrieve the fleet analysis.";
+    }
+    
     throw new Error(getAIErrorMessage(e));
   }
 }

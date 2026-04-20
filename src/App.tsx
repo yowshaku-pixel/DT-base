@@ -1,12 +1,23 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, ArrowRight } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { extractMaintenanceData, extractMarketPrices, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
-import { cn, resizeImage, arePlatesSimilar, normalizePlate } from './lib/utils';
+import { 
+  cn, 
+  resizeImage, 
+  arePlatesSimilar, 
+  normalizePlate, 
+  normalizeDate,
+  deduplicateRecords,
+  cleanServiceDescription 
+} from './lib/utils';
 import { supabase, getSupabaseErrorMessage } from './supabase';
 import { User } from '@supabase/supabase-js';
 import AIChatAssistant from './components/AIChatAssistant';
 import { Analytics } from './components/Analytics';
+import { FleetAuditReport } from './components/FleetAuditReport';
 import { motion, AnimatePresence } from 'motion/react';
 import { BarChart3 as BarChartIcon } from 'lucide-react';
 
@@ -612,7 +623,16 @@ export default function App() {
   const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
 
   const [user, setUser] = useState<User | null>(null);
-  const [viewMode, setViewMode] = useState<'log' | 'analytics'>('log');
+  const [viewMode, setViewMode] = useState<'log' | 'analytics' | 'audit'>('log');
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -725,6 +745,43 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    if (records.length === 0) return;
+
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(20);
+    doc.text('DT.Base Fleet Maintenance Report', 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+    doc.text(`Total Records: ${records.length}`, 14, 35);
+    
+    // Prepare table data
+    const tableColumn = ["Plate Number", "Date", "Service Description", "Verified"];
+    const tableRows = records.map(record => [
+      record.plate_number,
+      new Date(record.service_date).toLocaleDateString(),
+      record.service_description,
+      record.verified ? "YES" : "NO"
+    ]);
+
+    // Generate table
+    autoTable(doc, {
+      startY: 45,
+      head: [tableColumn],
+      body: tableRows,
+      theme: 'grid',
+      headStyles: { fillColor: [139, 92, 246], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      styles: { fontSize: 8, cellPadding: 2 }
+    });
+
+    doc.save(`fleet_export_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -1453,21 +1510,6 @@ export default function App() {
 
             const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
             const normalizePlate = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
-            const normalizeDate = (d: string) => {
-              if (!d) return '';
-              const matchYMD = d.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
-              if (matchYMD) {
-                const [_, y, m, day] = matchYMD;
-                return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
-              }
-              const matchDMY = d.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-              if (matchDMY) {
-                const [_, day, m, y] = matchDMY;
-                return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
-              }
-              return d.trim();
-            };
-
             const getSimilarityScore = (s1: string, s2: string) => {
               const str1 = normalize(s1);
               const str2 = normalize(s2);
@@ -1736,21 +1778,6 @@ export default function App() {
           // Audit Mode: Check for duplicates instead of saving
           const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
           const normalizePlate = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
-          const normalizeDate = (d: string) => {
-            if (!d) return '';
-            const matchYMD = d.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
-            if (matchYMD) {
-              const [_, y, m, day] = matchYMD;
-              return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            }
-            const matchDMY = d.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-            if (matchDMY) {
-              const [_, day, m, y] = matchDMY;
-              return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            }
-            return d.trim();
-          };
-
           const getSimilarityScore = (s1: string, s2: string) => {
             const str1 = normalize(s1);
             const str2 = normalize(s2);
@@ -2000,7 +2027,7 @@ export default function App() {
       return matchesSearch && matchesDescription && matchesService && matchesSecondaryService && matchesStartDate && matchesEndDate;
     });
 
-    return filtered;
+    return deduplicateRecords(filtered);
   }, [records, debouncedSearch, debouncedDescription, debouncedService, debouncedSecondaryService, startDate, endDate]);
 
   // Fetch image for the latest record when it changes
@@ -2423,22 +2450,7 @@ export default function App() {
       // Use the same normalization and similarity logic from startBatchProcessing
       const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
       const normalizePlate = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
-      const normalizeDate = (d: string) => {
-        if (!d) return '';
-        const matchYMD = d.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
-        if (matchYMD) {
-          const [_, y, m, day] = matchYMD;
-          return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
-        }
-        const matchDMY = d.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-        if (matchDMY) {
-          const [_, day, m, y] = matchDMY;
-          return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
-        }
-        return d.trim();
-      };
-
-      const getSimilarityScore = (s1: string, s2: string) => {
+       const getSimilarityScore = (s1: string, s2: string) => {
         const str1 = normalize(s1);
         const str2 = normalize(s2);
         if (str1 === str2) return { score: 1.0, commonCount: 100 };
@@ -2703,6 +2715,38 @@ export default function App() {
           </AnimatePresence>
           
           <div className="flex flex-wrap items-center gap-2">
+            {/* View Switcher Tabs */}
+            <div className="flex items-center p-1 bg-white/5 border border-white/10 rounded-2xl mr-4">
+              <button 
+                onClick={() => setViewMode('log')}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
+                  viewMode === 'log' ? "bg-purple-600 text-white shadow-lg shadow-purple-900/20" : "text-white/40 hover:text-white/60"
+                )}
+              >
+                History
+              </button>
+              <button 
+                onClick={() => setViewMode('analytics')}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
+                  viewMode === 'analytics' ? "bg-cyan-600 text-white shadow-lg shadow-cyan-900/20" : "text-white/40 hover:text-white/60"
+                )}
+              >
+                Insights
+              </button>
+              <button 
+                onClick={() => setViewMode('audit')}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+                  viewMode === 'audit' ? "bg-amber-600 text-white shadow-lg shadow-amber-900/20" : "text-white/40 hover:text-white/60"
+                )}
+              >
+                {viewMode === 'audit' && <ClipboardCheck className="w-3 h-3" />}
+                Audit
+              </button>
+            </div>
+
             {deferredPrompt && (
               <button 
                 onClick={handleInstallClick}
@@ -3315,7 +3359,7 @@ export default function App() {
                 <Clock className={cn("w-3.5 h-3.5", showLatestOnly ? "animate-pulse" : "")} />
                 {showLatestOnly ? "Latest" : "All"}
               </button>
-              <span className="text-[8px] font-mono text-white/30 uppercase tracking-widest">{filteredRecords.length} Filtered</span>
+              <span className="text-[8px] font-mono text-white/30 uppercase tracking-widest">{filteredRecords.length} Unique Records</span>
             </div>
           
           <button 
@@ -3670,20 +3714,15 @@ export default function App() {
                 </div>
               ) : (
                 Object.entries(groupedRecords).map(([plate, plateRecords]) => {
-                  // Group by service type for this plate
-                  const serviceGroups: Record<string, string[]> = {};
-                  const seenRecords = new Set<string>();
-
-                  plateRecords.forEach(r => {
-                    const desc = r.service_description.toLowerCase().trim();
+                  // Group by date for this plate
+                  const dateGroups: Record<string, string[]> = {};
+                  plateRecords.sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
                     const date = r.service_date;
-                    const duplicateKey = `${date}|${desc}`;
-                    
-                    if (seenRecords.has(duplicateKey)) return; // Skip duplicate
-                    seenRecords.add(duplicateKey);
-
-                    if (!serviceGroups[desc]) serviceGroups[desc] = [];
-                    serviceGroups[desc].push(date);
+                    const cleaned = cleanServiceDescription(r.service_description);
+                    if (!dateGroups[date]) dateGroups[date] = [];
+                    if (!dateGroups[date].includes(cleaned)) {
+                      dateGroups[date].push(cleaned);
+                    }
                   });
 
                   return (
@@ -3696,16 +3735,18 @@ export default function App() {
                       </div>
 
                       <div className="space-y-6 pl-4">
-                        {Object.entries(serviceGroups).map(([service, dates]) => (
-                          <div key={service} className="space-y-3">
-                            <p className="text-sm font-display font-medium text-white/80 leading-relaxed">
-                              Has <span className="text-purple-400 font-bold">{dates.length}</span> {dates.length === 1 ? 'record' : 'records'} for <span className="text-emerald-400 font-bold uppercase tracking-wide">{service}</span>
+                        {Object.entries(dateGroups)
+                          .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
+                          .map(([date, items]) => (
+                          <div key={date} className="space-y-3">
+                            <p className="text-sm font-mono font-bold text-emerald-400 tracking-wider">
+                              {date}
                             </p>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                              {dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime()).map((date, i) => (
-                                <div key={i} className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] border border-white/5 rounded-lg">
-                                  <div className="w-1 h-1 rounded-full bg-purple-500/50" />
-                                  <span className="text-[10px] font-mono text-white/60 font-bold">{date}</span>
+                            <div className="space-y-2">
+                              {items.map((item, i) => (
+                                <div key={i} className="flex gap-3 text-sm font-display leading-relaxed text-white/70 bg-white/[0.02] p-3 border border-white/5 rounded-xl">
+                                  <div className="mt-1.5 w-1 h-1 rounded-full bg-purple-500 shrink-0" />
+                                  <div className="whitespace-pre-line">{item}</div>
                                 </div>
                               ))}
                             </div>
@@ -3725,22 +3766,27 @@ export default function App() {
               <button 
                 onClick={() => {
                   const reportText = Object.entries(groupedRecords).map(([plate, plateRecords]) => {
-                    const serviceGroups: Record<string, string[]> = {};
-                    plateRecords.forEach(r => {
-                      const desc = r.service_description.toLowerCase().trim();
-                      if (!serviceGroups[desc]) serviceGroups[desc] = [];
-                      serviceGroups[desc].push(r.service_date);
+                    const dateGroups: Record<string, string[]> = {};
+                    plateRecords.sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
+                      const date = r.service_date;
+                      const cleaned = cleanServiceDescription(r.service_description);
+                      if (!dateGroups[date]) dateGroups[date] = [];
+                      if (!dateGroups[date].includes(cleaned)) {
+                        dateGroups[date].push(cleaned);
+                      }
                     });
 
-                    let plateText = `\n${plate}\nHas ${plateRecords.length} records\n`;
-                    Object.entries(serviceGroups).forEach(([service, dates]) => {
-                      plateText += `\nFor ${service.toUpperCase()}:\n`;
-                      dates.forEach(d => plateText += `* ${d}\n`);
-                    });
+                    let plateText = `${plate}\nHas ${plateRecords.length} records\n`;
+                    Object.entries(dateGroups)
+                      .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
+                      .forEach(([date, items]) => {
+                        plateText += `\n${date}\n`;
+                        items.forEach(item => plateText += `* ${item}\n`);
+                      });
                     return plateText;
-                  }).join('\n---\n');
+                  }).join('\n\n');
 
-                  const fullText = `DT.Base Summary Report\nFrom: ${startDate || 'Start'} To: ${endDate || 'Today'}\n${reportText}`;
+                  const fullText = `DT.Base Summary Report\nFrom: ${startDate || 'Start'} To: ${endDate || 'Today'}\n\n${reportText}`;
                   
                   if (navigator.share) {
                     navigator.share({ title: 'DT.Base Summary Report', text: fullText });
@@ -4012,29 +4058,37 @@ export default function App() {
 
                     <button 
                       onClick={() => {
-                        const nextMode = (viewMode as string) === 'log' ? 'analytics' : 'log';
-                        setViewMode(nextMode as any);
-                        if (nextMode === 'analytics') setShowSettingsModal(false);
+                        const modes: ('log' | 'analytics' | 'audit')[] = ['log', 'analytics', 'audit'];
+                        const currentIndex = modes.indexOf(viewMode);
+                        const nextMode = modes[(currentIndex + 1) % modes.length];
+                        setViewMode(nextMode);
+                        if (nextMode !== 'log') setShowSettingsModal(false);
                       }}
                       className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
-                          <BarChartIcon className={cn("w-4 h-4", (viewMode as string) === 'analytics' ? "text-cyan-400" : "text-white/20")} />
+                        <div className={cn(
+                          "p-2.5 rounded-xl border group-hover:bg-opacity-20 transition-all",
+                          (viewMode as any) === 'analytics' ? "bg-cyan-500/10 border-cyan-500/20" :
+                          (viewMode as any) === 'audit' ? "bg-amber-500/10 border-amber-500/20" :
+                          "bg-white/5 border-white/10"
+                        )}>
+                          {(viewMode as any) === 'audit' ? (
+                            <ClipboardCheck className={cn("w-4 h-4", (viewMode as any) === 'audit' ? "text-amber-400" : "text-white/20")} />
+                          ) : (
+                            <BarChartIcon className={cn("w-4 h-4", (viewMode as any) === 'analytics' ? "text-cyan-400" : "text-white/20")} />
+                          )}
                         </div>
                         <div className="flex flex-col items-start">
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Fleet Insights</span>
-                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">{(viewMode as string) === 'analytics' ? 'Dashboard Active' : 'Show Analytics'}</span>
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">View Mode Toggle</span>
+                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">
+                            Current: {viewMode.toUpperCase()}
+                          </span>
                         </div>
                       </div>
-                      <div className={cn(
-                        "w-8 h-4 rounded-full transition-all relative border",
-                        (viewMode as string) === 'analytics' ? "bg-cyan-500/20 border-cyan-500/40" : "bg-white/5 border-white/10"
-                      )}>
-                        <div className={cn(
-                          "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
-                          (viewMode as string) === 'analytics' ? "right-0.5 bg-cyan-400" : "left-0.5 bg-white/20"
-                        )} />
+                      <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-lg border border-white/10">
+                         <span className="text-[8px] font-display font-bold text-white/40 uppercase tracking-widest">Switch</span>
+                         <ArrowRight className="w-2.5 h-2.5 text-white/20" />
                       </div>
                     </button>
 
@@ -4103,22 +4157,41 @@ export default function App() {
                       <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
                     </button>
 
-                    <button 
-                      onClick={handleExportData}
-                      disabled={records.length === 0}
-                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2.5 bg-purple-500/10 rounded-xl border border-purple-500/20 group-hover:bg-purple-500/20 transition-all">
-                          <Download className="w-4 h-4 text-purple-400" />
+                    <div className="space-y-2">
+                       <button 
+                        onClick={handleExportData}
+                        disabled={records.length === 0}
+                        className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="p-2.5 bg-purple-500/10 rounded-xl border border-purple-500/20 group-hover:bg-purple-500/20 transition-all">
+                            <Download className="w-4 h-4 text-purple-400" />
+                          </div>
+                          <div className="flex flex-col items-start">
+                            <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Export Fleet Data</span>
+                            <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Download CSV Report</span>
+                          </div>
                         </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Export Fleet Data</span>
-                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Download CSV Report</span>
+                        <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
+                      </button>
+
+                      <button 
+                        onClick={handleExportPDF}
+                        disabled={records.length === 0}
+                        className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
+                            <FileText className="w-4 h-4 text-cyan-400" />
+                          </div>
+                          <div className="flex flex-col items-start">
+                            <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Save as PDF</span>
+                            <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Generate PDF Document</span>
+                          </div>
                         </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
-                    </button>
+                        <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
+                      </button>
+                    </div>
 
                     <button 
                       onClick={() => {
@@ -4495,8 +4568,17 @@ export default function App() {
         </div>
       )}
         </>
+      ) : viewMode === 'analytics' ? (
+        <Analytics records={filteredRecords} fleetRegistry={fleetRegistry} />
       ) : (
-        <Analytics records={filteredRecords} />
+        <FleetAuditReport 
+          records={records} 
+          fleetRegistry={fleetRegistry}
+          onFocusTruck={(plate) => {
+            setSearchQuery(plate);
+            setViewMode('log');
+          }}
+        />
       )}
 
       {/* Edit Record Modal */}
@@ -4536,6 +4618,25 @@ export default function App() {
         />
       )}
       
+      {/* Scroll to Top */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-24 md:bottom-8 right-6 z-40 p-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl shadow-xl shadow-purple-900/40 border border-purple-400/30 transition-all active:scale-95 group"
+            title="Scroll to top"
+          >
+            <ChevronUp className="w-6 h-6 group-hover:-translate-y-0.5 transition-transform" />
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md px-2 py-1 rounded text-[8px] font-display font-bold uppercase tracking-widest text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-white/10">
+              Go Up
+            </div>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Floating Action Hub */}
       <div className="fixed bottom-6 right-24 z-50 flex flex-col items-end gap-3">
         <AnimatePresence>

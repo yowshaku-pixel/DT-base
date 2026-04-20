@@ -23,7 +23,7 @@ interface AIChatAssistantProps {
   onFocusInsight?: (plate: string | null, service: string | null, year: number | null) => void;
   isLocked?: boolean;
   onUnlockRequest?: () => void;
-  viewMode?: 'log' | 'analytics';
+  viewMode?: 'log' | 'analytics' | 'audit';
 }
 
 export default function AIChatAssistant({ 
