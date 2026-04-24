@@ -155,6 +155,33 @@ export function deduplicateRecords(records: MaintenanceRecord[]): MaintenanceRec
 }
 
 /**
+ * Returns the truck model based on the plate number.
+ */
+export function getTruckModel(plate: string): 'Axor MP3' | 'Actros MP4' | 'Unknown' {
+  const norm = normalizePlate(plate);
+  if (!norm) return 'Unknown';
+  
+  // Specific cases and prefixes
+  if (norm === 'uay469l' || norm.startsWith('uba')) {
+    return 'Axor MP3';
+  }
+  
+  // Ranges based on Kenyan plate progression
+  // Axor MP3: KCL to KCY
+  // Actros MP4: KCZ to KDS
+  
+  if (norm.startsWith('kc') && norm[2] >= 'l' && norm[2] <= 'y') {
+    return 'Axor MP3';
+  }
+  
+  if ((norm.startsWith('kc') && norm[2] === 'z') || norm.startsWith('kd')) {
+    return 'Actros MP4';
+  }
+  
+  return 'Unknown';
+}
+
+/**
  * Cleans a service description by:
  * 1. Removing metadata headers (MAINTENANCE LOG, LOG ENTRY, etc.)
  * 2. Removing supervisor, place, garage, and mechanic names

@@ -16,6 +16,7 @@ import {
 import { 
   normalizePlate, 
   normalizeDate,
+  getTruckModel,
   cn 
 } from '../lib/utils';
 import { AUDIT_CATEGORIES } from '../services/auditService';
@@ -26,6 +27,9 @@ interface BatteryIntelligenceProps {
 }
 
 export const BatteryIntelligence: React.FC<BatteryIntelligenceProps> = ({ records, fleetRegistry }) => {
+  const [activeModel, setActiveModel] = React.useState<'Axor MP3' | 'Actros MP4'>('Axor MP3');
+  const [searchQuery, setSearchQuery] = React.useState('');
+
   const batteryStats = useMemo(() => {
     const batteryRE = AUDIT_CATEGORIES.find(c => c.id === 'battery')?.match || (() => false);
     const repairRE = AUDIT_CATEGORIES.find(c => c.id === 'battery_repair')?.match || (() => false);
@@ -119,20 +123,57 @@ export const BatteryIntelligence: React.FC<BatteryIntelligenceProps> = ({ record
       };
     }).sort((a, b) => a.health - b.health);
 
-    const fleetHealth = analysis.length > 0 
-      ? Math.round(analysis.reduce((acc, curr) => acc + curr.health, 0) / analysis.length)
+    const filteredAnalysis = analysis.filter(truck => {
+      const matchesModel = getTruckModel(truck.plate) === activeModel;
+      const matchesSearch = truck.plate.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesModel && matchesSearch;
+    });
+
+    const fleetHealth = filteredAnalysis.length > 0 
+      ? Math.round(filteredAnalysis.reduce((acc, curr) => acc + curr.health, 0) / filteredAnalysis.length)
       : 100;
 
     return {
-      analysis,
+      analysis: filteredAnalysis,
       fleetHealth,
-      criticalCount: analysis.filter(a => a.status === 'critical').length,
-      warningCount: analysis.filter(a => a.status === 'warning').length
+      criticalCount: filteredAnalysis.filter(a => a.status === 'critical').length,
+      warningCount: filteredAnalysis.filter(a => a.status === 'warning').length
     };
-  }, [records]);
+  }, [records, activeModel, searchQuery]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Model Selector and Search */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="inline-flex p-1 bg-surface border border-border rounded-2xl">
+          {(['Axor MP3', 'Actros MP4'] as const).map((model) => (
+            <button
+              key={model}
+              onClick={() => setActiveModel(model)}
+              className={cn(
+                "px-6 py-2 rounded-xl text-xs font-display font-bold uppercase tracking-widest transition-all",
+                activeModel === model 
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" 
+                  : "text-muted hover:text-text"
+              )}
+            >
+              {model}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative w-full md:w-72">
+          <input
+            type="text"
+            placeholder="Search plate..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-surface border border-border rounded-2xl px-10 py-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-muted/40"
+          />
+          <Activity className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
+        </div>
+      </div>
+
       {/* Dashboard Header */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-surface border border-border rounded-[2rem] p-6 relative overflow-hidden group">
