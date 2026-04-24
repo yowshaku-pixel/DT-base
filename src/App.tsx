@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, ArrowRight } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, ArrowRight, Sun, Moon } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { extractMaintenanceData, extractMarketPrices, analyzeMaintenanceData, isApiKeyAvailable } from './services/aiService';
+import { extractMaintenanceData, extractMarketPrices, analyzeMaintenanceData, isApiKeyAvailable, getAIErrorMessage } from './services/aiService';
 import { 
   cn, 
   resizeImage, 
@@ -18,6 +18,7 @@ import { User } from '@supabase/supabase-js';
 import AIChatAssistant from './components/AIChatAssistant';
 import { Analytics } from './components/Analytics';
 import { FleetAuditReport } from './components/FleetAuditReport';
+import { BatteryIntelligence } from './components/BatteryIntelligence';
 import { motion, AnimatePresence } from 'motion/react';
 import { BarChart3 as BarChartIcon } from 'lucide-react';
 
@@ -56,29 +57,29 @@ const PlateFolder = React.memo(({
   normalizePlate: (p: string) => string
 }) => {
   return (
-    <div className="glassmorphism rounded-3xl overflow-hidden transition-all hover:bg-white/[0.05] neon-border-violet/30">
+    <div className="glassmorphism rounded-3xl overflow-hidden transition-all hover:bg-surface/10 neon-border-violet/30">
       <button 
         onClick={() => onToggle(plate)}
-        className="w-full flex items-center justify-between p-3.5 px-5 text-white transition-all"
+        className="w-full flex items-center justify-between p-3.5 px-5 text-text transition-all"
         title={`Click to ${isExpanded ? 'collapse' : 'expand'} records for ${plate}`}
       >
         <div className="flex items-center gap-4">
           <div className={cn(
-            "w-6 h-6 rounded-full flex items-center justify-center bg-white/5 border border-white/10 transition-transform",
+            "w-6 h-6 rounded-full flex items-center justify-center bg-surface border border-border transition-transform",
             isExpanded && "rotate-180"
           )}>
-            <ChevronDown className="w-3 h-3 opacity-60" />
+            <ChevronDown className="w-3 h-3 text-muted" />
           </div>
           <div className="flex flex-col items-start">
             <span className="font-display text-lg font-bold tracking-tight">{plate}</span>
-            <span className="text-[8px] opacity-40 font-mono uppercase tracking-widest">
+            <span className="text-[8px] text-muted font-mono uppercase tracking-widest">
               {plateRecords.length} {plateRecords.length === 1 ? 'Entry' : 'Entries'}
             </span>
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[8px] font-display font-bold opacity-30 uppercase tracking-[0.2em] mb-0.5">Last Service</div>
-          <div className="text-[10px] font-mono font-bold text-purple-400/80">
+          <div className="text-[8px] font-display font-bold text-muted uppercase tracking-[0.2em] mb-0.5">Last Service</div>
+          <div className="text-[10px] font-mono font-bold text-purple-600 dark:text-purple-400/80">
             {plateRecords.length > 0 ? plateRecords[0].service_date : 'No Records'}
           </div>
         </div>
@@ -86,34 +87,34 @@ const PlateFolder = React.memo(({
 
       {isExpanded && (
         <div className="px-3 pb-3">
-          <div className="bg-black/20 rounded-2xl border border-white/5 divide-y divide-white/5">
+          <div className="bg-bg/40 rounded-2xl border border-border divide-y divide-border">
             {plateRecords.length > 0 ? (
               plateRecords.map((record, index) => (
-                <div key={`${record.id}-${index}`} className="p-3 px-4 flex items-center justify-between gap-4 group hover:bg-white/[0.02] transition-colors">
+                <div key={`${record.id}-${index}`} className="p-3 px-4 flex items-center justify-between gap-4 group hover:bg-surface transition-colors">
                   <div className="flex items-center gap-4 overflow-hidden">
-                    <div className="text-[9px] font-mono opacity-20 w-4">
+                    <div className="text-[9px] font-mono text-muted/40 w-4">
                       {(index + 1).toString().padStart(2, '0')}
                     </div>
                     <div className="overflow-hidden">
                       <div className="text-[8px] font-display font-bold uppercase tracking-[0.2em] mb-0.5 flex flex-wrap items-center gap-2">
                         <span className={cn(
-                          "px-1.5 py-0.5 rounded bg-white/5 border",
+                          "px-1.5 py-0.5 rounded bg-surface border",
                           normalizePlate(record.plate_number) !== normalizePlate(plate) && plate !== '⚠️ NEEDS REVIEW'
-                            ? "text-orange-400 border-orange-500/30 bg-orange-500/10" 
-                            : "text-white/40 border-white/10"
+                            ? "text-orange-600 border-orange-500/30 bg-orange-500/10" 
+                            : "text-muted border-border"
                         )}>
                           {record.plate_number}
                         </span>
-                        <span className="opacity-20">•</span>
-                        <span>{record.service_date}</span>
+                        <span className="text-muted/40">•</span>
+                        <span className="text-muted">{record.service_date}</span>
                         {record.file_name && (
                           <>
-                            <span className="opacity-40">•</span>
-                            <span className="truncate max-w-[120px]">{record.file_name}</span>
+                            <span className="text-muted/40">•</span>
+                            <span className="truncate max-w-[120px] text-muted">{record.file_name}</span>
                           </>
                         )}
                       </div>
-                      <div className="text-xs font-medium text-white/90 truncate">{record.service_description}</div>
+                      <div className="text-xs font-medium text-text truncate">{record.service_description}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -122,8 +123,8 @@ const PlateFolder = React.memo(({
                       className={cn(
                         "p-2 border transition-all rounded-full flex items-center justify-center",
                         record.verified 
-                          ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_10px_rgba(0,245,255,0.2)]" 
-                          : "bg-white/5 border-white/10 text-white/20 hover:text-white/40 hover:bg-white/10"
+                          ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 shadow-[0_0_10px_rgba(0,245,255,0.2)]" 
+                          : "bg-surface border border-border text-muted hover:text-text hover:bg-bg/20"
                       )}
                       title={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
                     >
@@ -131,14 +132,14 @@ const PlateFolder = React.memo(({
                     </button>
                     <button 
                       onClick={() => onEdit(record)}
-                      className="p-2 bg-white/5 border border-white/10 text-white/40 hover:text-white hover:bg-white/10 transition-all rounded-full"
+                      className="p-2 bg-surface border border-border text-muted hover:text-text hover:bg-bg/20 transition-all rounded-full"
                       title="Edit this record"
                     >
                       <Settings className="w-3 h-3" />
                     </button>
                     <button 
                       onClick={() => onViewImage(record)}
-                      className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full"
+                      className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full"
                       title="View the original image for this record"
                     >
                       View
@@ -148,7 +149,7 @@ const PlateFolder = React.memo(({
               ))
             ) : (
               <div className="py-8 text-center">
-                <p className="text-[10px] font-display font-bold uppercase tracking-widest opacity-20 italic">No records uploaded yet for this truck</p>
+                <p className="text-[10px] font-display font-bold uppercase tracking-widest text-muted/40 italic">No records uploaded yet for this truck</p>
               </div>
             )}
           </div>
@@ -189,13 +190,13 @@ const RecordsList = React.memo(({
 }) => {
   if (Object.keys(groupedRecords).length === 0) {
     return (
-      <div className="p-16 text-center border border-white/5 border-dashed rounded-3xl bg-white/[0.02] flex flex-col items-center gap-6">
+      <div className="p-16 text-center border border-border border-dashed rounded-3xl bg-surface/20 flex flex-col items-center gap-6">
         <div className="w-16 h-16 bg-purple-600/10 rounded-full flex items-center justify-center border border-purple-500/20">
-          <Save className="w-8 h-8 text-purple-500/40" />
+          <Save className="w-8 h-8 text-purple-600/40 dark:text-purple-500/40" />
         </div>
         <div className="max-w-xs">
-          <h3 className="font-display font-bold text-lg text-white mb-2">Fresh Start</h3>
-          <p className="text-[11px] font-display font-medium text-white/40 leading-relaxed uppercase tracking-widest">
+          <h3 className="font-display font-bold text-lg text-text mb-2">Fresh Start</h3>
+          <p className="text-[11px] font-display font-medium text-muted leading-relaxed uppercase tracking-widest">
             {isProcessing ? "Processing your uploads..." : "Your maintenance database is empty. Upload pictures of your logs to get started."}
           </p>
         </div>
@@ -623,7 +624,7 @@ export default function App() {
   const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
 
   const [user, setUser] = useState<User | null>(null);
-  const [viewMode, setViewMode] = useState<'log' | 'analytics' | 'audit'>('log');
+  const [viewMode, setViewMode] = useState<'log' | 'analytics' | 'audit' | 'battery'>('log');
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
@@ -785,6 +786,27 @@ export default function App() {
   };
 
   const [isFabOpen, setIsFabOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dtbase_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'dark';
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('dtbase_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
   const [fleetRegistry, setFleetRegistry] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('dtbase_fleet_registry');
@@ -1272,98 +1294,145 @@ export default function App() {
   };
 
   // Helper for AI extraction with robust retry logic
-  const performExtractionWithRetry = useCallback(async (
+  const processImageWithRetry = useCallback(async (
     base64: string, 
     fileName: string, 
     logId: string | number, // timestamp or fileName
     isBatch: boolean = true,
-    mode: 'fleet' | 'market' = 'fleet'
+    mode: 'fleet' | 'market' = 'fleet',
+    isAudit: boolean = false
   ): Promise<any> => {
-    const retries = 7;
+    const maxRetries = 10;
     let currentDelay = 5000;
     
-    for (let i = 0; i < retries; i++) {
+    for (let i = 0; i < maxRetries; i++) {
       try {
+        // Fast-path: Check if file already exists in database (Normal mode only)
+        if (supabase && user && mode === 'fleet' && !isAudit) {
+          const { data: existing } = await supabase
+            .from('maintenance_records')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('file_name', fileName)
+            .limit(1);
+          
+          if (existing && existing.length > 0) {
+            console.log(`[PROCESS] ${fileName} already exists. Skipping.`);
+            return { records: [], alreadyProcessed: true };
+          }
+        }
         const extractionPromise = mode === 'market' 
           ? extractMarketPrices(base64, 'image/jpeg')
           : extractMaintenanceData(base64, 'image/jpeg', fleetRegistry);
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("AI extraction timed out. The image might be too complex or the network is slow.")), 90000)
+          setTimeout(() => reject(new Error("AI extraction timed out.")), 120000)
         );
-        const result = await Promise.race([extractionPromise, timeoutPromise]);
+        const result = await Promise.race([extractionPromise, timeoutPromise]) as any;
         setUsageStats(prev => ({ ...prev, extractions: prev.extractions + 1 }));
+
+        // Step 3: Database Writes (if not in Audit Mode)
+        if (!isAudit && supabase && user) {
+          if (mode === 'market') {
+            if (result.items && result.items.length > 0) {
+              for (const item of result.items) {
+                const { error: marketError } = await supabase
+                  .from('market_prices')
+                  .upsert({
+                    item_name: item.item_name,
+                    price: item.price,
+                    currency: item.currency,
+                    confirmed_by: i > 0 ? `AI Scan (Retry ${i})` : 'AI Scan',
+                    last_updated: new Date().toISOString(),
+                    user_id: user.id
+                  }, { onConflict: 'item_name,user_id' });
+                
+                if (marketError) throw marketError;
+                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+              }
+            }
+          } else {
+            if (result.records && result.records.length > 0) {
+              for (const record of result.records) {
+                const { data: recordData, error: recordError } = await supabase
+                  .from('maintenance_records')
+                  .insert({
+                    plate_number: record.plate_number,
+                    service_date: record.service_date,
+                    service_description: record.service_description,
+                    confidence: record.confidence,
+                    user_id: user.id,
+                    file_name: fileName,
+                    created_at: new Date().toISOString(),
+                    verified: false
+                  })
+                  .select()
+                  .single();
+
+                if (recordError) throw recordError;
+                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+
+                if (recordData) {
+                  const { error: imageError } = await supabase
+                    .from('maintenance_record_images')
+                    .insert({
+                      record_id: recordData.id,
+                      image_data: base64,
+                      user_id: user.id,
+                      created_at: new Date().toISOString()
+                    });
+                  
+                  if (imageError) throw imageError;
+                  setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+                }
+              }
+            }
+          }
+        }
+
         return result;
       } catch (err: any) {
-        const errorMessage = err.message?.toLowerCase() || "";
-        
-        // Distinguish between transient rate limits (429) and hard quota limits
-        const isRateLimit = (errorMessage.includes("429") || 
-                           errorMessage.includes("resource_exhausted") ||
-                           errorMessage.includes("rate limit") ||
-                           errorMessage.includes("quota_exceeded") ||
-                           errorMessage.includes("ai_rate_limit_exceeded")) &&
-                           !errorMessage.includes("billing details") &&
-                           !errorMessage.includes("plan");
-        
-        // Only treat as a hard daily quota if it explicitly says "daily limit reached",
-        // or mentions billing/plan/quota exhaustion that isn't just a transient rate limit.
-        const isDailyQuota = errorMessage.includes("ai_daily_quota_exceeded") || 
-                            errorMessage.includes("billing details") || 
-                            errorMessage.includes("current quota") ||
-                            errorMessage.includes("plan") ||
-                            errorMessage.includes("quota exceeded");
-        
-        const isServerError = errorMessage.includes("500") || 
-                             errorMessage.includes("internal error") || 
-                             errorMessage.includes("xhr error") || 
-                             errorMessage.includes("rpc failed") ||
-                             errorMessage.includes("error code: 6") ||
-                             errorMessage.includes("overloaded") ||
-                             errorMessage.includes("proxy error") ||
-                             errorMessage.includes("high demand") ||
-                             errorMessage.includes("failed to fetch") ||
-                             errorMessage.includes("connection error") ||
-                             errorMessage.includes("load failed");
- 
-        const isTimeout = errorMessage.includes("timed out");
-
-        // If it's a hard daily quota error, don't retry
-        if (isDailyQuota) {
+        const errorMessage = getAIErrorMessage(err).toLowerCase();
+        if (errorMessage.includes("quota exceeded") || errorMessage.includes("billing details")) {
           throw new Error("DAILY_QUOTA_EXCEEDED");
         }
 
-        // Retry on rate limit, server error, or timeout
-        // Increased retries to 10 for transient errors to be more resilient
-        const maxRetries = 10;
-        if ((isRateLimit || isServerError || isTimeout) && i < maxRetries - 1) {
-          const reason = isRateLimit ? "Rate limit" : isServerError ? "Network/Server error" : "Timeout";
+        const isTransient = 
+          errorMessage.includes("429") || 
+          errorMessage.includes("rate limit") ||
+          errorMessage.includes("500") ||
+          errorMessage.includes("internal error") ||
+          errorMessage.includes("failed to fetch") ||
+          errorMessage.includes("connection error") ||
+          errorMessage.includes("load failed") ||
+          errorMessage.includes("timed out") ||
+          errorMessage.includes("xhr error") ||
+          errorMessage.includes("rpc failed") ||
+          errorMessage.includes("proxyunarycall") ||
+          errorMessage.includes("makersuiteservice") ||
+          errorMessage.includes("error code: 6") ||
+          errorMessage.includes("overloaded") ||
+          errorMessage.includes("high demand") ||
+          errorMessage.includes("retry");
+
+        if (isTransient && i < maxRetries - 1) {
+          const reason = errorMessage.includes("429") ? "Rate limit" : "Network error";
+          const retryDelay = errorMessage.includes("429") ? currentDelay * 2.5 : currentDelay;
           
-          // For rate limits, use a longer initial delay and more aggressive backoff
-          const retryDelay = isRateLimit ? currentDelay * 2.5 : currentDelay;
-          
-          console.warn(`[AI] ${reason} hit for ${fileName}, retrying in ${retryDelay}ms... (Attempt ${i + 1}/${maxRetries})`);
-          
-          // Update log to show retry status
           setUploadLog(prev => prev.map(entry => {
             const match = isBatch ? entry.fileName === fileName : entry.timestamp === logId;
             return match && entry.status === 'processing' 
-              ? { ...entry, error: `${reason} hit, retrying in ${Math.round(retryDelay/1000)}s... (Attempt ${i + 1}/${maxRetries})` } 
+              ? { ...entry, error: `${reason}, retrying... (${i + 1}/${maxRetries})` } 
               : entry;
           }));
 
           await new Promise(r => setTimeout(r, retryDelay));
-          currentDelay = retryDelay * 1.5; // Exponential backoff
+          currentDelay = retryDelay * 1.5;
           continue;
-        }
-
-        // If we exhausted all retries for a rate limit, it's effectively a daily quota exceeded
-        if (isRateLimit) {
-          throw new Error("DAILY_QUOTA_EXCEEDED");
         }
         throw err;
       }
     }
-  }, []);
+  }, [user, supabase, fleetRegistry]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, mode: 'fleet' | 'market' = 'fleet') => {
     if (!supabase) {
@@ -1463,7 +1532,19 @@ export default function App() {
         try {
           if (!entry.imageData) throw new Error("Image data missing for queued item.");
 
-          const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode);
+          const result = await processImageWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode, isAuditMode);
+          
+          if (result.alreadyProcessed) {
+            setNotification({
+              message: `${entry.fileName} was already processed successfully.`,
+              type: 'success'
+            });
+            setUploadLog(prev => prev.map(e => 
+              e.timestamp === entry.timestamp ? { ...e, status: 'success' } : e
+            ));
+            localCompletedCount++;
+            continue;
+          }
           
           if (shouldStopRef.current) {
             setUploadLog(prev => prev.map(e => 
@@ -1472,42 +1553,8 @@ export default function App() {
             break;
           }
 
-          if (entry.mode === 'market') {
-            if (!result || !result.items || result.items.length === 0) {
-              throw new Error("No readable market prices found in this image.");
-            }
-            
-            // Save market prices to database
-            for (const item of result.items) {
-              if (shouldStopRef.current) break;
-              
-              const { error: marketError } = await supabase
-                .from('market_prices')
-                .insert({
-                  item_name: item.item_name,
-                  price: item.price,
-                  currency: item.currency,
-                  confirmed_by: 'AI Scan',
-                  last_updated: new Date().toISOString(),
-                  user_id: user.id
-                });
-
-              if (marketError) {
-                console.error("Market save error:", marketError);
-                // Don't throw here to allow other items to save, but log it
-              }
-            }
-            
-            // Refresh market prices
-            const { data: updatedPrices } = await supabase
-              .from('market_prices')
-              .select('*')
-              .eq('user_id', user.id)
-              .order('last_updated', { ascending: false });
-            if (updatedPrices) setMarketPrices(updatedPrices);
-
-          } else {
-            // Fleet Maintenance Mode (handles both Normal and Audit/Confirm Duplicates)
+          if (isAuditMode && entry.mode === 'fleet') {
+            // Fleet Maintenance Audit Mode
             if (!result || !result.records || result.records.length === 0) {
               throw new Error("No readable records found in this image.");
             }
@@ -1517,102 +1564,35 @@ export default function App() {
             const getSimilarityScore = (s1: string, s2: string) => {
               const str1 = normalize(s1);
               const str2 = normalize(s2);
-              if (str1 === str2) return { score: 1.0, commonCount: 100 }; // Exact match is always 100%
+              if (str1 === str2) return { score: 1.0, commonCount: 100 };
               if (!str1 || !str2) return { score: 0, commonCount: 0 };
-              
               const words1 = str1.split(/\s+/).filter(w => w.length > 2);
               const words2 = str2.split(/\s+/).filter(w => w.length > 2);
-              
-              if (words1.length === 0 || words2.length === 0) {
-                return (str1.includes(str2) || str2.includes(str1)) ? { score: 0.8, commonCount: 1 } : { score: 0, commonCount: 0 };
-              }
-
+              if (words1.length === 0 || words2.length === 0) return { score: 0, commonCount: 0 };
               const commonWords = words1.filter(w => words2.includes(w));
-              const score = commonWords.length / Math.max(words1.length, words2.length);
-              return { score, commonCount: commonWords.length };
+              return { score: commonWords.length / Math.max(words1.length, words2.length), commonCount: commonWords.length };
             };
 
             for (const record of result.records) {
-              if (shouldStopRef.current) break;
+              const normExtractedDate = normalizeDate(record.service_date);
+              const normExtractedPlate = normalizePlate(record.plate_number);
+              
+              const match = records.find(r => {
+                const platesMatch = normalizePlate(r.plate_number) === normExtractedPlate;
+                const datesMatch = normalizeDate(r.service_date) === normExtractedDate;
+                const similarity = getSimilarityScore(r.service_description, record.service_description);
+                return platesMatch && datesMatch && (similarity.commonCount >= 5 || normalize(r.service_description) === normalize(record.service_description));
+              });
 
-              let isDuplicate = false;
-              let isPotential = false;
-              let matchId: string | undefined;
-
-              if (isAuditMode) {
-                const normExtractedDate = normalizeDate(record.service_date);
-                const normExtractedPlate = normalizePlate(record.plate_number);
-                
-                // Match against existing database records
-                const match = records.find(r => {
-                  const platesMatch = normalizePlate(r.plate_number) === normExtractedPlate;
-                  const datesMatch = normalizeDate(r.service_date) === normExtractedDate;
-                  const similarity = getSimilarityScore(r.service_description, record.service_description);
-                  
-                  // Rule: Plate + Date + 5 keywords (or exact match)
-                  const descMatch = similarity.commonCount >= 5 || normalize(r.service_description) === normalize(record.service_description);
-                  
-                  return platesMatch && datesMatch && descMatch;
-                });
-
-                if (match) {
-                  isDuplicate = true;
-                  matchId = match.id;
-                }
-
-                // Check for potential matches only if not a duplicate
-                // Rule: If plate & date match, but no 5 keywords similarity
-                isPotential = !isDuplicate && !!records.find(r => 
-                  normalizePlate(r.plate_number) === normExtractedPlate && 
-                  normalizeDate(r.service_date) === normExtractedDate
-                );
-                
-                setAuditResults(prev => [{
-                  fileName: entry.fileName,
-                  plate: record.plate_number,
-                  date: record.service_date,
-                  service: record.service_description,
-                  isDuplicate: isDuplicate,
-                  isPotential: isPotential,
-                  matchId
-                }, ...prev]);
-              }
-
-              // In Audit Mode, we skip saving both exact AND potential duplicates to prevent conflicts
-              if (isAuditMode && (isDuplicate || isPotential)) continue; 
-
-              // Save to database
-              const { data: recordData, error: recordError } = await supabase
-                .from('maintenance_records')
-                .insert({
-                  plate_number: record.plate_number,
-                  service_date: record.service_date,
-                  service_description: record.service_description,
-                  confidence: record.confidence,
-                  user_id: user.id,
-                  file_name: entry.fileName,
-                  created_at: new Date().toISOString(),
-                  verified: false
-                })
-                .select()
-                .single();
-
-              if (recordError) throw recordError;
-              setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-
-              if (recordData) {
-                const { error: imageError } = await supabase
-                  .from('maintenance_record_images')
-                  .insert({
-                    record_id: recordData.id,
-                    image_data: entry.imageData,
-                    user_id: user.id,
-                    created_at: new Date().toISOString()
-                  });
-                
-                if (imageError) throw imageError;
-                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-              }
+              setAuditResults(prev => [{
+                fileName: entry.fileName,
+                plate: record.plate_number,
+                date: record.service_date,
+                service: record.service_description,
+                isDuplicate: !!match,
+                isPotential: !match && !!records.find(r => normalizePlate(r.plate_number) === normExtractedPlate && normalizeDate(r.service_date) === normExtractedDate),
+                matchId: match?.id
+              }, ...prev]);
             }
           }
           
@@ -1720,7 +1700,7 @@ export default function App() {
       setIsStopping(false);
       shouldStopRef.current = false;
     }
-  }, [user, supabase, uploadLog, isProcessing, fetchRecords, performExtractionWithRetry, records, isAuditMode, isServiceUnlocked]);
+  }, [user, supabase, uploadLog, isProcessing, fetchRecords, processImageWithRetry, records, isAuditMode, isServiceUnlocked]);
 
   const stopBatchProcessing = useCallback(() => {
     setIsStopping(true);
@@ -1741,129 +1721,67 @@ export default function App() {
         type: 'info'
       });
 
-      const result = await performExtractionWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode);
+      const result = await processImageWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode, entry.isAudit);
 
-      if (entry.mode === 'market') {
-        if (!result || !result.items || result.items.length === 0) {
-          throw new Error("No readable market prices found in this image.");
-        }
-        
-        if (!entry.isAudit) {
-          for (const item of result.items) {
-            const { error: marketError } = await supabase
-              .from('market_prices')
-              .insert({
-                item_name: item.item_name,
-                price: item.price,
-                currency: item.currency,
-                confirmed_by: 'AI Scan (Retry)',
-                last_updated: new Date().toISOString(),
-                user_id: user.id
-              });
-            if (marketError) throw marketError;
-            setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-          }
+      if (result.alreadyProcessed) {
+        setNotification({
+          message: `${entry.fileName} was already processed successfully.`,
+          type: 'success'
+        });
+        setUploadLog(prev => prev.map(e => 
+          e.timestamp === entry.timestamp ? { ...e, status: 'success', error: undefined } : e
+        ));
+        fetchRecords();
+        return;
+      }
+
+      if (entry.isAudit && entry.mode === 'fleet') {
+        // Audit Mode: Check for duplicates instead of saving
+        const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
+        const normalizePlate = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
+        const getSimilarityScore = (s1: string, s2: string) => {
+          const str1 = normalize(s1);
+          const str2 = normalize(s2);
+          if (str1 === str2) return { score: 1.0, commonCount: 100 };
+          if (!str1 || !str2) return { score: 0, commonCount: 0 };
+          const words1 = str1.split(/\s+/).filter(w => w.length > 2);
+          const words2 = str2.split(/\s+/).filter(w => w.length > 2);
+          if (words1.length === 0 || words2.length === 0) return { score: 0, commonCount: 0 };
+          const commonWords = words1.filter(w => words2.includes(w));
+          return { score: commonWords.length / Math.max(words1.length, words2.length), commonCount: commonWords.length };
+        };
+
+        const newAuditResults: any[] = [];
+        for (const record of result.records) {
+          const normExtractedDate = normalizeDate(record.service_date);
+          const normExtractedPlate = normalizePlate(record.plate_number);
           
-          // Refresh market prices
-          const { data: updatedPrices } = await supabase
-            .from('market_prices')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('last_updated', { ascending: false });
-          if (updatedPrices) setMarketPrices(updatedPrices);
+          const match = records.find(r => {
+            const platesMatch = normalizePlate(r.plate_number) === normExtractedPlate;
+            const datesMatch = normalizeDate(r.service_date) === normExtractedDate;
+            const similarity = getSimilarityScore(r.service_description, record.service_description);
+            return platesMatch && datesMatch && (similarity.commonCount >= 5 || normalize(r.service_description) === normalize(record.service_description));
+          });
+
+          newAuditResults.push({
+            fileName: entry.fileName,
+            plate: record.plate_number,
+            date: record.service_date,
+            service: record.service_description,
+            isDuplicate: !!match,
+            isPotential: !match && !!records.find(r => normalizePlate(r.plate_number) === normExtractedPlate && normalizeDate(r.service_date) === normExtractedDate),
+            matchId: match?.id
+          });
         }
-
-      } else {
-        if (!result || !result.records || result.records.length === 0) {
-          throw new Error("No readable records found in this image.");
-        }
-
-        if (entry.isAudit) {
-          // Audit Mode: Check for duplicates instead of saving
-          const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
-          const normalizePlate = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
-          const getSimilarityScore = (s1: string, s2: string) => {
-            const str1 = normalize(s1);
-            const str2 = normalize(s2);
-            if (str1 === str2) return { score: 1.0, commonCount: 100 };
-            if (!str1 || !str2) return { score: 0, commonCount: 0 };
-            
-            const words1 = str1.split(/\s+/).filter(w => w.length > 2);
-            const words2 = str2.split(/\s+/).filter(w => w.length > 2);
-            
-            if (words1.length === 0 || words2.length === 0) {
-              return (str1.includes(str2) || str2.includes(str1)) ? { score: 0.8, commonCount: 1 } : { score: 0, commonCount: 0 };
-            }
-
-            const commonWords = words1.filter(w => words2.includes(w));
-            const score = commonWords.length / Math.max(words1.length, words2.length);
-            return { score, commonCount: commonWords.length };
-          };
-
-          const newAuditResults: any[] = [];
-          for (const record of result.records) {
-            const normExtractedDate = normalizeDate(record.service_date);
-            const normExtractedPlate = normalizePlate(record.plate_number);
-            
-            const match = records.find(r => {
-              const platesMatch = normalizePlate(r.plate_number) === normExtractedPlate;
-              const datesMatch = normalizeDate(r.service_date) === normExtractedDate;
-              const similarity = getSimilarityScore(r.service_description, record.service_description);
-              const descMatch = similarity.commonCount >= 5 || normalize(r.service_description) === normalize(record.service_description);
-              return platesMatch && datesMatch && descMatch;
-            });
-
-            const potentialMatch = !match ? records.find(r => 
-              normalizePlate(r.plate_number) === normExtractedPlate && 
-              normalizeDate(r.service_date) === normExtractedDate
-            ) : null;
-
-            newAuditResults.push({
-              fileName: entry.fileName,
-              plate: record.plate_number,
-              date: record.service_date,
-              service: record.service_description,
-              isDuplicate: !!match,
-              isPotential: !!potentialMatch,
-              matchId: match?.id || potentialMatch?.id
-            });
-          }
-          setAuditResults(prev => [...newAuditResults, ...prev]);
-        } else {
-          // Normal Mode: Save to database
-          for (const record of result.records) {
-            const { data: recordData, error: recordError } = await supabase
-              .from('maintenance_records')
-              .insert({
-                plate_number: record.plate_number,
-                service_date: record.service_date,
-                service_description: record.service_description,
-                confidence: record.confidence,
-                user_id: user.id,
-                file_name: entry.fileName,
-                created_at: new Date().toISOString()
-              })
-              .select()
-              .single();
-
-            if (recordError) throw recordError;
-            setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-
-            if (recordData) {
-              const { error: imageError } = await supabase
-                .from('maintenance_record_images')
-                .insert({
-                  record_id: recordData.id,
-                  image_data: entry.imageData,
-                  user_id: user.id,
-                  created_at: new Date().toISOString()
-                });
-              
-              if (imageError) throw imageError;
-              setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-            }
-          }
-        }
+        setAuditResults(prev => [...newAuditResults, ...prev]);
+      } else if (entry.mode === 'market') {
+        // Refresh market prices
+        const { data: updatedPrices } = await supabase
+          .from('market_prices')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('last_updated', { ascending: false });
+        if (updatedPrices) setMarketPrices(updatedPrices);
       }
       
       // Success!
@@ -1880,38 +1798,18 @@ export default function App() {
 
     } catch (err: any) {
       console.error(`[RETRY] Failed: ${entry.fileName}`, err);
+      const errorMessage = getSupabaseErrorMessage(err);
       
-      if (err.message === "DAILY_QUOTA_EXCEEDED") {
-        const now = new Date();
-        const midnight = new Date();
-        midnight.setHours(24, 0, 0, 0);
-        const diffMs = midnight.getTime() - now.getTime();
-        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-        
-        const resetMsg = `Daily Quota Reached. Reset in ${diffHours}h ${diffMins}m (at Midnight).`;
-        setError(
-          <div className="flex flex-col gap-1">
-            <span>{resetMsg}</span>
-            <button 
-              onClick={handleSelectKey}
-              className="text-[10px] underline hover:text-white transition-colors text-left"
-            >
-              Switch to a different API key or a Paid plan to continue now
-            </button>
-          </div> as any
-        );
-        
-        setUploadLog(prev => prev.map(e => 
-          e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: "Daily limit reached. Try again after midnight." } : e
-        ));
-      } else {
-        setUploadLog(prev => prev.map(e => 
-          e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: getSupabaseErrorMessage(err) } : e
-        ));
-      }
+      setUploadLog(prev => prev.map(e => 
+        e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: errorMessage } : e
+      ));
+
+      setNotification({
+        message: `Retry failed: ${errorMessage}`,
+        type: 'warning'
+      });
     }
-  }, [user, fetchRecords]);
+  }, [supabase, user, processImageWithRetry, records, fetchRecords]);
 
   const handleManualAdd = async (dataOverride?: any) => {
     const dataToUse = dataOverride || manualEntryData;
@@ -2533,10 +2431,10 @@ export default function App() {
 
   if (!isAuthReady || hasApiKey === null) {
     return (
-      <div className="min-h-screen bg-[#050b1a] flex items-center justify-center">
+      <div className="min-h-screen bg-bg flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40">Initialising DT.Base...</span>
+          <Loader2 className="w-8 h-8 animate-spin text-accent" />
+          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted">Initialising DT.Base...</span>
         </div>
       </div>
     );
@@ -2544,13 +2442,13 @@ export default function App() {
 
   if (!isAppUnlocked) {
     return (
-      <div className="min-h-screen bg-[#050b1a] flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md p-8 text-center">
+      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl backdrop-blur-md p-8 text-center shadow-xl">
           <div className="w-16 h-16 bg-amber-500/20 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Key className="w-8 h-8 text-amber-400" />
+            <Key className="w-8 h-8 text-amber-500 dark:text-amber-400" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-white mb-4 tracking-tight uppercase">App Access Required</h1>
-          <p className="text-sm text-white/40 mb-8 leading-relaxed uppercase tracking-widest">
+          <h1 className="text-2xl font-display font-bold text-text mb-4 tracking-tight uppercase">App Access Required</h1>
+          <p className="text-sm text-muted mb-8 leading-relaxed uppercase tracking-widest">
             Please enter the access password to enter DT.Base.
           </p>
           <div className="space-y-4">
@@ -2562,19 +2460,19 @@ export default function App() {
                 onKeyDown={(e) => e.key === 'Enter' && handleAppUnlock()}
                 placeholder="Enter App Password"
                 className={cn(
-                  "w-full bg-black/40 border px-4 py-4 text-white font-mono text-center tracking-[0.5em] focus:outline-none transition-all rounded-xl",
-                  appPasswordError ? "border-red-500/50" : "border-white/10 focus:border-amber-500/50"
+                  "w-full bg-bg border px-4 py-4 text-text font-mono text-center tracking-[0.5em] focus:outline-none transition-all rounded-xl",
+                  appPasswordError ? "border-red-500/50" : "border-border focus:border-amber-500/50"
                 )}
               />
               {appPasswordError && (
-                <p className="text-[10px] text-red-400 font-display font-bold uppercase tracking-widest mt-2">
+                <p className="text-[10px] text-red-500 dark:text-red-400 font-display font-bold uppercase tracking-widest mt-2">
                   Incorrect Password
                 </p>
               )}
             </div>
             <button
               onClick={handleAppUnlock}
-              className="w-full py-4 px-6 bg-amber-500 hover:bg-amber-600 text-black font-display font-bold uppercase tracking-widest text-xs rounded-xl transition-all shadow-lg shadow-amber-900/20 active:scale-[0.98]"
+              className="w-full py-4 px-6 bg-amber-500 hover:bg-amber-600 text-white font-display font-bold uppercase tracking-widest text-xs rounded-xl transition-all shadow-lg shadow-amber-900/20 active:scale-[0.98]"
             >
               Enter App
             </button>
@@ -2586,13 +2484,13 @@ export default function App() {
 
   if (hasApiKey === false) {
     return (
-      <div className="min-h-screen bg-[#050b1a] flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl p-8 text-center">
+      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl backdrop-blur-xl p-8 text-center shadow-xl">
           <div className="w-16 h-16 bg-purple-600/20 border border-purple-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Zap className="w-8 h-8 text-purple-400" />
+            <Zap className="w-8 h-8 text-purple-600 dark:text-purple-400" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-white mb-4 tracking-tight uppercase">Paid Tier API Key Required</h1>
-          <p className="text-sm text-white/40 mb-8 leading-relaxed uppercase tracking-widest">
+          <h1 className="text-2xl font-display font-bold text-text mb-4 tracking-tight uppercase">Paid Tier API Key Required</h1>
+          <p className="text-sm text-muted mb-8 leading-relaxed uppercase tracking-widest">
             To use the AI features of DT.Base, you need to select a Gemini API key from a paid Google Cloud project.
           </p>
           <div className="space-y-4">
@@ -2623,7 +2521,7 @@ export default function App() {
 
   return (
     <div className={cn(
-      "min-h-screen bg-[#050b1a] text-white p-4 md:p-12 max-w-7xl mx-auto flex flex-col transition-all duration-700",
+      "min-h-screen bg-bg text-text p-4 md:p-12 max-w-7xl mx-auto flex flex-col transition-all duration-700",
       isAuditMode && "shadow-[inset_0_0_100px_rgba(6,182,212,0.05)] ring-1 ring-cyan-500/10"
     )}>
       {/* Audit Mode Banner */}
@@ -2669,15 +2567,24 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="relative mb-4 md:mb-6 border-b border-white/5 pb-4 glassmorphism p-4 rounded-3xl neon-border-violet">
-        {/* Settings Button - Moved to top right as requested */}
-        <button 
-          onClick={() => setShowSettingsModal(true)}
-          className="absolute top-4 right-4 p-2 bg-white/5 border border-white/10 hover:bg-white/10 transition-all rounded-full text-white/40 hover:text-white hover:neon-glow-violet z-10"
-          title="Open Settings"
-        >
-          <Settings className="w-4 h-4" />
-        </button>
+      <header className="relative mb-4 md:mb-6 border-b border-border pb-4 glassmorphism p-4 rounded-3xl neon-border-violet">
+        {/* Top Right Controls */}
+        <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+          <button 
+            onClick={toggleTheme}
+            className="p-2 bg-surface border border-border hover:bg-white/10 dark:hover:bg-white/10 transition-all rounded-full text-muted hover:text-text"
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-violet-600" />}
+          </button>
+          <button 
+            onClick={() => setShowSettingsModal(true)}
+            className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet"
+            title="Open Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -2720,12 +2627,12 @@ export default function App() {
           
           <div className="flex flex-wrap items-center gap-2">
             {/* View Switcher Tabs */}
-            <div className="flex items-center p-1 bg-white/5 border border-white/10 rounded-2xl mr-4">
+            <div className="flex items-center p-1 bg-surface border border-border rounded-2xl mr-4">
               <button 
                 onClick={() => setViewMode('log')}
                 className={cn(
                   "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
-                  viewMode === 'log' ? "bg-purple-600 text-white shadow-lg shadow-purple-900/20" : "text-white/40 hover:text-white/60"
+                  viewMode === 'log' ? "bg-purple-600 text-white shadow-lg shadow-purple-900/20" : "text-muted hover:text-text"
                 )}
               >
                 History
@@ -2734,7 +2641,7 @@ export default function App() {
                 onClick={() => setViewMode('analytics')}
                 className={cn(
                   "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
-                  viewMode === 'analytics' ? "bg-cyan-600 text-white shadow-lg shadow-cyan-900/20" : "text-white/40 hover:text-white/60"
+                  viewMode === 'analytics' ? "bg-cyan-600 text-white shadow-lg shadow-cyan-900/20" : "text-muted hover:text-text"
                 )}
               >
                 Insights
@@ -2743,11 +2650,21 @@ export default function App() {
                 onClick={() => setViewMode('audit')}
                 className={cn(
                   "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                  viewMode === 'audit' ? "bg-amber-600 text-white shadow-lg shadow-amber-900/20" : "text-white/40 hover:text-white/60"
+                  viewMode === 'audit' ? "bg-amber-600 text-white shadow-lg shadow-amber-900/20" : "text-muted hover:text-text"
                 )}
               >
                 {viewMode === 'audit' && <ClipboardCheck className="w-3 h-3" />}
                 Audit
+              </button>
+              <button 
+                onClick={() => setViewMode('battery')}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+                  viewMode === 'battery' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-muted hover:text-text"
+                )}
+              >
+                {viewMode === 'battery' && <Zap className="w-3 h-3" />}
+                INT
               </button>
             </div>
 
@@ -2829,7 +2746,7 @@ export default function App() {
                 </button>
               )}
             </div>
-            <div className="h-1 w-full bg-white/10 overflow-hidden rounded-full">
+            <div className="h-1 w-full bg-surface overflow-hidden rounded-full border border-border/50">
               <div 
                 className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]" 
                 style={{ width: `${(progress.current / progress.total) * 100}%` }}
@@ -2886,35 +2803,35 @@ export default function App() {
       {/* Auth Section */}
       {!user && (
         <div className="flex-1 flex items-center justify-center py-12">
-          <div className="w-full max-w-md p-8 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xl">
+          <div className="w-full max-w-md p-8 bg-surface border border-border rounded-3xl shadow-2xl backdrop-blur-xl">
             <div className="mb-8 text-center">
-              <h2 className="text-3xl font-display font-bold tracking-tight mb-2">
+              <h2 className="text-4xl font-display font-black tracking-tighter mb-2 text-text italic">
                 {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
               </h2>
-              <p className="text-sm text-white/40 uppercase tracking-widest">
+              <p className="text-[10px] text-muted uppercase tracking-[0.2em] font-display font-bold">
                 {authMode === 'login' ? 'Sign in to access your records' : 'Join DT.Base to start tracking'}
               </p>
             </div>
 
-            <form onSubmit={handleAuth} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-white/40 mb-2">Email Address</label>
+            <form onSubmit={handleAuth} className="space-y-6">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-display font-bold uppercase tracking-[0.3em] text-muted ml-1">Email Address</label>
                 <input 
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors text-white"
+                  className="w-full bg-bg border border-border rounded-xl px-4 py-4 text-sm font-medium focus:outline-none focus:border-purple-500 transition-all text-text"
                   placeholder="name@example.com"
                   required
                 />
               </div>
-              <div>
-                <label className="block text-[10px] font-display font-bold uppercase tracking-widest text-white/40 mb-2">Password</label>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-display font-bold uppercase tracking-[0.3em] text-muted ml-1">Password</label>
                 <input 
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors text-white"
+                  className="w-full bg-bg border border-border rounded-xl px-4 py-4 text-sm font-medium focus:outline-none focus:border-purple-500 transition-all text-text"
                   placeholder="••••••••"
                   required
                 />
@@ -2923,7 +2840,7 @@ export default function App() {
               <button 
                 type="submit"
                 disabled={isLoggingIn}
-                className="w-full py-4 bg-white text-black font-display font-bold uppercase tracking-widest text-xs rounded-lg hover:bg-gray-200 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-4 bg-purple-600 text-white font-display font-black uppercase tracking-[0.3em] text-[11px] rounded-xl hover:bg-purple-500 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 shadow-lg shadow-purple-900/20"
               >
                 {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
                 {authMode === 'login' ? 'Sign In' : 'Sign Up'}
@@ -2959,10 +2876,10 @@ export default function App() {
               )}>
                 <ChevronDown className="w-3 h-3 text-purple-400" />
               </div>
-              <h2 className="font-display font-bold uppercase tracking-[0.2em] text-xs text-white">Recent Upload Activity</h2>
-              <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 bg-white/5 rounded-full border border-white/10">
+              <h2 className="font-display font-bold uppercase tracking-[0.2em] text-xs text-text">Recent Upload Activity</h2>
+              <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 bg-surface rounded-full border border-border">
                 <div className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />
-                <span className="text-[8px] font-display font-bold uppercase tracking-widest text-white/40">Free Tier: ~1,500 requests/day</span>
+                <span className="text-[8px] font-display font-bold uppercase tracking-widest text-muted">Free Tier: ~1,500 requests/day</span>
               </div>
             </button>
             <div className="flex gap-4">
@@ -2989,7 +2906,7 @@ export default function App() {
             <>
               <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar animate-in fade-in duration-300">
                 {uploadLog.map((entry, i) => (
-              <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded group/log">
+              <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex items-center justify-between p-3 bg-surface border border-border rounded group/log">
                 <div className="flex items-center gap-3 overflow-hidden">
                   <div className={cn(
                     "w-2 h-2 rounded-full flex-shrink-0",
@@ -3603,21 +3520,37 @@ export default function App() {
               </h3>
             </div>
           </div>
-          <div className="flex gap-3">
-            <button 
-              onClick={() => toggleAll(true)}
-              className="text-[9px] font-display font-bold uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-purple-400 transition-all"
-              title="Expand all truck record groups"
-            >
-              Expand
-            </button>
-            <button 
-              onClick={() => toggleAll(false)}
-              className="text-[9px] font-display font-bold uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-purple-400 transition-all"
-              title="Collapse all truck record groups"
-            >
-              Collapse
-            </button>
+          <div className="flex items-center gap-6">
+            {user && (
+              <button 
+                onClick={fetchRecords}
+                disabled={isRefreshing}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 bg-surface/40 hover:bg-surface/60 border border-white/5 rounded-xl text-[9px] font-display font-bold text-text uppercase tracking-widest transition-all",
+                  isRefreshing && "opacity-50 cursor-not-allowed"
+                )}
+                title="Sync maintenance records from cloud"
+              >
+                <RefreshCw className={cn("w-3.5 h-3.5 text-purple-400", isRefreshing && "animate-spin")} />
+                {isRefreshing ? 'Syncing...' : 'Sync Data'}
+              </button>
+            )}
+            <div className="flex gap-3">
+              <button 
+                onClick={() => toggleAll(true)}
+                className="text-[9px] font-display font-bold uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-purple-400 transition-all"
+                title="Expand all truck record groups"
+              >
+                Expand
+              </button>
+              <button 
+                onClick={() => toggleAll(false)}
+                className="text-[9px] font-display font-bold uppercase tracking-[0.2em] opacity-30 hover:opacity-100 hover:text-purple-400 transition-all"
+                title="Collapse all truck record groups"
+              >
+                Collapse
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3748,7 +3681,7 @@ export default function App() {
                             </p>
                             <div className="space-y-2">
                               {items.map((item, i) => (
-                                <div key={i} className="flex gap-3 text-sm font-display leading-relaxed text-white/70 bg-white/[0.02] p-3 border border-white/5 rounded-xl">
+                        <div key={i} className="flex gap-3 text-sm font-display leading-relaxed text-text bg-surface p-3 border border-border rounded-xl">
                                   <div className="mt-1.5 w-1 h-1 rounded-full bg-purple-500 shrink-0" />
                                   <div className="whitespace-pre-line">{item}</div>
                                 </div>
@@ -3799,7 +3732,7 @@ export default function App() {
                     alert("Report copied to clipboard!");
                   }
                 }}
-                className="flex items-center gap-2 px-6 py-3 bg-white text-black hover:bg-gray-200 transition-all active:scale-95 rounded-xl"
+                className="flex items-center gap-2 px-6 py-3 bg-text text-bg hover:opacity-90 transition-all active:scale-95 rounded-xl font-display font-black uppercase tracking-widest text-[10px]"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em]">Share Report</span>
@@ -4057,42 +3990,6 @@ export default function App() {
                           "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
                           showHistory ? "right-0.5 bg-violet-400" : "left-0.5 bg-white/20"
                         )} />
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => {
-                        const modes: ('log' | 'analytics' | 'audit')[] = ['log', 'analytics', 'audit'];
-                        const currentIndex = modes.indexOf(viewMode);
-                        const nextMode = modes[(currentIndex + 1) % modes.length];
-                        setViewMode(nextMode);
-                        if (nextMode !== 'log') setShowSettingsModal(false);
-                      }}
-                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "p-2.5 rounded-xl border group-hover:bg-opacity-20 transition-all",
-                          (viewMode as any) === 'analytics' ? "bg-cyan-500/10 border-cyan-500/20" :
-                          (viewMode as any) === 'audit' ? "bg-amber-500/10 border-amber-500/20" :
-                          "bg-white/5 border-white/10"
-                        )}>
-                          {(viewMode as any) === 'audit' ? (
-                            <ClipboardCheck className={cn("w-4 h-4", (viewMode as any) === 'audit' ? "text-amber-400" : "text-white/20")} />
-                          ) : (
-                            <BarChartIcon className={cn("w-4 h-4", (viewMode as any) === 'analytics' ? "text-cyan-400" : "text-white/20")} />
-                          )}
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">View Mode Toggle</span>
-                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">
-                            Current: {viewMode.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-2 py-1 bg-white/5 rounded-lg border border-white/10">
-                         <span className="text-[8px] font-display font-bold text-white/40 uppercase tracking-widest">Switch</span>
-                         <ArrowRight className="w-2.5 h-2.5 text-white/20" />
                       </div>
                     </button>
 
@@ -4573,7 +4470,16 @@ export default function App() {
       )}
         </>
       ) : viewMode === 'analytics' ? (
-        <Analytics records={filteredRecords} fleetRegistry={fleetRegistry} />
+        <Analytics 
+          records={filteredRecords} 
+          fleetRegistry={fleetRegistry} 
+          onRefresh={fetchRecords}
+          isRefreshing={isRefreshing}
+        />
+      ) : viewMode === 'battery' ? (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+          <BatteryIntelligence records={records} fleetRegistry={fleetRegistry} />
+        </div>
       ) : (
         <FleetAuditReport 
           records={records} 
@@ -4582,6 +4488,8 @@ export default function App() {
             setSearchQuery(plate);
             setViewMode('log');
           }}
+          onRefresh={fetchRecords}
+          isRefreshing={isRefreshing}
         />
       )}
 
@@ -4619,6 +4527,7 @@ export default function App() {
           isLocked={!isServiceUnlocked}
           onUnlockRequest={() => setShowServicePasswordPrompt(true)}
           viewMode={viewMode}
+          theme={theme}
         />
       )}
       
@@ -4634,7 +4543,7 @@ export default function App() {
             title="Scroll to top"
           >
             <ChevronUp className="w-6 h-6 group-hover:-translate-y-0.5 transition-transform" />
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md px-2 py-1 rounded text-[8px] font-display font-bold uppercase tracking-widest text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap border border-white/10">
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-bg border border-border backdrop-blur-md px-2 py-1 rounded text-[8px] font-display font-bold uppercase tracking-widest text-text opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
               Go Up
             </div>
           </motion.button>
@@ -4665,11 +4574,11 @@ export default function App() {
                   });
                   setIsFabOpen(false);
                 }}
-                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-violet transition-all group"
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border hover:neon-border-violet transition-all group"
               >
-                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-violet-400 transition-colors">Manual Entry</span>
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-violet-500 dark:group-hover:text-violet-400 transition-colors">Manual Entry</span>
                 <div className="p-2 bg-violet-500/20 rounded-xl border border-violet-500/30">
-                  <Plus className="w-4 h-4 text-violet-400" />
+                  <Plus className="w-4 h-4 text-violet-600 dark:text-violet-400" />
                 </div>
               </motion.button>
 
@@ -4678,13 +4587,13 @@ export default function App() {
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 transition-all group cursor-pointer",
+                  "flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border transition-all group cursor-pointer",
                   isAuditMode ? "hover:neon-border-cyan border-cyan-500/30" : "hover:neon-border-cyan"
                 )}
               >
                 <span className={cn(
                   "text-[10px] font-display font-bold uppercase tracking-[0.2em] transition-colors",
-                  isAuditMode ? "text-cyan-400" : "text-white/40 group-hover:text-cyan-400"
+                  isAuditMode ? "text-cyan-600 dark:text-cyan-400" : "text-muted group-hover:text-cyan-600 dark:group-hover:text-cyan-400"
                 )}>
                   {isAuditMode ? "Audit Fleet Scan" : "Fleet Gallery Scan"}
                 </span>
@@ -4692,7 +4601,7 @@ export default function App() {
                   "p-2 rounded-xl border transition-all",
                   isAuditMode ? "bg-cyan-500/40 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.4)]" : "bg-cyan-500/20 border-cyan-500/30"
                 )}>
-                  {isAuditMode ? <Eye className="w-4 h-4 text-white" /> : <Save className="w-4 h-4 text-cyan-400" />}
+                  {isAuditMode ? <Eye className="w-4 h-4 text-white" /> : <Save className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />}
                 </div>
                 <input 
                   type="file" 
@@ -4711,11 +4620,11 @@ export default function App() {
               <motion.label
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-cyan transition-all group cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border hover:neon-border-cyan transition-all group cursor-pointer"
               >
-                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-cyan-400 transition-colors">Fleet Camera Scan</span>
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">Fleet Camera Scan</span>
                 <div className="p-2 bg-cyan-500/20 rounded-xl border border-cyan-500/30">
-                  <Camera className="w-4 h-4 text-cyan-400" />
+                  <Camera className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                 </div>
                 <input 
                   type="file" 
@@ -4730,17 +4639,17 @@ export default function App() {
                 />
               </motion.label>
 
-              <div className="h-px bg-white/5 mx-4 my-1" />
+              <div className="h-px bg-border mx-4 my-1" />
 
               {/* Market Price Scan (Gallery) */}
               <motion.label
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-amber transition-all group cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border hover:neon-border-amber transition-all group cursor-pointer"
               >
-                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-amber-400 transition-colors">Market Gallery Scan</span>
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Market Gallery Scan</span>
                 <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-500/30">
-                  <Tag className="w-4 h-4 text-amber-400" />
+                  <Tag className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <input 
                   type="file" 
@@ -4759,11 +4668,11 @@ export default function App() {
               <motion.label
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 px-4 py-3 bg-zinc-900/90 backdrop-blur-md text-white rounded-2xl shadow-xl border border-white/10 hover:neon-border-amber transition-all group cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border hover:neon-border-amber transition-all group cursor-pointer"
               >
-                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/40 group-hover:text-amber-400 transition-colors">Market Camera Scan</span>
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Market Camera Scan</span>
                 <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-500/30">
-                  <Camera className="w-4 h-4 text-amber-400" />
+                  <Camera className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <input 
                   type="file" 
@@ -4794,7 +4703,7 @@ export default function App() {
           }}
           className={cn(
             "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.4)] transition-all border relative overflow-hidden group",
-            isFabOpen ? "bg-zinc-800 text-white border-white/20" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50",
+            isFabOpen ? "bg-bg text-text border-border" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50",
             isAuditMode && !isFabOpen && "shadow-[0_0_40px_rgba(6,182,212,0.6)] border-cyan-400 ring-2 ring-cyan-400/20"
           )}
         >
@@ -4830,8 +4739,8 @@ export default function App() {
           
           {/* Tooltip on hover (Desktop) */}
           {!isFabOpen && (
-            <div className="absolute right-full mr-4 px-3 py-1.5 bg-zinc-900 border border-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-              <span className="text-[10px] font-display font-bold uppercase tracking-widest text-white/60">Add to Fleet</span>
+            <div className="absolute right-full mr-4 px-3 py-1.5 bg-bg border border-border rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+              <span className="text-[10px] font-display font-bold uppercase tracking-widest text-muted">Add to Fleet</span>
             </div>
           )}
         </motion.button>
@@ -4840,7 +4749,7 @@ export default function App() {
       {/* Service Password Modal */}
       <AnimatePresence>
         {showServicePasswordPrompt && (
-          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-bg/95 backdrop-blur-md overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -4853,7 +4762,7 @@ export default function App() {
                   setServicePasswordInput('');
                   setServicePasswordError(false);
                 }}
-                className="absolute top-4 right-4 p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white z-10"
+                className="absolute top-4 right-4 p-2 bg-surface border border-border hover:bg-surface/80 rounded-full transition-all text-muted hover:text-text z-10"
                 title="Close Unlock Modal"
               >
                 <X className="w-5 h-5" />
@@ -4861,17 +4770,17 @@ export default function App() {
 
               <div className="text-center mb-8">
                 <div className="w-16 h-16 bg-violet-500/10 border border-violet-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-[0_0_15px_rgba(160,32,240,0.3)]">
-                  <Key className="w-8 h-8 text-violet-400" />
+                  <Key className="w-8 h-8 text-violet-600 dark:text-violet-400" />
                 </div>
-                <h3 className="text-xl font-display font-bold text-white uppercase tracking-wider mb-2">Unlock Services</h3>
-                <p className="text-xs text-violet-400/60 font-mono uppercase tracking-widest">
+                <h3 className="text-xl font-display font-bold text-text uppercase tracking-wider mb-2">Unlock Services</h3>
+                <p className="text-xs text-violet-500/60 dark:text-violet-400/60 font-mono uppercase tracking-widest">
                   Enter the master password to continue using AI and advanced features.
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-display font-bold text-violet-400/40 uppercase tracking-widest ml-1">Password</label>
+                  <label className="text-[10px] font-display font-bold text-violet-500/40 dark:text-violet-400/40 uppercase tracking-widest ml-1">Password</label>
                   <input 
                     type="password"
                     value={servicePasswordInput}
@@ -4881,14 +4790,14 @@ export default function App() {
                     }}
                     onKeyDown={(e) => e.key === 'Enter' && handleUnlockService()}
                     className={cn(
-                      "w-full bg-black/40 border p-4 rounded-xl text-white font-mono focus:outline-none transition-all",
+                      "w-full bg-bg/40 border p-4 rounded-xl text-text font-mono focus:outline-none transition-all",
                       servicePasswordError ? "border-red-500" : "neon-border-violet"
                     )}
                     placeholder="••••••••"
                     autoFocus
                   />
                   {servicePasswordError && (
-                    <p className="text-[10px] text-red-400 font-display font-bold uppercase tracking-widest text-center mt-2">
+                    <p className="text-[10px] text-red-500 dark:text-red-400 font-display font-bold uppercase tracking-widest text-center mt-2">
                       Incorrect Password
                     </p>
                   )}
@@ -4901,20 +4810,20 @@ export default function App() {
                   Unlock Now
                 </button>
 
-                <div className="pt-4 border-t border-white/5 flex flex-col gap-2">
+                <div className="pt-4 border-t border-border flex flex-col gap-2">
                   <div className="flex justify-between text-[9px] font-mono uppercase tracking-tighter">
-                    <span className="text-white/30">Uploads:</span>
-                    <span className="text-red-400">Locked</span>
+                    <span className="text-muted">Uploads:</span>
+                    <span className="text-red-500 dark:text-red-400">Locked</span>
                   </div>
                   <div className="flex justify-between text-[9px] font-mono uppercase tracking-tighter">
-                    <span className="text-white/30">Searches:</span>
-                    <span className={cn(usageStats.searches >= 15 ? "text-red-400" : "text-white/60")}>
+                    <span className="text-muted">Searches:</span>
+                    <span className={cn(usageStats.searches >= 15 ? "text-red-500 dark:text-red-400" : "text-muted")}>
                       {usageStats.searches} / 15
                     </span>
                   </div>
                   <div className="flex justify-between text-[9px] font-mono uppercase tracking-tighter">
-                    <span className="text-white/30">AI Access:</span>
-                    <span className="text-red-400">Locked</span>
+                    <span className="text-muted">AI Access:</span>
+                    <span className="text-red-500 dark:text-red-400">Locked</span>
                   </div>
                 </div>
               </div>

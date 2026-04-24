@@ -64,71 +64,71 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 md:p-8 overflow-y-auto">
-      <div className="w-full max-w-5xl bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden min-h-[80vh]">
+    <div className="fixed inset-0 z-[100] bg-bg/90 backdrop-blur-xl flex items-center justify-center p-4 md:p-8 overflow-y-auto">
+      <div className="w-full max-w-5xl bg-bg border border-border rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden min-h-[80vh]">
         
         {/* Left Side: Editor */}
-        <div className="flex-1 p-6 md:p-8 border-b md:border-b-0 md:border-r border-white/10 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 p-6 md:p-8 border-b md:border-b-0 md:border-r border-border overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center shadow-lg shadow-purple-900/20">
                 <Calculator className="w-6 h-6 text-white" />
               </div>
-              <h2 className="font-display font-bold text-xl text-white uppercase tracking-wider">Quotation Builder</h2>
+              <h2 className="font-display font-bold text-xl text-text uppercase tracking-wider">Quotation Builder</h2>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors text-white/40 hover:text-white">
+            <button onClick={onClose} className="p-2 hover:bg-surface rounded-full transition-colors text-muted hover:text-text">
               <X className="w-6 h-6" />
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-white/40 ml-2">Truck Plate</label>
+              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Truck Plate</label>
               <div className="relative">
-                <Truck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                <Truck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
                   type="text" 
                   value={plateNumber}
                   onChange={(e) => setPlateNumber(e.target.value)}
                   placeholder="E.G. KCN 851 S"
-                  className="w-full bg-white/5 border border-white/10 p-3 pl-12 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-white/40 ml-2">Client Name</label>
+              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Client Name</label>
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
                   type="text" 
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="Customer name..."
-                  className="w-full bg-white/5 border border-white/10 p-3 pl-12 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-white/40 ml-2">Date</label>
+              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Date</label>
               <div className="relative">
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
                   type="date" 
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 p-3 pl-12 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-white/40 ml-2">Quote #</label>
+              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Quote #</label>
               <div className="relative">
-                <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
                   type="text" 
                   value={quoteNumber}
                   onChange={(e) => setQuoteNumber(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 p-3 pl-12 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
                 />
               </div>
             </div>
@@ -136,7 +136,7 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
 
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-display font-bold text-white uppercase tracking-[0.2em]">Line Items</h3>
+              <h3 className="text-xs font-display font-bold text-text uppercase tracking-[0.2em]">Line Items</h3>
               <div className="flex gap-2">
                 <button 
                   onClick={() => addItem('part')}
@@ -206,11 +206,11 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
         </div>
 
         {/* Right Side: Preview */}
-        <div className="w-full md:w-[400px] bg-zinc-950 p-6 md:p-8 flex flex-col print:hidden">
+        <div className="w-full md:w-[400px] bg-surface p-6 md:p-8 flex flex-col print:hidden">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-8">
               <FileText className="w-4 h-4 text-purple-500" />
-              <h3 className="text-xs font-display font-bold text-white uppercase tracking-[0.3em]">Live Preview</h3>
+              <h3 className="text-xs font-display font-bold text-text uppercase tracking-[0.3em]">Live Preview</h3>
             </div>
 
             <div className="bg-white p-6 rounded-lg shadow-2xl text-zinc-900 aspect-[1/1.414] flex flex-col">

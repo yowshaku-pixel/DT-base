@@ -5,6 +5,7 @@ export interface AuditCategory {
   id: string;
   label: string;
   warningMonths: number;
+  criticalMonths?: number;
   match: (s: string) => boolean;
   color: string;
 }
@@ -112,17 +113,79 @@ export const AUDIT_CATEGORIES: AuditCategory[] = [
       return items.some(item => /tierod\s*(big|long|control)/i.test(item) || /control\s*tierod/i.test(item) || /rod\s*control/i.test(item));
     },
     color: 'pink'
+  },
+  { 
+    id: 'battery', 
+    label: 'Battery (New)', 
+    warningMonths: 12, // Yellow after 1 year
+    criticalMonths: 18, // Red after 18 months
+    match: (s: string) => {
+      const items = s.toLowerCase().split(/[ivx\d]+\)|[\n;]|\.\s+/);
+      return items.some(item => {
+        const hasBattery = /battery|batt/i.test(item);
+        const hasNew = /new|replacement|replaced/i.test(item);
+        const hasBrand = /k-vanity|white|kvanity/i.test(item);
+        const hasSerial = /[A-Z]+\d{4,}/.test(item); // Simple SN pattern like SSD395H
+        return hasBattery && (hasNew || hasBrand || hasSerial);
+      });
+    },
+    color: 'teal'
+  },
+  { 
+    id: 'battery_repair', 
+    label: 'Battery Repair', 
+    warningMonths: 3, // Red after 3 months
+    criticalMonths: 3,
+    match: (s: string) => {
+      const items = s.toLowerCase().split(/[ivx\d]+\)|[\n;]|\.\s+/);
+      return items.some(item => {
+        const hasBattery = /battery|batt/i.test(item);
+        const hasRepairKeywords = /repair|cell|post|terminal|repaired/i.test(item);
+        const hasCondition = /second\s*hand|s\.hand|s-hand/i.test(item);
+        return hasBattery && (hasRepairKeywords || hasCondition);
+      });
+    },
+    color: 'blue'
   }
 ];
 
 export const RED_MONTHS = 13;
 
 export function calculateAuditStats(records: MaintenanceRecord[]) {
+  // First, find the latest 'New Battery' record for this set of records (which are usually for one truck)
+  const batteryCat = AUDIT_CATEGORIES.find(c => c.id === 'battery');
+  const batteryMatches = records.filter(r => batteryCat?.match(r.service_description.toLowerCase()));
+  
+  const latestNewBattery = batteryMatches.length > 0 
+    ? batteryMatches.sort((a, b) => {
+        const dateA = new Date(normalizeDate(a.service_date)).getTime();
+        const dateB = new Date(normalizeDate(b.service_date)).getTime();
+        return dateB - dateA;
+      })[0]
+    : null;
+  
+  const latestNewBatteryTime = latestNewBattery ? new Date(normalizeDate(latestNewBattery.service_date)).getTime() : 0;
+
   return AUDIT_CATEGORIES.map(cat => {
-    const matches = records.filter(r => {
+    let matches = records.filter(r => {
       const desc = r.service_description.toLowerCase();
       return cat.match(desc);
     });
+
+    // Special logic for Battery Repair: Only consider repairs AFTER the latest New Battery
+    let noRepairAfterNew = false;
+    if (cat.id === 'battery_repair' && latestNewBatteryTime > 0) {
+      const allRepairs = [...matches];
+      matches = matches.filter(r => {
+        const repairDate = new Date(normalizeDate(r.service_date)).getTime();
+        return repairDate > latestNewBatteryTime;
+      });
+      
+      // If we had repairs but none are after the new battery
+      if (allRepairs.length > 0 && matches.length === 0) {
+        noRepairAfterNew = true;
+      }
+    }
 
     const latest = matches.length > 0 
       ? matches.sort((a, b) => {
@@ -148,10 +211,12 @@ export function calculateAuditStats(records: MaintenanceRecord[]) {
       const diffDays = diffMs / (1000 * 60 * 60 * 24);
       diffMonths = Math.floor(diffDays / 30.44);
       
-      isStale = diffMonths >= cat.warningMonths;
-      isCritical = diffMonths >= RED_MONTHS;
+      const categoryCritical = cat.criticalMonths || RED_MONTHS;
       
-      remainingPercent = Math.max(0, Math.min(100, Math.round(((RED_MONTHS * 30.44 - diffDays) / (RED_MONTHS * 30.44)) * 100)));
+      isStale = diffMonths >= cat.warningMonths;
+      isCritical = diffMonths >= categoryCritical;
+      
+      remainingPercent = Math.max(0, Math.min(100, Math.round(((categoryCritical * 30.44 - diffDays) / (categoryCritical * 30.44)) * 100)));
       
       if (diffMonths === 0) {
         timeAgo = diffDays < 1 ? 'Today' : `${Math.floor(diffDays)} days ago`;
@@ -160,6 +225,9 @@ export function calculateAuditStats(records: MaintenanceRecord[]) {
       }
     } else {
       isCritical = true;
+      if (noRepairAfterNew) {
+        timeAgo = 'No repair after new';
+      }
     }
 
     return {
@@ -167,8 +235,8 @@ export function calculateAuditStats(records: MaintenanceRecord[]) {
       label: cat.label,
       latestDate: latest?.service_date || null,
       isStale,
-      isCritical,
-      remainingPercent,
+      isCritical: noRepairAfterNew ? false : isCritical, // Don't mark as critical if we know it's "new"
+      remainingPercent: noRepairAfterNew ? 100 : remainingPercent,
       timeAgo
     };
   });

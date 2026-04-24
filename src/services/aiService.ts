@@ -2,52 +2,76 @@ import { GoogleGenAI } from "@google/genai";
 import { ExtractionResult, MaintenanceRecord, ChatMessage, MarketPrice } from "../types";
 import { arePlatesSimilar, normalizePlate, deduplicateRecords } from "../lib/utils";
 
-// Initialize AI directly in the frontend
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Initialize AI client lazily to handle cases where the API key might change or be loaded later
+let aiInstance: GoogleGenAI | null = null;
+
+function getAI(): GoogleGenAI {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    aiInstance = new GoogleGenAI({ apiKey: apiKey || "" });
+  }
+  return aiInstance;
+}
 
 export function isApiKeyAvailable(): boolean {
   return !!process.env.GEMINI_API_KEY;
 }
 
-function getAIErrorMessage(err: any): string {
+export function getAIErrorMessage(err: any): string {
   if (!err) return "AI operation failed";
-  const message = err.message || String(err);
-  const errString = String(err);
+  
+  // Handle nested error objects from Google SDK / AI Studio Proxy
+  let message = "";
+  if (typeof err === 'object') {
+    if (err.error && typeof err.error === 'object') {
+      message = err.error.message || JSON.stringify(err.error);
+    } else if (err.message) {
+      message = err.message;
+    } else {
+      message = JSON.stringify(err);
+    }
+  } else {
+    message = String(err);
+  }
+
+  const errString = message.toLowerCase();
   
   const isNetworkError = 
-    message.includes("Failed to fetch") || 
-    message.includes("NetworkError") ||
-    message.includes("Load failed") ||
-    message.includes("connection error") ||
-    errString.includes("Failed to fetch") ||
-    errString.includes("TypeError: Load failed") ||
-    errString.includes("NetworkError");
+    errString.includes("failed to fetch") || 
+    errString.includes("networkerror") ||
+    errString.includes("load failed") ||
+    errString.includes("connection error") ||
+    errString.includes("timed out") ||
+    errString.includes("xhr error") ||
+    errString.includes("rpc failed") ||
+    errString.includes("proxyunarycall") ||
+    errString.includes("makersuiteservice");
 
   if (isNetworkError) {
-    return "AI connection error. This usually happens due to unstable internet or API rate limits. Please check your connection and try again.";
+    return "AI connection error (Proxy Timeout). This usually happens due to unstable infrastructure. The system will automatically retry.";
   }
   
-  if (message.includes("API key not valid")) {
+  if (errString.includes("api key not valid")) {
     return "Invalid Gemini API key. Please check your configuration in AI Studio.";
   }
 
-  if (message.includes("404") || message.includes("NOT_FOUND")) {
+  if (errString.includes("404") || errString.includes("not_found")) {
     return "AI model not found. This might be a temporary issue with the Gemini service or an incorrect model configuration. Please try again in a few minutes.";
   }
 
-  const isDailyQuota = message.includes("billing details") || message.includes("plan") || message.includes("quota exceeded");
-  const isRateLimit = message.includes("429") || message.includes("quota") || message.includes("limit") || message.includes("RESOURCE_EXHAUSTED");
+  const isDailyQuota = errString.includes("billing details") || errString.includes("plan") || errString.includes("quota exceeded");
+  const isRateLimit = errString.includes("429") || errString.includes("quota") || errString.includes("limit") || errString.includes("resource_exhausted");
 
   if (isDailyQuota) {
-    return "AI daily quota exceeded. Google limits free usage; this will reset at midnight. Please try again later or use a different API key.";
+    return "AI daily quota exceeded. Google limits free usage; this will reset at midnight (PT). Please try again later.";
   }
 
-  if (message.includes("503") || message.includes("500") || message.includes("high demand") || message.includes("Service Unavailable") || message.includes("error code: 6") || message.includes("xhr error") || message.includes("rpc failed")) {
+  if (errString.includes("503") || errString.includes("500") || errString.includes("high demand") || errString.includes("service unavailable") || errString.includes("error code: 6")) {
     return "The AI model is currently overloaded (High Demand/Proxy Error). This is a temporary issue with Google's servers. The system will automatically retry.";
   }
 
   if (isRateLimit) {
-    return "AI rate limit hit. Too many requests in a short time. The system will automatically retry in a few seconds.";
+    return "AI rate limit hit. Too many requests in a short time. The system will automatically retry with exponential backoff.";
   }
 
   return message;
@@ -81,7 +105,7 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
 
   try {
     console.log("[AI] Starting extraction with Gemini...");
-    const result = await ai.models.generateContent({
+    const result = await getAI().models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [
         {
@@ -132,7 +156,7 @@ export async function extractMarketPrices(base64Image: string, mimeType: string)
 
   try {
     console.log("[AI] Starting market price extraction with Gemini...");
-    const result = await ai.models.generateContent({
+    const result = await getAI().models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [
         {
@@ -167,7 +191,7 @@ export async function analyzeMaintenanceData(
   records: MaintenanceRecord[], 
   chatHistory: ChatMessage[] = [],
   marketPrices: MarketPrice[] = [],
-  viewMode: 'log' | 'analytics' | 'audit' = 'log'
+  viewMode: 'log' | 'analytics' | 'audit' | 'battery' = 'log'
 ): Promise<string> {
   
   // Format records for the AI (Grouped by truck, sorted for stability)
@@ -247,7 +271,7 @@ export async function analyzeMaintenanceData(
 
   try {
     console.log("[AI] Starting high-accuracy analysis with Gemini Pro...");
-    const result = await ai.models.generateContent({
+    const result = await getAI().models.generateContent({
       model: "gemini-3.1-pro-preview",
       contents: [
         ...chatHistory.map(msg => ({
@@ -273,7 +297,7 @@ export async function analyzeMaintenanceData(
     // Fallback to Flash if Pro fails (e.g. quota/availability)
     if (e.message?.includes("not found") || e.message?.includes("404")) {
       console.log("[AI] Falling back to Flash model...");
-      const flashResult = await ai.models.generateContent({
+      const flashResult = await getAI().models.generateContent({
         model: "gemini-3-flash-preview",
         contents: [
           ...chatHistory.map(msg => ({

@@ -4,23 +4,19 @@ import App from './App';
 import './index.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-// Register Service Worker for PWA support
+// Service Worker registration disabled in dev environment to prevent "Failed to fetch" errors.
+// PWAs and active agent edits on the same domain can cause caching conflicts.
+/*
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
-      // Check for updates periodically
-      setInterval(() => {
-        if (navigator.onLine) {
-          registration.update().catch(() => {
-            // Ignore update errors when offline or server unreachable
-          });
-        }
-      }, 60 * 60 * 1000); // Check every hour
+...
     }).catch((err) => {
       console.error('Service Worker registration failed:', err);
     });
   });
 }
+*/
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

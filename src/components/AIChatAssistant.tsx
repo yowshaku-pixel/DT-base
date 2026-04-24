@@ -3,7 +3,7 @@ import { Send, Bot, X, MessageSquare, Loader2, Sparkles, Trash2, Key, AlertCircl
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { MaintenanceRecord, ChatMessage, MarketPrice } from '../types';
-import { analyzeMaintenanceData } from '../services/aiService';
+import { analyzeMaintenanceData, getAIErrorMessage } from '../services/aiService';
 import { cn } from '../lib/utils';
 
 // Extend window for AI Studio APIs
@@ -23,7 +23,8 @@ interface AIChatAssistantProps {
   onFocusInsight?: (plate: string | null, service: string | null, year: number | null) => void;
   isLocked?: boolean;
   onUnlockRequest?: () => void;
-  viewMode?: 'log' | 'analytics' | 'audit';
+  viewMode?: 'log' | 'analytics' | 'audit' | 'battery';
+  theme?: 'light' | 'dark';
 }
 
 export default function AIChatAssistant({ 
@@ -33,7 +34,8 @@ export default function AIChatAssistant({
   onFocusInsight,
   isLocked = false,
   onUnlockRequest,
-  viewMode = 'log'
+  viewMode = 'log',
+  theme = 'dark'
 }: AIChatAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -120,7 +122,7 @@ export default function AIChatAssistant({
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error: any) {
-      let rawMessage = error.message || 'Unknown error';
+      let rawMessage = getAIErrorMessage(error);
       let content = `Sorry, I encountered an error: ${rawMessage}`;
       
       // Try to parse JSON error if it looks like one
@@ -186,7 +188,7 @@ export default function AIChatAssistant({
         className={cn(
           "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
           isOpen 
-            ? "bg-zinc-800 text-white border-white/20" 
+            ? "bg-bg text-text border-border" 
             : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
         )}
       >
@@ -203,20 +205,20 @@ export default function AIChatAssistant({
             className="fixed bottom-24 right-6 z-50 w-[90vw] md:w-[600px] h-[800px] max-h-[85vh] glassmorphism rounded-2xl shadow-2xl flex flex-col overflow-hidden neon-border-violet"
           >
             {/* Header */}
-            <div className="p-4 border-b border-white/10 bg-gradient-to-r from-violet-900/20 to-zinc-900 flex items-center justify-between shimmer-ai">
+            <div className="p-4 border-b border-border bg-gradient-to-r from-violet-900/20 to-surface flex items-center justify-between shimmer-ai">
               <div className="flex items-center gap-3 relative z-10">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center shadow-[0_0_15px_rgba(0,245,255,0.3)]">
                   <Bot className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider">Anni</h3>
-                  <p className="text-[10px] text-cyan-400/60 font-mono uppercase">DT.Base AI Analyst Active</p>
+                  <h3 className="text-sm font-display font-bold text-text uppercase tracking-wider">Anni</h3>
+                  <p className="text-[10px] text-cyan-600 dark:text-cyan-400/60 font-mono uppercase">DT.Base AI Analyst Active</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 <button 
                   onClick={clearChat}
-                  className="p-2 hover:bg-white/5 rounded-lg transition-colors text-white/40 hover:text-red-400"
+                  className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500"
                   title="Clear Chat"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -225,14 +227,14 @@ export default function AIChatAssistant({
             </div>
 
             {/* Mode Toggle */}
-            <div className="px-4 py-2 border-b border-white/5 bg-white/5 flex items-center justify-between">
+            <div className="px-4 py-2 border-b border-border bg-surface flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className={cn(
                   "w-1.5 h-1.5 rounded-full",
-                  isShortMode ? "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]" : "bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.5)]"
+                  isShortMode ? "bg-cyan-500 shadow-[0_0_8px_rgba(96,165,250,0.5)]" : "bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]"
                 )} />
-                <span className="text-[9px] font-display font-bold uppercase tracking-widest text-white/60">
-                  Response Mode: <span className={isShortMode ? "text-blue-400" : "text-purple-400"}>{isShortMode ? "Concise" : "Detailed"}</span>
+                <span className="text-[9px] font-display font-bold uppercase tracking-widest text-muted">
+                  Response Mode: <span className={isShortMode ? "text-cyan-600 dark:text-cyan-400" : "text-purple-600 dark:text-purple-400"}>{isShortMode ? "Concise" : "Detailed"}</span>
                 </span>
               </div>
               <button 
@@ -251,12 +253,12 @@ export default function AIChatAssistant({
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide relative">
               {isLocked && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-zinc-900/90 backdrop-blur-sm p-8 text-center">
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg/90 backdrop-blur-sm p-8 text-center">
                   <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mb-4">
                     <Key className="w-8 h-8 text-amber-500" />
                   </div>
-                  <h3 className="text-lg font-display font-bold text-white uppercase tracking-wider mb-2">AI Access Locked</h3>
-                  <p className="text-xs text-white/40 font-mono uppercase tracking-widest mb-6">
+                  <h3 className="text-lg font-display font-bold text-text uppercase tracking-wider mb-2">AI Access Locked</h3>
+                  <p className="text-xs text-muted font-mono uppercase tracking-widest mb-6">
                     A master password is required to access the AI Chat Assistant.
                   </p>
                   <button 
@@ -270,11 +272,11 @@ export default function AIChatAssistant({
 
               {messages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
-                  <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center">
-                    <Bot className="w-6 h-6 text-white/20" />
+                  <div className="w-12 h-12 rounded-2xl bg-surface flex items-center justify-center">
+                    <Bot className="w-6 h-6 text-muted/20" />
                   </div>
                   <div>
-                    <p className="text-sm text-white/60 font-display">How can I help you today?</p>
+                    <p className="text-sm text-text/60 font-display">How can I help you today?</p>
                   </div>
                 </div>
               )}
@@ -291,15 +293,15 @@ export default function AIChatAssistant({
                     className={cn(
                       "p-3 rounded-2xl text-sm",
                       msg.role === 'user' 
-                        ? "bg-purple-600 text-white rounded-tr-none" 
-                        : "bg-white/5 border border-white/10 text-white/80 rounded-tl-none"
+                        ? "bg-purple-600 text-white rounded-tr-none shadow-lg shadow-purple-900/10" 
+                        : "bg-surface border border-border text-text rounded-tl-none"
                     )}
                   >
-                    <div className="markdown-body prose prose-invert prose-sm max-w-none">
+                    <div className={cn("markdown-body prose prose-sm max-w-none", theme === 'dark' ? "prose-invert" : "prose-slate")}>
                       <Markdown>{msg.content}</Markdown>
                     </div>
                   </div>
-                  <span className="text-[8px] text-white/20 font-mono mt-1 uppercase">
+                  <span className="text-[8px] text-muted font-mono mt-1 uppercase">
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
@@ -335,7 +337,7 @@ export default function AIChatAssistant({
             </div>
 
             {/* Input */}
-            <form onSubmit={handleSend} className="p-4 border-t border-white/10 bg-zinc-900/50">
+            <form onSubmit={handleSend} className="p-4 border-t border-border bg-surface/50">
               <div className="relative flex items-end gap-2">
                 <textarea
                   value={input}
@@ -351,7 +353,7 @@ export default function AIChatAssistant({
                   rows={Math.min(5, input.split('\n').length || 1)}
                   disabled={isLocked}
                   className={cn(
-                    "w-full bg-black/40 border neon-border-violet rounded-xl py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/20 focus:outline-none transition-all resize-none min-h-[44px] max-h-[200px]",
+                    "w-full bg-bg/40 border neon-border-violet rounded-xl py-3 pl-4 pr-12 text-sm text-text placeholder:text-muted/40 focus:outline-none transition-all resize-none min-h-[44px] max-h-[200px]",
                     isLocked && "opacity-50 cursor-not-allowed"
                   )}
                 />

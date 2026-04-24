@@ -6,33 +6,73 @@
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-display: 'Space Grotesk', sans-serif;
   
-  --color-bg: #050b1a;
-  --color-ink: #ffffff;
-  --color-line: rgba(255, 255, 255, 0.05);
-  --color-accent: #a020f0; /* Electric Violet */
-  --color-cyan: #00f5ff; /* Cyan */
-  --color-violet: #a020f0;
+  --color-bg: var(--color-bg-val);
+  --color-text: var(--color-text-val);
+  --color-muted: var(--color-muted-val);
+  --color-border: var(--color-border-val);
+  --color-surface: var(--color-surface-val);
+  --color-accent: var(--color-accent-val);
+  --color-cyan: var(--color-cyan-val);
+  --color-violet: var(--color-violet-val);
+}
+
+:root {
+  --color-bg-val: #fdfaf0;
+  --color-text-val: #1c1917;
+  --color-muted-val: #78716c;
+  --color-border-val: #e7e5e4;
+  --color-surface-val: #ffffff;
+  --color-accent-val: #7c3aed;
+  --color-cyan-val: #0891b2;
+  --color-violet-val: #7c3aed;
+  --glass-bg: rgba(253, 250, 240, 0.85);
+  --glass-border: rgba(28, 25, 23, 0.08);
+}
+
+.dark {
+  --color-bg-val: #050b1a;
+  --color-text-val: #ffffff;
+  --color-muted-val: rgba(255, 255, 255, 0.5);
+  --color-border-val: rgba(255, 255, 255, 0.1);
+  --color-surface-val: rgba(255, 255, 255, 0.03);
+  --color-accent-val: #a020f0;
+  --color-cyan-val: #00f5ff;
+  --color-violet-val: #a020f0;
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.1);
 }
 
 @layer utilities {
   .neon-glow-cyan {
     box-shadow: 0 0 15px rgba(0, 245, 255, 0.3), inset 0 0 5px rgba(0, 245, 255, 0.2);
   }
+  .dark .neon-glow-cyan {
+    box-shadow: 0 0 20px rgba(0, 245, 255, 0.4), inset 0 0 5px rgba(0, 245, 255, 0.2);
+  }
   .neon-glow-violet {
     box-shadow: 0 0 15px rgba(160, 32, 240, 0.3), inset 0 0 5px rgba(160, 32, 240, 0.2);
   }
+  .dark .neon-glow-violet {
+    box-shadow: 0 0 20px rgba(160, 32, 240, 0.4), inset 0 0 5px rgba(160, 32, 240, 0.2);
+  }
   .neon-border-cyan {
     border-color: rgba(0, 245, 255, 0.5);
+    box-shadow: 0 0 10px rgba(0, 245, 255, 0.1);
+  }
+  .dark .neon-border-cyan {
     box-shadow: 0 0 15px rgba(0, 245, 255, 0.3), inset 0 0 5px rgba(0, 245, 255, 0.2);
   }
   .neon-border-violet {
     border-color: rgba(160, 32, 240, 0.5);
+    box-shadow: 0 0 10px rgba(160, 32, 240, 0.1);
+  }
+  .dark .neon-border-violet {
     box-shadow: 0 0 15px rgba(160, 32, 240, 0.3), inset 0 0 5px rgba(160, 32, 240, 0.2);
   }
   .glassmorphism {
-    background-color: rgba(255, 255, 255, 0.03);
+    background-color: var(--glass-bg);
     backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--glass-border);
   }
   .shimmer-ai {
     background: linear-gradient(
@@ -52,18 +92,24 @@
 }
 
 body {
-  background-color: #050b1a;
-  color: #ffffff;
+  background-color: var(--color-bg-val);
+  color: var(--color-text-val);
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   position: relative;
-  background-image: radial-gradient(circle at 50% 0%, rgba(160, 32, 240, 0.15), transparent 50%),
-                    radial-gradient(circle at 100% 100%, rgba(0, 245, 255, 0.1), transparent 50%);
+  background-image: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.1), transparent 70%),
+                    radial-gradient(circle at 100% 100%, rgba(251, 191, 36, 0.05), transparent 50%);
   background-attachment: fixed;
+  transition: background-color 0.5s ease, color 0.5s ease;
   touch-action: manipulation;
   overscroll-behavior-y: contain;
+}
+
+.dark body {
+  background-image: radial-gradient(circle at 50% 0%, rgba(160, 32, 240, 0.15), transparent 50%),
+                    radial-gradient(circle at 100% 100%, rgba(0, 245, 255, 0.1), transparent 50%);
 }
 
 @layer base {
@@ -75,7 +121,7 @@ body {
 }
 
 .data-row:hover {
-  @apply bg-white/10;
+  background-color: color-mix(in srgb, var(--color-accent-val), transparent 90%);
 }
 
 .col-header {
