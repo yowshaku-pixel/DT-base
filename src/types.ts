@@ -8,7 +8,7 @@ export interface MaintenanceRecord {
   file_name?: string;
   user_id: string;
   created_at: string;
-  verified: boolean;
+  verified?: boolean;
 }
 
 export interface ExtractionResult {

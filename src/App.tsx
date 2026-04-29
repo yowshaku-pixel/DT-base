@@ -647,6 +647,9 @@ export default function App() {
   const [progress, setProgress] = useState({ current: 0, total: 0, failed: 0 });
   const [failedFiles, setFailedFiles] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [serviceHintQuery, setServiceHintQuery] = useState('');
+  const [serviceHintAnswer, setServiceHintAnswer] = useState<string | null>(null);
+  const [isServiceHintLoading, setIsServiceHintLoading] = useState(false);
   const [descriptionQuery, setDescriptionQuery] = useState('');
   const [notification, setNotification] = useState<{ message: string, type: 'info' | 'success' | 'warning' } | null>(null);
 
@@ -807,20 +810,53 @@ export default function App() {
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
+  const DEFAULT_REGISTRY = ["UAY 469L", "KCL 054", "KCY 901B", "KCZ 945Y", "KDS 849R", "UBA 824F", "AXOR MP3", "ACTROS MP4"];
+
   const [fleetRegistry, setFleetRegistry] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('dtbase_fleet_registry');
-      return saved ? JSON.parse(saved) : [];
+      return saved ? JSON.parse(saved) : DEFAULT_REGISTRY;
     } catch (e) {
-      return [];
+      return DEFAULT_REGISTRY;
     }
   });
-  const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null);
-  
+
+  // Sync registry to Supabase user_metadata when it changes
   useEffect(() => {
     localStorage.setItem('dtbase_fleet_registry', JSON.stringify(fleetRegistry));
-  }, [fleetRegistry]);
+    
+    // Sync to cloud with debounce
+    const timer = setTimeout(async () => {
+      if (!user || !supabase) return;
+      try {
+        const { data: updated, error } = await supabase.auth.updateUser({
+          data: { fleet_registry: fleetRegistry }
+        });
+        
+        if (error) {
+          console.warn("Supabase user_metadata sync failed:", error.message);
+        } else if (updated.user) {
+          setUser(updated.user);
+        }
+      } catch (err) {
+        console.error("Registry sync error:", err);
+      }
+    }, 2000);
 
+    return () => clearTimeout(timer);
+  }, [fleetRegistry, user?.id]); // Only re-sync when registry changes or user changes
+
+  // Load registry from Supabase user_metadata on login
+  useEffect(() => {
+    if (user && user.user_metadata && user.user_metadata.fleet_registry) {
+      const cloudRegistry = user.user_metadata.fleet_registry;
+      if (Array.isArray(cloudRegistry) && cloudRegistry.length > 0) {
+        setFleetRegistry(cloudRegistry);
+      }
+    }
+  }, [user?.id]); // Run when user logs in
+
+  const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [dangerAction, setDangerAction] = useState<'clearAll' | 'clearDuplicates' | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
@@ -1213,8 +1249,11 @@ export default function App() {
         allData = [...allData, ...(moreData as MaintenanceRecord[])];
       }
 
-      // Final deduplication by ID just in case
-      const uniqueRecords = Array.from(new Map(allData.map(r => [r.id, r])).values());
+      // Final deduplication by ID just in case and ensure default values
+      const uniqueRecords = Array.from(new Map(allData.map(r => [r.id, r])).values()).map(r => ({
+        ...r,
+        verified: !!r.verified
+      }));
       setRecords(uniqueRecords);
       setIsCloudConnected(true);
       setError(null);
@@ -1362,8 +1401,7 @@ export default function App() {
                     confidence: record.confidence,
                     user_id: user.id,
                     file_name: fileName,
-                    created_at: new Date().toISOString(),
-                    verified: false
+                    created_at: new Date().toISOString()
                   })
                   .select()
                   .single();
@@ -1832,8 +1870,7 @@ export default function App() {
           confidence: 1.0,
           user_id: user.id,
           file_name: dataToUse.fileName,
-          created_at: new Date().toISOString(),
-          verified: !!dataToUse.verified
+          created_at: new Date().toISOString()
         });
       
       if (error) throw error;
@@ -1858,6 +1895,14 @@ export default function App() {
   const handleToggleVerify = async (record: MaintenanceRecord) => {
     if (!user || !supabase) return;
     
+    // Temporary No-op: The 'verified' column is missing in the database schema.
+    // To enable this feature, please add a boolean 'verified' column to your 'maintenance_records' table in Supabase.
+    setRecords(prev => prev.map(r => r.id === record.id ? { ...r, verified: !r.verified } : r));
+    setNotification({ 
+      message: `Verified status toggled locally (DB update skipped as column is missing).`, 
+      type: 'info' 
+    });
+    /*
     try {
       const { error } = await supabase
         .from('maintenance_records')
@@ -1876,6 +1921,7 @@ export default function App() {
     } catch (err: any) {
       setError(getSupabaseErrorMessage(err));
     }
+    */
   };
 
   const handleEditRecord = async (recordOverride?: MaintenanceRecord) => {
@@ -1889,8 +1935,7 @@ export default function App() {
         .update({
           plate_number: recordToUpdate.plate_number.toUpperCase().trim(),
           service_date: recordToUpdate.service_date,
-          service_description: recordToUpdate.service_description,
-          verified: recordToUpdate.verified
+          service_description: recordToUpdate.service_description
         })
         .eq('id', recordToUpdate.id)
         .eq('user_id', user.id);
@@ -2152,7 +2197,7 @@ export default function App() {
   }, []);
 
   const handleTroubleFinding = useCallback(async () => {
-    if (!records.length) return;
+    if (!records.length || !searchQuery.trim()) return;
     
     if (!isServiceUnlocked) {
       setShowServicePasswordPrompt(true);
@@ -2161,34 +2206,94 @@ export default function App() {
 
     setIsTroubleFindingLoading(true);
     setTroubleFindingAnswer(null);
-    troubleStopRef.current = false;
     
     try {
-      const context = `The user is having trouble finding history. 
-      Current filters: 
-      - Plate: ${searchQuery || 'None'}
-      - Primary Service: ${serviceFilter || 'None'}
-      - Secondary Service: ${secondaryServiceFilter || 'None'}
-      - Date Range: ${startDate || 'Any'} to ${endDate || 'Any'}
+      const truckRecords = records.filter(r => 
+        (r.plate_number || '').toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+      if (truckRecords.length === 0) {
+        setTroubleFindingAnswer(`No records found for truck ${searchQuery.toUpperCase()}.`);
+        setIsTroubleFindingLoading(false);
+        return;
+      }
+
+      const context = `The user is having trouble finding maintenance history for truck ${searchQuery.toUpperCase()}. 
+      Analyze the history specifically for this truck and find relevant records.`;
       
-      Please analyze the full database and find any records that might be similar or relevant to what they are looking for. 
-      If you find similar records, list them clearly. If you don't find anything, suggest what they might be doing wrong or what else they could search for.`;
-      
-      const answer = await analyzeMaintenanceData(context, records, [], marketPrices);
-      if (troubleStopRef.current) return;
-      
+      const answer = await analyzeMaintenanceData(context, truckRecords, [], marketPrices);
       setUsageStats(prev => ({ ...prev, searches: prev.searches + 1 }));
       setTroubleFindingAnswer(answer);
     } catch (err: any) {
-      if (troubleStopRef.current) return;
       console.error("Trouble finding error:", err);
-      setTroubleFindingAnswer("Sorry, I encountered an error while searching. Please try again.");
+      setTroubleFindingAnswer("Error searching for this truck's history.");
     } finally {
-      if (!troubleStopRef.current) {
-        setIsTroubleFindingLoading(false);
-      }
+      setIsTroubleFindingLoading(false);
     }
   }, [records, searchQuery, serviceFilter, secondaryServiceFilter, startDate, endDate, isServiceUnlocked, marketPrices]);
+
+  const handleServiceHintSearch = useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!serviceHintQuery.trim() || !records.length || isServiceHintLoading || !searchQuery.trim()) return;
+    
+    if (!isServiceUnlocked) {
+      setShowServicePasswordPrompt(true);
+      return;
+    }
+
+    setIsServiceHintLoading(true);
+    setServiceHintAnswer(null);
+    
+    try {
+      // Filter records to ONLY the current truck
+      const truckRecords = records.filter(r => 
+        (r.plate_number || '').toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+      if (truckRecords.length === 0) {
+        setServiceHintAnswer(`No records found for truck ${searchQuery.toUpperCase()}.`);
+        setIsServiceHintLoading(false);
+        return;
+      }
+
+      // Find technically related terms using AI and then filter records
+      const prompt = `The user is searching for truck maintenance records related to: "${serviceHintQuery}" for truck ${searchQuery.toUpperCase()}.
+      
+      TASK: 
+      1. Identify all technical components and service types that are functionally related to "${serviceHintQuery}". 
+         For example, if they say 'air compressor', related items include '6 way valve', 'control valve', 'air dryer', 'relay valve', etc.
+         If they say 'engine', related items include 'piston rings', 'head covers', 'fuel injectors', etc.
+      2. Search through the provided maintenance database for ANY records matching these related terms or categories.
+      3. Return a clean, simple list of matching unique records.
+      
+      FORMAT:
+      Return ONLY a list where each line is: "DATE | SERVICE_DESCRIPTION"
+      Avoid any preamble, explanations, names, or places. 
+      Only include unique service events per truck (if many identical services on same day, list once).
+      
+      Example Output:
+      29/04/2024 | compressor new 
+      27/03/2025 | 6 way valve repair kit 
+      27/03/2025 | air dryer filter
+      
+      If no related records are found, respond with "NO_RECORDS_FOUND".`;
+      
+      const answer = await analyzeMaintenanceData(prompt, truckRecords, [], []);
+      
+      if (answer.trim() === 'NO_RECORDS_FOUND') {
+        setServiceHintAnswer(`No related ${serviceHintQuery} records found for truck ${searchQuery.toUpperCase()}.`);
+      } else {
+        setServiceHintAnswer(answer);
+      }
+      
+      setUsageStats(prev => ({ ...prev, searches: prev.searches + 1 }));
+    } catch (err: any) {
+      console.error("Service hint error:", err);
+      setServiceHintAnswer("Error searching for service hints.");
+    } finally {
+      setIsServiceHintLoading(false);
+    }
+  }, [serviceHintQuery, records, searchQuery, isServiceUnlocked, isServiceHintLoading]);
 
   const handleStopTroubleFinding = () => {
     troubleStopRef.current = true;
@@ -2577,13 +2682,15 @@ export default function App() {
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-violet-600" />}
           </button>
-          <button 
-            onClick={() => setShowSettingsModal(true)}
-            className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet"
-            title="Open Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          {viewMode === 'log' && (
+            <button 
+              onClick={() => setShowSettingsModal(true)}
+              className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet"
+              title="Open Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -3313,19 +3420,21 @@ export default function App() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
           <div className="flex flex-col">
             <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">Trouble finding History?</h3>
-            <p className="text-[9px] font-display font-medium text-white/60 uppercase tracking-widest">AI can search the entire database</p>
+            <p className="text-[9px] font-display font-medium text-white/60 uppercase tracking-widest">
+              AI analysis for {searchQuery || 'identified truck'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button 
               onClick={handleTroubleFinding}
-              disabled={isTroubleFindingLoading || records.length === 0}
+              disabled={isTroubleFindingLoading || records.length === 0 || !searchQuery.trim()}
               className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-full transition-all active:scale-95 shadow-[0_0_20px_rgba(0,245,255,0.4)]"
-              title="Use AI to search for similar or related records across the entire database"
+              title={!searchQuery.trim() ? "Identify a truck first to ask AI" : "Use AI to search history for this truck"}
             >
               {isTroubleFindingLoading ? (
                 <>
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Searching...
+                  Analyzing...
                 </>
               ) : (
                 <>
@@ -3334,16 +3443,78 @@ export default function App() {
                 </>
               )}
             </button>
-            {isTroubleFindingLoading && (
-              <button 
-                onClick={handleStopTroubleFinding}
-                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/40 text-red-400 font-display font-bold uppercase tracking-[0.2em] text-[9px] rounded-lg transition-all active:scale-95 border border-red-500/30"
-                title="Stop AI search"
-              >
-                Stop
-              </button>
+          </div>
+        </div>
+
+        {/* Searching services hint Tool */}
+        <div className={cn(
+          "mt-8 p-6 bg-black/40 border border-cyan-500/10 rounded-2xl transition-all duration-500",
+          !searchQuery.trim() ? "opacity-20 grayscale cursor-not-allowed" : "opacity-100"
+        )}>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="p-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
+              <Search className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div className="flex flex-col">
+              <h3 className="font-display font-bold text-xs text-cyan-400 uppercase tracking-widest">SERVICE EXPANSION SEARCH</h3>
+              <p className="text-[8px] font-display font-medium text-white/40 uppercase tracking-[0.2em]">Based on technical relationships</p>
+            </div>
+            {!searchQuery.trim() && (
+              <span className="text-[9px] font-display font-bold text-red-400/80 uppercase ml-auto animate-pulse">LOCKED: Identify Truck First</span>
             )}
           </div>
+          
+          <form onSubmit={handleServiceHintSearch} className="relative group/hint">
+            <input
+              type="text"
+              value={serviceHintQuery}
+              onChange={(e) => setServiceHintQuery(e.target.value)}
+              disabled={!searchQuery.trim() || isServiceHintLoading}
+              placeholder="SEARCH SYSTEM: E.G. Air compressor, Engine, Suspension..."
+              className="w-full bg-black/60 border border-white/10 p-4 pl-6 pr-24 rounded-xl font-display font-bold text-xs focus:outline-none focus:border-cyan-500/50 transition-all placeholder:opacity-20 disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={!serviceHintQuery.trim() || isServiceHintLoading || records.length === 0 || !searchQuery.trim()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-600 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all rounded-lg font-display font-black uppercase tracking-widest text-[9px]"
+            >
+              {isServiceHintLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "SEARCH"}
+            </button>
+          </form>
+
+          {serviceHintAnswer && (
+            <div className="mt-6 p-6 bg-black/40 border border-cyan-500/20 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-500">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-cyan-500 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.5)]" />
+                  <span className="font-display font-bold text-[10px] uppercase tracking-[0.3em] text-cyan-400">Technical Log: {searchQuery.toUpperCase()}</span>
+                </div>
+                <button 
+                  onClick={() => setServiceHintAnswer(null)}
+                  className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-3 h-3 opacity-40 hover:opacity-100 text-white" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {serviceHintAnswer.split('\n').filter(l => l.trim()).map((line, idx) => {
+                  const parts = line.split('|');
+                  const date = (parts[0] || '').trim();
+                  const service = (parts[1] || '').trim();
+                  return (
+                    <div key={idx} className="flex items-start gap-4 group/line py-1 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+                      <span className="text-[10px] font-mono text-cyan-400/60 shrink-0 w-20">
+                        {date}
+                      </span>
+                      <span className="text-[11px] font-display font-bold text-white/90 group-hover/line:text-cyan-400 transition-colors">
+                        {service}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {troubleFindingAnswer && (
