@@ -34,13 +34,17 @@ export function getSupabaseErrorMessage(err: any): string {
     message.includes("NetworkError") ||
     message.includes("Load failed") ||
     message.includes("connection error") ||
+    message.includes("dns_probe_finished_nxdomain") || // Common DNS fail
     details.includes("Failed to fetch") ||
     errString.includes("Failed to fetch") ||
     errString.includes("TypeError: Load failed") ||
     errString.includes("NetworkError");
 
   if (isNetworkError) {
-    return "Network connection error. This could be due to unstable internet or a temporary service outage. Please check your connection and try again.";
+    if ((import.meta as any).env.VITE_SUPABASE_URL?.includes("TODO_PROJECT_ID")) {
+      return "Supabase URL contains placeholders. Please update VITE_SUPABASE_URL in AI Studio Secrets.";
+    }
+    return "Database connection failed (Failed to fetch). This usually happens if the Supabase URL is incorrect, your project is paused, or you have a local network/firewall issue.";
   }
 
   if (typeof err === 'string') return err;

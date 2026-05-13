@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, ArrowRight, Sun, Moon } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, ArrowRight, Sun, Moon, Wrench, Receipt, Globe } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -19,6 +19,8 @@ import AIChatAssistant from './components/AIChatAssistant';
 import { Analytics } from './components/Analytics';
 import { FleetAuditReport } from './components/FleetAuditReport';
 import { BatteryIntelligence } from './components/BatteryIntelligence';
+import { Marketplace } from './components/Marketplace';
+import { INITIAL_PAYMENTS } from './lib/paymentData';
 import { motion, AnimatePresence } from 'motion/react';
 import { BarChart3 as BarChartIcon } from 'lucide-react';
 
@@ -624,7 +626,7 @@ export default function App() {
   const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
 
   const [user, setUser] = useState<User | null>(null);
-  const [viewMode, setViewMode] = useState<'log' | 'analytics' | 'audit' | 'battery'>('log');
+  const [viewMode, setViewMode] = useState<'log' | 'analytics' | 'audit' | 'battery' | 'marketplace'>('log');
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
@@ -1185,10 +1187,16 @@ export default function App() {
     }
 
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setIsAuthReady(true);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+        setIsAuthReady(true);
+      })
+      .catch(err => {
+        console.error("Supabase session error:", err);
+        setError(getSupabaseErrorMessage(err));
+        setIsAuthReady(true);
+      });
 
     // Listen for changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -1217,7 +1225,7 @@ export default function App() {
       // Fetch first page and total count
       const { data, count, error } = await supabase
         .from('maintenance_records')
-        .select('*', { count: 'exact' })
+        .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at', { count: 'exact' })
         .eq('user_id', user.id)
         .order('service_date', { ascending: false })
         .range(from, to);
@@ -1236,7 +1244,7 @@ export default function App() {
         to += 1000;
         const { data: moreData, error: moreError } = await supabase
           .from('maintenance_records')
-          .select('*')
+          .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at')
           .eq('user_id', user.id)
           .order('service_date', { ascending: false })
           .range(from, to);
@@ -1403,7 +1411,7 @@ export default function App() {
                     file_name: fileName,
                     created_at: new Date().toISOString()
                   })
-                  .select()
+                  .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at')
                   .single();
 
                 if (recordError) throw recordError;
@@ -2445,7 +2453,7 @@ export default function App() {
       // Force refresh records from DB to ensure we are checking against the latest state
       const { data: latestRecords, error: fetchError } = await supabase
         .from('maintenance_records')
-        .select('*')
+        .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at')
         .eq('user_id', user.id)
         .order('service_date', { ascending: false });
 
@@ -2696,7 +2704,7 @@ export default function App() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-600/20 border border-purple-500/30 rounded-2xl">
-              <Truck className="w-6 h-6 text-purple-400" strokeWidth={1.5} />
+              <Wrench className="w-6 h-6 text-purple-400" strokeWidth={1.5} />
             </div>
             <div>
               <h1 className="text-5xl md:text-8xl font-display font-bold tracking-tighter leading-none">DT.Base</h1>
@@ -2734,45 +2742,80 @@ export default function App() {
           
           <div className="flex flex-wrap items-center gap-2">
             {/* View Switcher Tabs */}
-            <div className="flex items-center p-1 bg-surface border border-border rounded-2xl mr-4">
-              <button 
-                onClick={() => setViewMode('log')}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
-                  viewMode === 'log' ? "bg-purple-600 text-white shadow-lg shadow-purple-900/20" : "text-muted hover:text-text"
-                )}
-              >
-                History
-              </button>
-              <button 
-                onClick={() => setViewMode('analytics')}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
-                  viewMode === 'analytics' ? "bg-cyan-600 text-white shadow-lg shadow-cyan-900/20" : "text-muted hover:text-text"
-                )}
-              >
-                Insights
-              </button>
-              <button 
-                onClick={() => setViewMode('audit')}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                  viewMode === 'audit' ? "bg-amber-600 text-white shadow-lg shadow-amber-900/20" : "text-muted hover:text-text"
-                )}
-              >
-                {viewMode === 'audit' && <ClipboardCheck className="w-3 h-3" />}
-                Audit
-              </button>
-              <button 
-                onClick={() => setViewMode('battery')}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                  viewMode === 'battery' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-muted hover:text-text"
-                )}
-              >
-                {viewMode === 'battery' && <Zap className="w-3 h-3" />}
-                INT
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center p-1 bg-surface border border-border rounded-2xl mr-4">
+                <button 
+                  onClick={() => setViewMode('log')}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
+                    viewMode === 'log' ? "bg-purple-600 text-white shadow-lg shadow-purple-900/20" : "text-muted hover:text-text"
+                  )}
+                >
+                  History
+                </button>
+                <button 
+                  onClick={() => {
+                    // Default to 'audit' if not already in an audit sub-mode
+                    if (viewMode !== 'audit' && viewMode !== 'analytics' && viewMode !== 'battery') {
+                      setViewMode('audit');
+                    }
+                  }}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+                    (viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') ? "bg-amber-600 text-white shadow-lg shadow-amber-900/20" : "text-muted hover:text-text"
+                  )}
+                >
+                  {(viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') && <ClipboardCheck className="w-3 h-3" />}
+                  Audit
+                </button>
+                <button 
+                  onClick={() => setViewMode('marketplace')}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+                    viewMode === 'marketplace' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-muted hover:text-text"
+                  )}
+                >
+                  {viewMode === 'marketplace' && <Globe className="w-3 h-3" />}
+                  IntelCenter
+                </button>
+              </div>
+              
+              {/* Sub-navigation for Audit section */}
+              {(viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center p-1 bg-surface/50 border border-border/50 rounded-xl ml-8 w-fit"
+                >
+                  <button 
+                    onClick={() => setViewMode('audit')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
+                      viewMode === 'audit' ? "bg-amber-500/20 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]" : "text-muted hover:text-text"
+                    )}
+                  >
+                    Verifier
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('analytics')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
+                      viewMode === 'analytics' ? "bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.2)]" : "text-muted hover:text-text"
+                    )}
+                  >
+                    Insights
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('battery')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
+                      viewMode === 'battery' ? "bg-blue-500/20 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]" : "text-muted hover:text-text"
+                    )}
+                  >
+                    Int
+                  </button>
+                </motion.div>
+              )}
             </div>
 
             {deferredPrompt && (
@@ -4651,6 +4694,16 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
           <BatteryIntelligence records={records} fleetRegistry={fleetRegistry} />
         </div>
+      ) : viewMode === 'marketplace' ? (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+          <Marketplace 
+            marketPrices={marketPrices} 
+            payments={INITIAL_PAYMENTS}
+            isLocked={!isServiceUnlocked} 
+            onUnlockRequest={() => setShowServicePasswordPrompt(true)} 
+            user_id={user?.id}
+          />
+        </div>
       ) : (
         <FleetAuditReport 
           records={records} 
@@ -4693,7 +4746,14 @@ export default function App() {
         <AIChatAssistant 
           records={records} 
           marketPrices={marketPrices}
+          fleetRegistry={fleetRegistry}
           onSaveMarketPrice={handleSaveMarketPrice}
+          onUpdateRegistry={(plate) => {
+            if (!fleetRegistry.includes(plate)) {
+              setFleetRegistry(prev => [...prev, plate]);
+              setNotification({ message: `Added ${plate} to registry!`, type: 'success' });
+            }
+          }}
           onFocusInsight={handleFocusInsight}
           isLocked={!isServiceUnlocked}
           onUnlockRequest={() => setShowServicePasswordPrompt(true)}

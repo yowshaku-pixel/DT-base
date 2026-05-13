@@ -19,18 +19,22 @@ declare global {
 interface AIChatAssistantProps {
   records: MaintenanceRecord[];
   marketPrices: MarketPrice[];
+  fleetRegistry: string[];
   onSaveMarketPrice: (item: string, price: number, currency: string) => Promise<void>;
+  onUpdateRegistry: (plate: string) => void;
   onFocusInsight?: (plate: string | null, service: string | null, year: number | null) => void;
   isLocked?: boolean;
   onUnlockRequest?: () => void;
-  viewMode?: 'log' | 'analytics' | 'audit' | 'battery';
+  viewMode?: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace';
   theme?: 'light' | 'dark';
 }
 
 export default function AIChatAssistant({ 
   records, 
   marketPrices, 
+  fleetRegistry,
   onSaveMarketPrice,
+  onUpdateRegistry,
   onFocusInsight,
   isLocked = false,
   onUnlockRequest,
@@ -104,10 +108,18 @@ export default function AIChatAssistant({
         );
       }
 
+      // Detect Registry Update
+      const registryMatch = response.match(/\[UPDATE_REGISTRY:\s*(.*?)\s*\]/);
+      if (registryMatch && onUpdateRegistry) {
+        const [, plate] = registryMatch;
+        onUpdateRegistry(plate.trim());
+      }
+
       // Clean response from tags
       let cleanResponse = response
         .replace(/\[PRICE_CORRECTION:.*?\]/g, '')
         .replace(/\[FOCUS_INSIGHT:.*?\]/g, '')
+        .replace(/\[UPDATE_REGISTRY:.*?\]/g, '')
         .trim();
 
       // Fallback if cleaning removed EVERYTHING (unlikely with new instructions but safe)

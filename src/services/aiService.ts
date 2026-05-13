@@ -48,7 +48,7 @@ export function getAIErrorMessage(err: any): string {
     errString.includes("makersuiteservice");
 
   if (isNetworkError) {
-    return "AI connection error (Proxy Timeout). This usually happens due to unstable infrastructure. The system will automatically retry.";
+    return "AI request failed (Failed to fetch). This is a network error which may be due to your firewall, VPN, or a temporary interruption in the AI Studio proxy. Please try again.";
   }
   
   if (errString.includes("api key not valid")) {
@@ -96,12 +96,15 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
               - MB Actros MP4: KCZ 945Y to KDS 849R.
               
               Rules:
-              - Plate: Extract the MAIN plate number from the top/header of the document. If a different plate number is mentioned inside a specific line item (e.g., "for truck X"), IGNORE it for the 'plate_number' field and keep it only in the 'service_description'. Clean spaces.
-              - Date: YYYY-MM-DD. If invalid/missing, use current: ${new Date().toISOString().split('T')[0]}.
-              - Description: Extract ALL items, numbered lists, parts, and costs (e.g., "[Part] - [Amount] [Currency]").
-              - Grouping: Combine items for SAME truck and SAME date into one record.
+              - Date Propagation: If a date is provided before a list of vehicles (e.g., "12/04/2026" followed by entries for KCL873D, KCV977T, etc.), APPLY that same date to ALL vehicle records listed under it until a new date header is encountered. 
+              - Plate: Extract the plate number. Look for markers like "★" or bold headers. Clean spaces.
+              - Sub-entries: A vehicle entry often contains multiple lines/parts (e.g., "oil filter", "brake pads"). Treat each individual line under a vehicle as a separate record if it has an amount, or group them logically per vehicle if they share one total.
+              - Date: YYYY-MM-DD. If invalid/missing, use current or propagate from previous: ${new Date().toISOString().split('T')[0]}.
+              - Description: Clear service description.
+              - Amount: EXTRACT the price/amount if visible for each line item or group.
+              - Currency: Usually "KSH" or "UGX".
               
-              Output: JSON { "records": [{ "plate_number", "service_date", "service_description", "confidence" }] }`;
+              Output: JSON { "records": [{ "plate_number", "service_date", "service_description", "amount", "currency", "confidence" }] }`;
 
   try {
     console.log("[AI] Starting extraction with Gemini...");
@@ -191,7 +194,7 @@ export async function analyzeMaintenanceData(
   records: MaintenanceRecord[], 
   chatHistory: ChatMessage[] = [],
   marketPrices: MarketPrice[] = [],
-  viewMode: 'log' | 'analytics' | 'audit' | 'battery' = 'log'
+  viewMode: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' = 'log'
 ): Promise<string> {
   
   // Format records for the AI (Grouped by truck, sorted for stability)
@@ -230,6 +233,11 @@ export async function analyzeMaintenanceData(
   const systemInstruction = `You are Anni, the Senior Lead Fleet Maintenance Analyst and Master Diagnostic Mechanic for DT.Base. 
   Your primary directive is ABSOLUTE PRECISION, UNCOMPROMISING COMPLETENESS, and DATA INTEGRITY.
   
+  **REGISTRY MANAGEMENT**:
+  - If the user asks to "register", "add", or "enroll" a NEW truck or plate to the fleet, you MUST output a tag like this: [UPDATE_REGISTRY: PLATE_NUMBER].
+  - Inform the user that you've added the truck to the fleet registry.
+  - Use this tag ONLY for explicitly new trucks not already in the fleet.
+
   **OPERATIONAL MANDATES**:
   1. DO NOT TRUNCATE. If asked for a "full list", "all trucks", or "every folder", you must list EVERY SINGLE ONE.
   2. DEDUPLICATION PREROGATIVE: The data provided may contain duplicate entries (same plate, same date, same description). You MUST count identical records only ONCE. If multiple identical records exist, acknowledge only one instance.

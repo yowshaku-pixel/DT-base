@@ -9,16 +9,28 @@ export interface MaintenanceRecord {
   user_id: string;
   created_at: string;
   verified?: boolean;
+  amount?: number;
+  currency?: string;
 }
 
 export interface ExtractionResult {
-  records: Omit<MaintenanceRecord, 'id'>[];
+  records: (Omit<MaintenanceRecord, 'id'> & { amount?: number; currency?: string })[];
 }
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+}
+
+export interface PaymentRecord {
+  id: string;
+  plate: string;
+  date: string;
+  items: { description: string, amount: number, currency: string }[];
+  total: number;
+  currency: string;
+  category?: 'maintenance' | 'parking' | 'labour' | 'parts' | 'other';
 }
 
 export interface ChatResponse {
