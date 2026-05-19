@@ -16,6 +16,7 @@ import {
   normalizePlate, 
   arePlatesSimilar,
   normalizeDate,
+  deduplicateRecords,
   cn 
 } from '../lib/utils';
 
@@ -36,13 +37,14 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
     const needsReview: MaintenanceRecord[] = [];
     const cleanRegistry = fleetRegistry.map(p => p.trim()).filter(p => p.length > 0);
 
-    // Grouping logic identical to App.tsx for consistency
-    // User Request: Skip anything before 2025 as it is considered outdated or wrong.
-    const auditRecords = records.filter(r => {
+    // 1. First, apply content-level deduplication to the entire record set
+    const uniqueSourceRecords = deduplicateRecords(records);
+
+    // 2. Filter for relevant years (2025-2026) as per user requirements
+    const auditRecords = uniqueSourceRecords.filter(r => {
       const normalizedDate = normalizeDate(r.service_date);
       if (!normalizedDate) return false;
       const year = parseInt(normalizedDate.split('-')[0]);
-      // User Request: loop and find a record in 2025 and 2026. Ignore anything else (typos like 2004).
       return year === 2025 || year === 2026;
     });
     
@@ -50,10 +52,12 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
       const plate = record.plate_number ? record.plate_number.toUpperCase().trim() : 'UNKNOWN';
       
       const normalizedRecordPlate = normalizePlate(plate);
+      // We prioritize the registry, but we MUST ensure we don't duplicate folders
       const exactMatch = cleanRegistry.find(p => normalizePlate(p) === normalizedRecordPlate);
       const registryMatch = exactMatch || cleanRegistry.find(p => arePlatesSimilar(p, plate));
       
       if (registryMatch) {
+        // Use normalized registry match as key to ensure "KCH 054T" and "KCH 054 T" don't become two folders if both are in registry
         if (!groups[registryMatch]) groups[registryMatch] = [];
         groups[registryMatch].push(record);
       } else if (cleanRegistry.length === 0) {
@@ -69,7 +73,10 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
 
     const folders = cleanRegistry.length > 0 ? cleanRegistry.sort() : Object.keys(groups).sort();
     
-    let results = folders.map(folder => {
+    // De-duplicate folder names just in case registry contains similar plates that normalized to same thing
+    const uniqueFolders = Array.from(new Set(folders));
+    
+    let results = uniqueFolders.map(folder => {
       const truckRecords = groups[folder] || [];
       const stats = calculateAuditStats(truckRecords);
 
@@ -103,13 +110,13 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
   if (records.length === 0) return null;
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-6">
       {/* Header & Search */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 px-1">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-4 bg-cyan-500 rounded-full" />
-            <h2 className="text-sm font-display font-bold text-text uppercase tracking-[0.3em]">Fleet Audit Report</h2>
+            <div className="w-1.5 h-4 bg-purple-500 rounded-full shadow-[0_0_10px_rgba(160,32,240,0.5)]" />
+            <h2 className="text-sm font-display font-black text-text uppercase tracking-[0.3em]">Fleet Audit Report</h2>
           </div>
           <p className="text-[10px] font-mono text-muted uppercase tracking-widest pl-3.5">
             Live maintenance status (Scanning 2025 – 2026 Records)
@@ -126,90 +133,78 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                 isRefreshing && "opacity-50 cursor-not-allowed"
               )}
             >
-              <RefreshCw className={cn("w-3.5 h-3.5 text-cyan-400", isRefreshing && "animate-spin")} />
+              <RefreshCw className={cn("w-3.5 h-3.5 text-purple-400", isRefreshing && "animate-spin")} />
               {isRefreshing ? 'Syncing...' : 'Sync Data'}
             </button>
           )}
 
-          <div className="relative group w-full md:w-64">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30 group-focus-within:opacity-100 group-focus-within:text-cyan-400 transition-all" />
-          <input 
-            type="text"
-            placeholder="FIND TRUCK..."
-            value={reportSearch}
-            onChange={(e) => setReportSearch(e.target.value)}
-            className="w-full bg-surface border border-border rounded-xl py-2.5 pl-10 pr-4 text-[10px] font-mono font-bold uppercase tracking-widest text-text placeholder:text-muted/40 focus:outline-none focus:border-cyan-500/50 focus:bg-surface transition-all"
-          />
-        </div>
+          <div className="relative group w-full md:w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" />
+            <input 
+              type="text"
+              placeholder="SEARCH PLATENUMBER..."
+              value={reportSearch}
+              onChange={(e) => setReportSearch(e.target.value)}
+              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+            />
+          </div>
       </div>
     </div>
 
       {/* Grid of Report Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {auditData.map((truck) => (
           <div 
             key={truck.plate}
-            className="group relative bg-surface border border-border rounded-[2rem] overflow-hidden hover:bg-bg/20 hover:border-cyan-500/30 transition-all duration-500"
+            className="group relative bg-surface border border-border rounded-3xl overflow-hidden hover:border-purple-500/30 transition-colors"
           >
-            {/* Background Accent */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 blur-[60px] -mr-16 -mt-16 group-hover:bg-cyan-500/10 transition-all" />
-            
-            <div className="p-6">
+            <div className="p-4 sm:p-5">
               {/* Truck Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
                   <div className={cn(
-                    "w-12 h-12 rounded-2xl border flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-500",
-                    truck.isRegistry ? "bg-cyan-500/10 border-cyan-500/20" : "bg-amber-500/10 border-amber-500/20"
+                    "w-10 h-10 rounded-xl border flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner",
+                    truck.isRegistry ? "bg-purple-500/10 border-purple-500/20" : "bg-amber-500/10 border-amber-500/20"
                   )}>
-                    <Truck className={cn("w-6 h-6", truck.isRegistry ? "text-cyan-600 dark:text-cyan-400" : "text-amber-600 dark:text-amber-400")} />
+                    <Truck className={cn("w-5 h-5", truck.isRegistry ? "text-purple-600 dark:text-purple-400" : "text-amber-600 dark:text-amber-400")} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-display font-bold text-text tracking-tight leading-tight">{truck.plate}</h3>
+                    <h3 className="text-base font-display font-bold text-text tracking-tight leading-tight">{truck.plate}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
                       <div className={cn(
-                        "w-1.5 h-1.5 rounded-full animate-pulse",
+                        "w-1.5 h-1.5 rounded-full",
                         truck.isRegistry ? "bg-green-500" : "bg-amber-500"
                       )} />
-                      <span className="text-[9px] font-mono text-muted uppercase tracking-widest">
-                        {truck.isRegistry ? "Verified Fleet Folder" : "System Review Group"}
+                      <span className="text-[8px] font-mono text-muted uppercase tracking-widest">
+                        {truck.isRegistry ? "Verified" : "Sync Required"}
                       </span>
                     </div>
                   </div>
                 </div>
-                <button 
-                  onClick={() => onFocusTruck(truck.plate)}
-                  className={cn(
-                    "p-2.5 bg-surface rounded-xl border border-border text-muted transition-all",
-                    truck.isRegistry ? "hover:text-cyan-600 hover:border-cyan-400/30 hover:bg-cyan-400/10" : "hover:text-amber-600 hover:border-amber-400/30 hover:bg-amber-400/10"
-                  )}
-                >
-                  <ArrowRight className="w-4 h-4" />
-                </button>
               </div>
 
               {/* Status Grid */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 {truck.stats.map((stat) => (
                   <div 
                     key={stat.catId}
                     className={cn(
-                      "p-3 rounded-2xl border transition-all duration-300 relative overflow-hidden group/stat",
+                      "p-2.5 rounded-xl border transition-colors relative overflow-hidden group/stat",
                       stat.isCritical 
-                        ? "bg-red-500/10 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.1)]" 
+                        ? "bg-red-500/10 border-red-500/20" 
                         : stat.isStale 
                           ? "bg-amber-500/5 border-amber-500/20" 
                           : stat.latestDate 
-                            ? (stat.catId === 'battery_repair' ? "bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]" : "bg-green-500/5 border-green-500/20")
-                            : "bg-surface border-border grayscale opacity-40 shrink-0"
+                            ? (stat.catId === 'battery_repair' ? "bg-blue-500/10 border-blue-500/20" : "bg-green-500/5 border-green-500/20")
+                            : "bg-surface border-border opacity-40 shrink-0"
                     )}
                   >
                     {/* Progress Bar Background */}
                     {stat.latestDate && (
                       <div 
                         className={cn(
-                          "absolute bottom-0 left-0 h-0.5 transition-all duration-1000",
-                          stat.isCritical ? "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]" : stat.isStale ? "bg-amber-500" : (stat.catId === 'battery_repair' ? "bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]" : "bg-green-500")
+                          "absolute bottom-0 left-0 h-0.5",
+                          stat.isCritical ? "bg-red-500" : stat.isStale ? "bg-amber-500" : (stat.catId === 'battery_repair' ? "bg-blue-500" : "bg-green-500")
                         )}
                         style={{ width: `${stat.remainingPercent}%` }}
                       />
@@ -218,7 +213,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                     <div className="flex items-center justify-between mb-2">
                        <span className="text-[8px] font-display font-bold uppercase tracking-widest opacity-40">{stat.label}</span>
                        {stat.isCritical ? (
-                         <AlertTriangle className={cn("w-2.5 h-2.5 text-red-500", stat.latestDate && "animate-pulse")} />
+                         <AlertTriangle className={cn("w-2.5 h-2.5 text-red-500")} />
                        ) : stat.isStale ? (
                          <AlertTriangle className="w-2.5 h-2.5 text-amber-500" />
                        ) : stat.latestDate ? (
@@ -256,7 +251,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                         </div>
                       ) : (
                         <div className="mt-0.5">
-                          <span className="text-[8px] font-mono uppercase text-red-500/40 italic">Audit Failure</span>
+                          <span className="text-[8px] font-mono uppercase text-red-500/40">Audit Failure</span>
                         </div>
                       )}
                     </div>
@@ -271,7 +266,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
       {/* Footer Info */}
       <div className="p-8 text-center bg-surface border border-border border-dashed rounded-[2rem]">
         <div className="inline-flex items-center gap-3 px-4 py-2 bg-surface rounded-full border border-border mb-4">
-          <ClipboardCheck className="w-3.5 h-3.5 text-cyan-400" strokeWidth={3} />
+          <ClipboardCheck className="w-3.5 h-3.5 text-purple-400" strokeWidth={3} />
           <span className="text-[9px] font-display font-bold text-muted uppercase tracking-[0.2em]">Audit Logic Powered by DT.Base Engine</span>
         </div>
         <p className="text-[10px] text-muted/40 leading-relaxed uppercase tracking-widest max-w-sm mx-auto">

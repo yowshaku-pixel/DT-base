@@ -64,7 +64,7 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-bg/90 backdrop-blur-xl flex items-center justify-center p-4 md:p-8 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] bg-bg flex items-center justify-center p-4 md:p-8 overflow-y-auto">
       <div className="w-full max-w-5xl bg-bg border border-border rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden min-h-[80vh]">
         
         {/* Left Side: Editor */}
@@ -146,7 +146,7 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
                 </button>
                 <button 
                   onClick={() => addItem('labor')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all"
                 >
                   <Plus className="w-3 h-3" /> Add Labor
                 </button>
@@ -160,7 +160,7 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
                     <div className="flex items-center justify-between">
                       <span className={cn(
                         "text-[9px] font-display font-bold uppercase tracking-widest px-2 py-0.5 rounded",
-                        item.type === 'part' ? "bg-purple-500/20 text-purple-400" : "bg-blue-500/20 text-blue-400"
+                        item.type === 'part' ? "bg-purple-500/20 text-purple-400" : "bg-purple-600/20 text-purple-300"
                       )}>
                         {item.type}
                       </span>
@@ -216,7 +216,7 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
             <div className="bg-white p-6 rounded-lg shadow-2xl text-zinc-900 aspect-[1/1.414] flex flex-col">
               <div className="flex justify-between items-start mb-6 border-b-2 border-zinc-900 pb-4">
                 <div>
-                  <h1 className="text-2xl font-display font-black tracking-tighter uppercase italic">DT.Base</h1>
+                  <h1 className="text-2xl font-display font-black tracking-tighter uppercase">DT.Base</h1>
                   <p className="text-[8px] font-mono uppercase tracking-widest opacity-60">Fleet Maintenance & Logistics</p>
                 </div>
                 <div className="text-right">
@@ -270,7 +270,7 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
                   <span className="opacity-40 uppercase tracking-widest">Labor Subtotal</span>
                   <span>{totals.labor.toLocaleString()} KES</span>
                 </div>
-                <div className="flex justify-between text-lg font-display font-black uppercase italic pt-2">
+                <div className="flex justify-between text-lg font-display font-black uppercase pt-2">
                   <span>Total</span>
                   <span className="text-purple-600">{totals.total.toLocaleString()} KES</span>
                 </div>

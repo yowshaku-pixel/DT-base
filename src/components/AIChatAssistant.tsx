@@ -25,8 +25,8 @@ interface AIChatAssistantProps {
   onFocusInsight?: (plate: string | null, service: string | null, year: number | null) => void;
   isLocked?: boolean;
   onUnlockRequest?: () => void;
-  viewMode?: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace';
-  theme?: 'light' | 'dark';
+  viewMode?: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' | 'advanced-search';
+  theme?: 'light' | 'dark' | 'black';
 }
 
 export default function AIChatAssistant({ 
@@ -39,7 +39,7 @@ export default function AIChatAssistant({
   isLocked = false,
   onUnlockRequest,
   viewMode = 'log',
-  theme = 'dark'
+  theme = 'black'
 }: AIChatAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -198,7 +198,7 @@ export default function AIChatAssistant({
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
+          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
           isOpen 
             ? "bg-bg text-text border-border" 
             : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
@@ -214,10 +214,10 @@ export default function AIChatAssistant({
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-50 w-[90vw] md:w-[600px] h-[800px] max-h-[85vh] glassmorphism rounded-2xl shadow-2xl flex flex-col overflow-hidden neon-border-violet"
+            className="fixed bottom-24 right-4 sm:right-[6rem] z-50 w-[92vw] sm:w-[500px] h-[600px] max-h-[80vh] bg-surface border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden border-violet-500/30"
           >
             {/* Header */}
-            <div className="p-4 border-b border-border bg-gradient-to-r from-violet-900/20 to-surface flex items-center justify-between shimmer-ai">
+            <div className="p-4 border-b border-border bg-gradient-to-r from-violet-900/20 to-surface flex items-center justify-between">
               <div className="flex items-center gap-3 relative z-10">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center shadow-[0_0_15px_rgba(0,245,255,0.3)]">
                   <Bot className="w-5 h-5 text-white" />
@@ -265,7 +265,7 @@ export default function AIChatAssistant({
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide relative">
               {isLocked && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg/90 backdrop-blur-sm p-8 text-center">
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg/90 p-8 text-center">
                   <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mb-4">
                     <Key className="w-8 h-8 text-amber-500" />
                   </div>

@@ -28,12 +28,12 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-bg text-text flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-surface border border-border p-8 text-center flex flex-col items-center gap-6 rounded-[2rem] shadow-2xl backdrop-blur-xl">
+          <div className="max-w-md w-full bg-surface border border-border p-8 text-center flex flex-col items-center gap-6 rounded-[2rem] shadow-2xl">
             <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/30">
               <AlertCircle className="w-8 h-8 text-red-500" />
             </div>
             <div>
-              <h1 className="text-2xl font-display font-black tracking-tighter italic mb-2">CRITICAL SYSTEM ERROR</h1>
+              <h1 className="text-2xl font-display font-black tracking-tighter mb-2">CRITICAL SYSTEM ERROR</h1>
               <p className="text-[10px] text-muted font-display font-bold uppercase tracking-[0.2em]">The application encountered an unexpected state.</p>
             </div>
             

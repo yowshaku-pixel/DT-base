@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ChevronRight, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, ArrowRight, Sun, Moon, Wrench, Receipt, Globe } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, Sun, Moon, Wrench, Receipt, Globe, Sparkles } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -20,9 +20,13 @@ import { Analytics } from './components/Analytics';
 import { FleetAuditReport } from './components/FleetAuditReport';
 import { BatteryIntelligence } from './components/BatteryIntelligence';
 import { Marketplace } from './components/Marketplace';
+import { AdvancedSearch } from './components/AdvancedSearch';
 import { INITIAL_PAYMENTS } from './lib/paymentData';
+import { fetchLedgerItems, harvestMarketPrices } from './services/ledgerService';
 import { motion, AnimatePresence } from 'motion/react';
 import { BarChart3 as BarChartIcon } from 'lucide-react';
+
+import LandingPage from './components/LandingPage';
 
 interface UploadLogEntry {
   fileName: string;
@@ -151,7 +155,7 @@ const PlateFolder = React.memo(({
               ))
             ) : (
               <div className="py-8 text-center">
-                <p className="text-[10px] font-display font-bold uppercase tracking-widest text-muted/40 italic">No records uploaded yet for this truck</p>
+                <p className="text-[10px] font-display font-bold uppercase tracking-widest text-muted/40">No records uploaded yet for this truck</p>
               </div>
             )}
           </div>
@@ -302,7 +306,7 @@ const SearchFilters = React.memo(({
             type="text"
             placeholder={!isServiceUnlocked && usageStats.searches >= 15 ? "Search limit reached..." : "Plate number..."}
             className={cn(
-              "w-full bg-black/40 backdrop-blur-md border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
+              "w-full bg-black/40 border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
               !isServiceUnlocked && usageStats.searches >= 15 ? "opacity-50 cursor-not-allowed border-white/10" : isAuditMode ? "neon-border-cyan border-cyan-500/50" : "neon-border-cyan"
             )}
             value={localSearch}
@@ -338,7 +342,7 @@ const SearchFilters = React.memo(({
             type="text"
             placeholder="Description keyword..."
             className={cn(
-              "w-full bg-black/40 backdrop-blur-md border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
+              "w-full bg-black/40 border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
               isAuditMode ? "border-cyan-500/30 focus:border-cyan-500/60" : "border-white/10"
             )}
             value={localDesc}
@@ -400,7 +404,7 @@ const EditRecordModal = React.memo(({
   const [localRecord, setLocalRecord] = useState(record);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 overflow-y-auto">
       <div className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 relative rounded-3xl my-auto">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 rounded-t-3xl" />
         
@@ -408,7 +412,7 @@ const EditRecordModal = React.memo(({
           <div>
             <div className="flex items-center gap-3 mb-1">
               <Settings className="w-5 h-5 text-violet-400" />
-              <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase text-white">Edit Record</h2>
+              <h2 className="text-2xl font-display font-black tracking-tighter uppercase text-white">Edit Record</h2>
             </div>
             <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em] truncate max-w-[200px]">
               Original: {record.file_name || 'Manual'}
@@ -521,7 +525,7 @@ const ManualEntryModal = React.memo(({
   const [localData, setLocalData] = useState(data);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 overflow-y-auto">
       <div className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 relative rounded-3xl my-auto">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 rounded-t-3xl" />
         
@@ -529,7 +533,7 @@ const ManualEntryModal = React.memo(({
           <div>
             <div className="flex items-center gap-3 mb-1">
               <Plus className="w-5 h-5 text-violet-400" />
-              <h2 className="text-2xl font-display font-black tracking-tighter italic uppercase text-white">Manual Entry</h2>
+              <h2 className="text-2xl font-display font-black tracking-tighter uppercase text-white">Manual Entry</h2>
             </div>
             <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em] truncate max-w-[200px]">
               File: {data.fileName}
@@ -626,7 +630,7 @@ export default function App() {
   const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
 
   const [user, setUser] = useState<User | null>(null);
-  const [viewMode, setViewMode] = useState<'log' | 'analytics' | 'audit' | 'battery' | 'marketplace'>('log');
+  const [viewMode, setViewMode] = useState<'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' | 'advanced-search'>('log');
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
@@ -653,7 +657,7 @@ export default function App() {
   const [serviceHintAnswer, setServiceHintAnswer] = useState<string | null>(null);
   const [isServiceHintLoading, setIsServiceHintLoading] = useState(false);
   const [descriptionQuery, setDescriptionQuery] = useState('');
-  const [notification, setNotification] = useState<{ message: string, type: 'info' | 'success' | 'warning' } | null>(null);
+  const [notification, setNotification] = useState<{ message: string, type: 'info' | 'success' | 'warning' | 'error' } | null>(null);
 
   // Auto-clear notification
   useEffect(() => {
@@ -791,10 +795,10 @@ export default function App() {
   };
 
   const [isFabOpen, setIsFabOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+  const [theme, setTheme] = useState<'light' | 'dark' | 'black'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('dtbase_theme');
-      if (saved === 'light' || saved === 'dark') return saved;
+      if (saved === 'light' || saved === 'dark' || saved === 'black') return saved;
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
     return 'dark';
@@ -802,15 +806,23 @@ export default function App() {
 
   useEffect(() => {
     const root = window.document.documentElement;
+    root.classList.remove('dark', 'black');
     if (theme === 'dark') {
       root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
+    } else if (theme === 'black') {
+      root.classList.add('black');
+      root.classList.add('dark');
     }
     localStorage.setItem('dtbase_theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  const toggleTheme = () => {
+    setTheme(prev => {
+      if (prev === 'light') return 'dark';
+      if (prev === 'dark') return 'black';
+      return 'light';
+    });
+  };
 
   const DEFAULT_REGISTRY = ["UAY 469L", "KCL 054", "KCY 901B", "KCZ 945Y", "KDS 849R", "UBA 824F", "AXOR MP3", "ACTROS MP4"];
 
@@ -1218,17 +1230,31 @@ export default function App() {
   const fetchRecords = useCallback(async () => {
     if (!user || !supabase) return;
     setIsRefreshing(true);
+    // Automatic retry helper
+    async function fetchWithRetry<T>(fn: () => PromiseLike<T>, retries = 3): Promise<T> {
+      for (let i = 0; i < retries; i++) {
+        try {
+          return await fn();
+        } catch (err: any) {
+          const isNetworkError = err.message?.toLowerCase().includes('fetch') || err.status === 0;
+          if (i === retries - 1 || !isNetworkError) throw err;
+          await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Exponential backoff
+        }
+      }
+      throw new Error("Maximum retries reached");
+    }
+
     try {
       let from = 0;
       let to = 999;
       
       // Fetch first page and total count
-      const { data, count, error } = await supabase
+      const { data, count, error } = await fetchWithRetry(() => supabase!
         .from('maintenance_records')
         .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at', { count: 'exact' })
         .eq('user_id', user.id)
         .order('service_date', { ascending: false })
-        .range(from, to);
+        .range(from, to)) as any;
 
       if (error) throw error;
       
@@ -1242,12 +1268,12 @@ export default function App() {
       while (allData.length < total && allData.length < 10000) {
         from += 1000;
         to += 1000;
-        const { data: moreData, error: moreError } = await supabase
+        const { data: moreData, error: moreError } = await fetchWithRetry(() => supabase!
           .from('maintenance_records')
           .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at')
           .eq('user_id', user.id)
           .order('service_date', { ascending: false })
-          .range(from, to);
+          .range(from, to)) as any;
         
         if (moreError) {
           console.warn("Error fetching more records:", moreError);
@@ -1257,11 +1283,12 @@ export default function App() {
         allData = [...allData, ...(moreData as MaintenanceRecord[])];
       }
 
-      // Final deduplication by ID just in case and ensure default values
-      const uniqueRecords = Array.from(new Map(allData.map(r => [r.id, r])).values()).map(r => ({
+      // Final deduplication using our robust utility function
+      const uniqueRecords = deduplicateRecords(allData).map(r => ({
         ...r,
         verified: !!r.verified
       }));
+
       setRecords(uniqueRecords);
       setIsCloudConnected(true);
       setError(null);
@@ -1368,9 +1395,12 @@ export default function App() {
             return { records: [], alreadyProcessed: true };
           }
         }
+        // Prepare a brief history summary to help extraction accuracy
+        const historySummary = records.slice(0, 30).map(r => `${r.plate_number}:${r.service_description}`).join(' | ');
+
         const extractionPromise = mode === 'market' 
           ? extractMarketPrices(base64, 'image/jpeg')
-          : extractMaintenanceData(base64, 'image/jpeg', fleetRegistry);
+          : extractMaintenanceData(base64, 'image/jpeg', fleetRegistry, historySummary);
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("AI extraction timed out.")), 120000)
         );
@@ -1400,12 +1430,35 @@ export default function App() {
           } else {
             if (result.records && result.records.length > 0) {
               for (const record of result.records) {
+                const normPlate = normalizePlate(record.plate_number).toUpperCase();
+                const normDate = normalizeDate(record.service_date);
+                const normDesc = record.service_description.toLowerCase().trim().replace(/\s+/g, ' ');
+
+                // Deduplication check based on Plate, Date, and Description
+                const { data: existing } = await supabase
+                  .from('maintenance_records')
+                  .select('id, service_description')
+                  .eq('user_id', user.id)
+                  .eq('plate_number', normPlate)
+                  .eq('service_date', normDate);
+
+                // Check for close description match among same plate/date records
+                const isDuplicate = existing && existing.some(r => {
+                  const existingDesc = r.service_description.toLowerCase().trim().replace(/\s+/g, ' ');
+                  return existingDesc === normDesc || existingDesc.includes(normDesc) || normDesc.includes(existingDesc);
+                });
+
+                if (isDuplicate) {
+                  console.log(`[DE-DUP] Duplicate record detected for ${normPlate} on ${normDate}. Skipping.`);
+                  continue;
+                }
+
                 const { data: recordData, error: recordError } = await supabase
                   .from('maintenance_records')
                   .insert({
-                    plate_number: record.plate_number,
-                    service_date: record.service_date,
-                    service_description: record.service_description,
+                    plate_number: normPlate,
+                    service_date: normDate,
+                    service_description: record.service_description.trim(),
                     confidence: record.confidence,
                     user_id: user.id,
                     file_name: fileName,
@@ -1867,13 +1920,37 @@ export default function App() {
     
     try {
       setIsProcessing(true);
+
+      const normPlate = normalizePlate(dataToUse.plateNumber).toUpperCase();
+      const normDate = normalizeDate(dataToUse.date);
+      const normDesc = dataToUse.service.toLowerCase().trim().replace(/\s+/g, ' ');
+
+      // Deduplication check for manual entries
+      const { data: existing } = await supabase
+        .from('maintenance_records')
+        .select('id, service_description')
+        .eq('user_id', user.id)
+        .eq('plate_number', normPlate)
+        .eq('service_date', normDate);
+
+      const isDuplicate = existing && existing.some(r => {
+        const existingDesc = r.service_description.toLowerCase().trim().replace(/\s+/g, ' ');
+        return existingDesc === normDesc || existingDesc.includes(normDesc) || normDesc.includes(existingDesc);
+      });
+
+      if (isDuplicate) {
+        setError("This record already exists in the system.");
+        setIsProcessing(false);
+        return;
+      }
+
       setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
       
       const { error } = await supabase
         .from('maintenance_records')
         .insert({
-          plate_number: dataToUse.plateNumber.toUpperCase().trim(),
-          service_date: dataToUse.date,
+          plate_number: normPlate,
+          service_date: normDate,
           service_description: dataToUse.service.trim(),
           confidence: 1.0,
           user_id: user.id,
@@ -1938,12 +2015,37 @@ export default function App() {
     
     try {
       setIsProcessing(true);
+
+      const normPlate = normalizePlate(recordToUpdate.plate_number).toUpperCase();
+      const normDate = normalizeDate(recordToUpdate.service_date);
+      const normDesc = recordToUpdate.service_description.toLowerCase().trim().replace(/\s+/g, ' ');
+
+      // Deduplication check for updates: ensure we don't create a clone of another record
+      const { data: existing } = await supabase
+        .from('maintenance_records')
+        .select('id, service_description')
+        .eq('user_id', user.id)
+        .eq('plate_number', normPlate)
+        .eq('service_date', normDate)
+        .neq('id', recordToUpdate.id);
+
+      const isDuplicate = existing && existing.some(r => {
+        const existingDesc = r.service_description.toLowerCase().trim().replace(/\s+/g, ' ');
+        return existingDesc === normDesc || existingDesc.includes(normDesc) || normDesc.includes(existingDesc);
+      });
+
+      if (isDuplicate) {
+        setError("Another record with identical details (Plate, Date, Description) already exists.");
+        setIsProcessing(false);
+        return;
+      }
+
       const { error } = await supabase
         .from('maintenance_records')
         .update({
-          plate_number: recordToUpdate.plate_number.toUpperCase().trim(),
-          service_date: recordToUpdate.service_date,
-          service_description: recordToUpdate.service_description
+          plate_number: normPlate,
+          service_date: normDate,
+          service_description: recordToUpdate.service_description.trim()
         })
         .eq('id', recordToUpdate.id)
         .eq('user_id', user.id);
@@ -2227,9 +2329,9 @@ export default function App() {
       }
 
       const context = `The user is having trouble finding maintenance history for truck ${searchQuery.toUpperCase()}. 
-      Analyze the history specifically for this truck and find relevant records.`;
+      Analyze the entire fleet history to find relevant records or patterns related to this truck.`;
       
-      const answer = await analyzeMaintenanceData(context, truckRecords, [], marketPrices);
+      const answer = await analyzeMaintenanceData(context, records, [], marketPrices);
       setUsageStats(prev => ({ ...prev, searches: prev.searches + 1 }));
       setTroubleFindingAnswer(answer);
     } catch (err: any) {
@@ -2286,7 +2388,7 @@ export default function App() {
       
       If no related records are found, respond with "NO_RECORDS_FOUND".`;
       
-      const answer = await analyzeMaintenanceData(prompt, truckRecords, [], []);
+      const answer = await analyzeMaintenanceData(prompt, records, [], []);
       
       if (answer.trim() === 'NO_RECORDS_FOUND') {
         setServiceHintAnswer(`No related ${serviceHintQuery} records found for truck ${searchQuery.toUpperCase()}.`);
@@ -2458,9 +2560,9 @@ export default function App() {
         .order('service_date', { ascending: false });
 
       if (fetchError) throw fetchError;
-      if (latestRecords) setRecords(latestRecords);
+      if (latestRecords) setRecords(deduplicateRecords(latestRecords as MaintenanceRecord[]));
 
-      const targetRecords = latestRecords || records;
+      const targetRecords = latestRecords ? deduplicateRecords(latestRecords as MaintenanceRecord[]) : records;
 
       // Use the same normalization and similarity logic from startBatchProcessing
       const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
@@ -2556,7 +2658,7 @@ export default function App() {
   if (!isAppUnlocked) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-surface border border-border rounded-2xl backdrop-blur-md p-8 text-center shadow-xl">
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center shadow-xl">
           <div className="w-16 h-16 bg-amber-500/20 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
             <Key className="w-8 h-8 text-amber-500 dark:text-amber-400" />
           </div>
@@ -2598,7 +2700,7 @@ export default function App() {
   if (hasApiKey === false) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-surface border border-border rounded-2xl backdrop-blur-xl p-8 text-center shadow-xl">
+        <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center shadow-xl">
           <div className="w-16 h-16 bg-purple-600/20 border border-purple-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
             <Zap className="w-8 h-8 text-purple-600 dark:text-purple-400" />
           </div>
@@ -2634,12 +2736,34 @@ export default function App() {
 
   return (
     <div className={cn(
-      "min-h-screen bg-bg text-text p-4 md:p-12 max-w-7xl mx-auto flex flex-col transition-all duration-700",
-      isAuditMode && "shadow-[inset_0_0_100px_rgba(6,182,212,0.05)] ring-1 ring-cyan-500/10"
+      "min-h-screen transition-all duration-700 ease-in-out",
+      "bg-bg text-text p-4 md:p-12 max-w-7xl mx-auto flex flex-col"
     )}>
+      <div className={cn(
+        "flex flex-col transition-all duration-700 ease-in-out relative",
+        "w-full flex-1"
+      )}>
+      {/* Supabase Config Warning */}
+      {!supabase && (
+        <div className="mb-8 p-4 bg-orange-600/20 border border-orange-500/40 rounded-xl flex items-center gap-4 animate-pulse">
+          <div className="p-2 bg-orange-500/20 rounded-lg">
+            <AlertTriangle className="w-5 h-5 text-orange-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xs font-display font-bold uppercase tracking-widest text-orange-200 mb-1 flex items-center gap-2">
+              Database Disconnected
+              <span className="px-1.5 py-0.5 bg-orange-500 text-white text-[8px] rounded uppercase font-black">Missing Secrets</span>
+            </h3>
+            <p className="text-[10px] text-orange-200/60 leading-relaxed uppercase tracking-wider">
+              Supabase configuration is missing. Add <span className="text-white font-bold">VITE_SUPABASE_URL</span> and <span className="text-white font-bold">VITE_SUPABASE_ANON_KEY</span> to AI Studio Secrets.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Audit Mode Banner */}
       {isAuditMode && (
-        <div className="mb-8 p-4 bg-cyan-600/20 border border-cyan-500/40 rounded-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500 shadow-[0_0_20px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/30 animate-pulse">
+        <div className="mb-8 p-4 bg-cyan-600/10 border border-cyan-500/20 rounded-xl flex items-center gap-4">
           <div className="p-2 bg-cyan-500/20 rounded-lg">
             <Eye className="w-5 h-5 text-cyan-400" />
           </div>
@@ -2680,15 +2804,17 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="relative mb-4 md:mb-6 border-b border-border pb-4 glassmorphism p-4 rounded-3xl neon-border-violet">
+      <header className="relative mb-4 md:mb-6 border-b border-border pb-4 bg-surface/80 p-4 rounded-3xl">
         {/* Top Right Controls */}
         <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
           <button 
             onClick={toggleTheme}
             className="p-2 bg-surface border border-border hover:bg-white/10 dark:hover:bg-white/10 transition-all rounded-full text-muted hover:text-text"
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch Theme (Current: ${theme})`}
           >
-            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-violet-600" />}
+            {theme === 'dark' ? <Moon className="w-4 h-4 text-violet-600" /> : 
+             theme === 'black' ? <Zap className="w-4 h-4 text-cyan-400" /> : 
+             <Sun className="w-4 h-4 text-amber-500" />}
           </button>
           {viewMode === 'log' && (
             <button 
@@ -2720,7 +2846,7 @@ export default function App() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
                 className={cn(
-                  "mt-6 p-4 rounded-2xl border backdrop-blur-md flex items-center gap-3 shadow-xl z-50",
+                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
                   notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
                   notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
                   "bg-amber-500/10 border-amber-500/30 text-amber-200"
@@ -2745,10 +2871,14 @@ export default function App() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center p-1 bg-surface border border-border rounded-2xl mr-4">
                 <button 
-                  onClick={() => setViewMode('log')}
+                  onClick={() => {
+                    if (viewMode !== 'log' && viewMode !== 'advanced-search') {
+                      setViewMode('log');
+                    }
+                  }}
                   className={cn(
                     "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
-                    viewMode === 'log' ? "bg-purple-600 text-white shadow-lg shadow-purple-900/20" : "text-muted hover:text-text"
+                    (viewMode === 'log' || viewMode === 'advanced-search') ? "bg-purple-600 text-white" : "text-muted hover:text-text"
                   )}
                 >
                   History
@@ -2762,7 +2892,7 @@ export default function App() {
                   }}
                   className={cn(
                     "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                    (viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') ? "bg-amber-600 text-white shadow-lg shadow-amber-900/20" : "text-muted hover:text-text"
+                    (viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') ? "bg-purple-600 text-white" : "text-muted hover:text-text"
                   )}
                 >
                   {(viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') && <ClipboardCheck className="w-3 h-3" />}
@@ -2772,13 +2902,41 @@ export default function App() {
                   onClick={() => setViewMode('marketplace')}
                   className={cn(
                     "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                    viewMode === 'marketplace' ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" : "text-muted hover:text-text"
+                    viewMode === 'marketplace' ? "bg-purple-600 text-white" : "text-muted hover:text-text"
                   )}
                 >
                   {viewMode === 'marketplace' && <Globe className="w-3 h-3" />}
                   IntelCenter
                 </button>
               </div>
+              
+              {/* Sub-navigation for History section */}
+              {(viewMode === 'log' || viewMode === 'advanced-search') && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center p-1 bg-surface/50 border border-border/50 rounded-xl ml-4 w-fit"
+                >
+                  <button 
+                    onClick={() => setViewMode('log')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
+                      viewMode === 'log' ? "bg-purple-500/20 text-purple-400" : "text-muted hover:text-text"
+                    )}
+                  >
+                    Logs
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('advanced-search')}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
+                      viewMode === 'advanced-search' ? "bg-purple-500/20 text-purple-400" : "text-muted hover:text-text"
+                    )}
+                  >
+                    Adv Search
+                  </button>
+                </motion.div>
+              )}
               
               {/* Sub-navigation for Audit section */}
               {(viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') && (
@@ -2791,7 +2949,7 @@ export default function App() {
                     onClick={() => setViewMode('audit')}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
-                      viewMode === 'audit' ? "bg-amber-500/20 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]" : "text-muted hover:text-text"
+                      viewMode === 'audit' ? "bg-purple-500/20 text-purple-400" : "text-muted hover:text-text"
                     )}
                   >
                     Verifier
@@ -2800,7 +2958,7 @@ export default function App() {
                     onClick={() => setViewMode('analytics')}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
-                      viewMode === 'analytics' ? "bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.2)]" : "text-muted hover:text-text"
+                      viewMode === 'analytics' ? "bg-purple-500/20 text-purple-400" : "text-muted hover:text-text"
                     )}
                   >
                     Insights
@@ -2809,7 +2967,7 @@ export default function App() {
                     onClick={() => setViewMode('battery')}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
-                      viewMode === 'battery' ? "bg-blue-500/20 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]" : "text-muted hover:text-text"
+                      viewMode === 'battery' ? "bg-purple-500/20 text-purple-400" : "text-muted hover:text-text"
                     )}
                   >
                     Int
@@ -2821,7 +2979,7 @@ export default function App() {
             {deferredPrompt && (
               <button 
                 onClick={handleInstallClick}
-                className="flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 text-white hover:bg-violet-500 transition-all active:scale-95 rounded-xl shadow-[0_0_15px_rgba(160,32,240,0.4)]"
+                className="flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 text-white hover:bg-violet-500 transition-all active:scale-95 rounded-xl font-display font-bold uppercase tracking-widest"
                 title="Install DT.Base as a Progressive Web App"
               >
                 <Download className="w-3 h-3" />
@@ -2874,9 +3032,9 @@ export default function App() {
                     return (
                       <span className={cn(
                         "text-[9px] px-2 py-0.5 rounded-full border font-display font-black uppercase tracking-widest flex items-center gap-1.5",
-                        activeEntry.isAudit ? "bg-cyan-500/30 border-cyan-400 text-white shadow-[0_0_15px_rgba(6,182,212,0.4)]" :
-                        activeEntry.mode === 'market' ? "bg-amber-500/20 border-amber-500/40 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.3)]" : 
-                        "bg-cyan-500/20 border-cyan-500/40 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                        activeEntry.isAudit ? "bg-cyan-500/30 border-cyan-400 text-white" :
+                        activeEntry.mode === 'market' ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : 
+                        "bg-cyan-500/20 border-cyan-500/40 text-cyan-400"
                       )}>
                         {activeEntry.isAudit && <Eye className="w-3 h-3 animate-pulse" />}
                         {activeEntry.mode} {activeEntry.isAudit ? "Audit" : "Mode"}
@@ -2898,7 +3056,7 @@ export default function App() {
             </div>
             <div className="h-1 w-full bg-surface overflow-hidden rounded-full border border-border/50">
               <div 
-                className="h-full bg-purple-500 transition-all duration-300 shadow-[0_0_10px_rgba(168,85,247,0.5)]" 
+                className="h-full bg-purple-500 transition-all duration-300" 
                 style={{ width: `${(progress.current / progress.total) * 100}%` }}
               />
             </div>
@@ -2907,21 +3065,29 @@ export default function App() {
 
       {/* Error Message */}
       {error && (
-        <div className="mb-8 p-4 bg-red-900/40 backdrop-blur-md border border-red-500/50 text-red-100 flex flex-col gap-3">
+        <div className="mb-8 p-4 bg-red-900/40 border border-red-500/50 text-red-100 flex flex-col gap-3 rounded-xl animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <div className="flex flex-col">
-                <div className="text-sm font-display font-medium">{error}</div>
+                <div className="text-sm font-display font-bold uppercase tracking-widest">{error}</div>
                 {typeof error === 'string' && error.includes("Daily Quota Reached") && (
-                  <p className="text-[10px] opacity-60 mt-1">
+                  <p className="text-[10px] font-display font-medium opacity-60 mt-1 uppercase tracking-widest">
                     You can still add records manually using the "Add Manually" button on failed items in the log below.
                   </p>
                 )}
-                {typeof error === 'string' && (error.includes("Failed to fetch") || error.includes("connection error")) && (
-                  <p className="text-[10px] opacity-60 mt-1">
-                    This is often caused by unstable internet or browser extensions blocking the request. Try refreshing or using a different browser.
-                  </p>
+                {typeof error === 'string' && (error.includes("Failed to fetch") || error.includes("DATABASE OFFLINE")) && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <p className="text-[9px] font-display font-medium opacity-60 uppercase tracking-widest leading-relaxed">
+                      This is often caused by unstable internet or server interruption. Retrying may fix it.
+                    </p>
+                    <button 
+                      onClick={fetchRecords}
+                      className="whitespace-nowrap px-3 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-[8px] font-display font-black uppercase tracking-[0.2em] transition-all"
+                    >
+                      Retry Connection
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -2930,7 +3096,7 @@ export default function App() {
                 setError(null);
                 setFailedFiles([]);
               }}
-              className="p-2 hover:bg-red-200 rounded-full transition-all hover:scale-110"
+              className="p-2 hover:bg-white/10 rounded-full transition-all hover:scale-110"
               title="Dismiss"
             >
               <X className="w-5 h-5" />
@@ -2953,9 +3119,9 @@ export default function App() {
       {/* Auth Section */}
       {!user && (
         <div className="flex-1 flex items-center justify-center py-12">
-          <div className="w-full max-w-md p-8 bg-surface border border-border rounded-3xl shadow-2xl backdrop-blur-xl">
+          <div className="w-full max-w-md p-8 bg-surface border border-border rounded-3xl shadow-2xl">
             <div className="mb-8 text-center">
-              <h2 className="text-4xl font-display font-black tracking-tighter mb-2 text-text italic">
+              <h2 className="text-4xl font-display font-black tracking-tighter mb-2 text-text">
                 {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
               </h2>
               <p className="text-[10px] text-muted uppercase tracking-[0.2em] font-display font-bold">
@@ -3014,7 +3180,7 @@ export default function App() {
         <>
           {/* Upload Log Section */}
       {uploadLog.length > 0 && (
-        <div className="mb-12 glass-panel p-6">
+        <div className="mb-12 bg-surface border border-border rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
             <button 
               onClick={() => setShowUploadLog(!showUploadLog)}
@@ -3190,13 +3356,13 @@ export default function App() {
           )}
 
           <div className="mt-4 flex flex-col gap-1">
-            <p className="text-[9px] font-display font-medium opacity-40 italic">
+            <p className="text-[9px] font-display font-medium opacity-40">
               * This log persists even if the browser crashes. Successful uploads are saved to the cloud.
             </p>
-            <p className="text-[9px] font-display font-medium opacity-40 italic">
+            <p className="text-[9px] font-display font-medium opacity-40">
               * Note: Mobile browsers may rename files (e.g., "image.jpg") when selecting from the gallery.
             </p>
-            <p className="text-[9px] font-display font-medium opacity-40 italic">
+            <p className="text-[9px] font-display font-medium opacity-40">
               * The "View" button is only available for the current session to save storage space.
             </p>
           </div>
@@ -3207,7 +3373,7 @@ export default function App() {
 
       {/* Audit Results Section */}
       {isAuditMode && auditResults.length > 0 && (
-        <div className="mb-12 glass-panel p-6 border-cyan-500/30 bg-cyan-500/5">
+        <div className="mb-12 bg-surface border border-border p-6 border-cyan-500/30 bg-cyan-500/5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <CheckCircle2 className="w-4 h-4 text-cyan-400" />
@@ -3334,7 +3500,7 @@ export default function App() {
               <input 
                 type="text"
                 placeholder="Primary filter..."
-                className="w-full bg-black/40 backdrop-blur-md border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
+                className="w-full bg-black/40 border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
                 value={serviceFilter}
                 onChange={(e) => setServiceFilter(e.target.value)}
                 title="Filter records by service description (e.g. Oil, Tires)"
@@ -3354,7 +3520,7 @@ export default function App() {
               <input 
                 type="text"
                 placeholder="Secondary filter..."
-                className="w-full bg-black/40 backdrop-blur-md border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
+                className="w-full bg-black/40 border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
                 value={secondaryServiceFilter}
                 onChange={(e) => setSecondaryServiceFilter(e.target.value)}
                 title="Add a second filter for more specific results"
@@ -3390,7 +3556,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <input 
               type="date"
-              className="flex-1 bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+              className="flex-1 bg-white/5 border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               title="Start date for filtering records"
@@ -3398,7 +3564,7 @@ export default function App() {
             <span className="text-white/20 text-[10px]">to</span>
             <input 
               type="date"
-              className="flex-1 bg-white/5 backdrop-blur-sm border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+              className="flex-1 bg-white/5 border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               title="End date for filtering records"
@@ -3458,79 +3624,112 @@ export default function App() {
         </div>
       </div>
 
-      {/* Trouble Finding Section */}
-      <div className="mb-8 p-6 glassmorphism rounded-2xl neon-border-violet shimmer-ai">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
-          <div className="flex flex-col">
-            <h3 className="font-display font-bold text-sm text-white uppercase tracking-widest">Trouble finding History?</h3>
-            <p className="text-[9px] font-display font-medium text-white/60 uppercase tracking-widest">
-              AI analysis for {searchQuery || 'identified truck'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+      {/* Intelligence Expansion Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+        {/* Rectangle 1: Ask Anni AI */}
+        <div className="p-6 bg-surface border border-violet-500/20 rounded-[2rem] flex flex-col relative overflow-hidden group">
+          {/* Animated Background Glow */}
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-violet-600/10 blur-[50px] group-hover:bg-violet-600/20 transition-all duration-1000" />
+          
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 border border-violet-500/20 flex items-center justify-center relative shadow-[0_0_15px_rgba(139,92,246,0.3)]">
+                <Sparkles className="w-4 h-4 text-white" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <h3 className="text-sm font-display font-black text-white uppercase tracking-widest leading-none">Anni AI Intelligence</h3>
+                <p className="text-[8px] font-display font-medium text-violet-400/60 uppercase tracking-[0.2em] mt-1">Deep Pattern Analysis</p>
+              </div>
+            </div>
+
             <button 
               onClick={handleTroubleFinding}
               disabled={isTroubleFindingLoading || records.length === 0 || !searchQuery.trim()}
-              className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-bold uppercase tracking-[0.2em] text-[10px] rounded-full transition-all active:scale-95 shadow-[0_0_20px_rgba(0,245,255,0.4)]"
-              title={!searchQuery.trim() ? "Identify a truck first to ask AI" : "Use AI to search history for this truck"}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-display font-black uppercase tracking-[0.3em] text-[9px] rounded-xl transition-all active:scale-95 shadow-[0_0_20px_rgba(0,245,255,0.3)]"
             >
               {isTroubleFindingLoading ? (
                 <>
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Analyzing...
+                  CONSULTING ANNI...
                 </>
               ) : (
                 <>
                   <Zap className="w-3 h-3 fill-current" />
-                  Ask AI
+                  INITIATE SCAN
                 </>
               )}
             </button>
           </div>
+
+          {troubleFindingAnswer && (
+            <div className="mt-4 p-4 bg-black/40 border border-violet-500/20 rounded-xl animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1.5 h-1.5 bg-violet-500 rounded-full shadow-[0_0_8px_rgba(139,92,246,0.5)]" />
+                <span className="font-display font-bold text-[9px] uppercase tracking-[0.3em] text-violet-400">Anni's Report</span>
+                <button 
+                  onClick={() => setTroubleFindingAnswer(null)}
+                  className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-2.5 h-2.5 opacity-40 hover:opacity-100" />
+                </button>
+              </div>
+              <div className="prose prose-invert prose-sm max-w-none">
+                <div className="text-white/80 font-display leading-relaxed whitespace-pre-wrap text-[11px]">
+                  {troubleFindingAnswer}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Searching services hint Tool */}
+        {/* Rectangle 2: Service Expansion Search */}
         <div className={cn(
-          "mt-8 p-6 bg-black/40 border border-cyan-500/10 rounded-2xl transition-all duration-500",
-          !searchQuery.trim() ? "opacity-20 grayscale cursor-not-allowed" : "opacity-100"
+          "p-6 bg-black/40 border border-cyan-500/10 rounded-[2rem] flex flex-col relative overflow-hidden group transition-all duration-500",
+          !searchQuery.trim() ? "opacity-30 grayscale" : "opacity-100"
         )}>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="p-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
-              <Search className="w-4 h-4 text-cyan-400" />
+          {/* Animated Background Glow */}
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-cyan-600/5 blur-[50px] group-hover:bg-cyan-600/10 transition-all duration-1000" />
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl bg-cyan-600/10 border border-cyan-500/20 flex items-center justify-center">
+                <Search className="w-4 h-4 text-cyan-400" />
+              </div>
+              <div className="flex flex-col">
+                <h3 className="text-sm font-display font-black text-cyan-400 uppercase tracking-widest leading-none">Expansion Search</h3>
+                <p className="text-[8px] font-display font-medium text-white/30 uppercase tracking-[0.2em] mt-1">Technical Cross-Reference</p>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <h3 className="font-display font-bold text-xs text-cyan-400 uppercase tracking-widest">SERVICE EXPANSION SEARCH</h3>
-              <p className="text-[8px] font-display font-medium text-white/40 uppercase tracking-[0.2em]">Based on technical relationships</p>
-            </div>
-            {!searchQuery.trim() && (
-              <span className="text-[9px] font-display font-bold text-red-400/80 uppercase ml-auto animate-pulse">LOCKED: Identify Truck First</span>
-            )}
+            
+            <form onSubmit={handleServiceHintSearch} className="relative group/hint">
+              <input
+                type="text"
+                value={serviceHintQuery}
+                onChange={(e) => setServiceHintQuery(e.target.value)}
+                disabled={!searchQuery.trim() || isServiceHintLoading}
+                placeholder="COMPONENT REFERENCE..."
+                className="w-full bg-black/60 border neon-border-cyan p-3 pl-5 pr-20 rounded-xl font-display font-bold text-[10px] focus:outline-none transition-all placeholder:opacity-20 disabled:opacity-50 uppercase tracking-widest"
+              />
+              <button
+                type="submit"
+                disabled={!serviceHintQuery.trim() || isServiceHintLoading || records.length === 0 || !searchQuery.trim()}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-600 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all rounded-lg font-display font-black uppercase tracking-widest text-[8px]"
+              >
+                {isServiceHintLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "SCAN"}
+              </button>
+            </form>
           </div>
-          
-          <form onSubmit={handleServiceHintSearch} className="relative group/hint">
-            <input
-              type="text"
-              value={serviceHintQuery}
-              onChange={(e) => setServiceHintQuery(e.target.value)}
-              disabled={!searchQuery.trim() || isServiceHintLoading}
-              placeholder="SEARCH SYSTEM: E.G. Air compressor, Engine, Suspension..."
-              className="w-full bg-black/60 border border-white/10 p-4 pl-6 pr-24 rounded-xl font-display font-bold text-xs focus:outline-none focus:border-cyan-500/50 transition-all placeholder:opacity-20 disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!serviceHintQuery.trim() || isServiceHintLoading || records.length === 0 || !searchQuery.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-600 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all rounded-lg font-display font-black uppercase tracking-widest text-[9px]"
-            >
-              {isServiceHintLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "SEARCH"}
-            </button>
-          </form>
 
           {serviceHintAnswer && (
-            <div className="mt-6 p-6 bg-black/40 border border-cyan-500/20 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-500">
+            <div className="mt-6 p-6 bg-black/60 border border-cyan-500/20 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-500">
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 bg-cyan-500 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.5)]" />
-                  <span className="font-display font-bold text-[10px] uppercase tracking-[0.3em] text-cyan-400">Technical Log: {searchQuery.toUpperCase()}</span>
+                  <span className="font-display font-bold text-[10px] uppercase tracking-[0.3em] text-cyan-400">System Log: {searchQuery.toUpperCase()}</span>
                 </div>
                 <button 
                   onClick={() => setServiceHintAnswer(null)}
@@ -3539,17 +3738,17 @@ export default function App() {
                   <X className="w-3 h-3 opacity-40 hover:opacity-100 text-white" />
                 </button>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {serviceHintAnswer.split('\n').filter(l => l.trim()).map((line, idx) => {
                   const parts = line.split('|');
                   const date = (parts[0] || '').trim();
                   const service = (parts[1] || '').trim();
                   return (
-                    <div key={idx} className="flex items-start gap-4 group/line py-1 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+                    <div key={idx} className="flex items-start gap-4 group/line py-1.5 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
                       <span className="text-[10px] font-mono text-cyan-400/60 shrink-0 w-20">
                         {date}
                       </span>
-                      <span className="text-[11px] font-display font-bold text-white/90 group-hover/line:text-cyan-400 transition-colors">
+                      <span className="text-[11px] font-display font-black text-white/90 group-hover/line:text-cyan-400 transition-colors uppercase">
                         {service}
                       </span>
                     </div>
@@ -3559,27 +3758,6 @@ export default function App() {
             </div>
           )}
         </div>
-
-        {troubleFindingAnswer && (
-          <div className="mt-6 p-6 bg-zinc-900/50 border border-purple-500/20 rounded-xl animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
-              <span className="font-display font-bold text-[10px] uppercase tracking-[0.3em] text-purple-400">AI Search Results</span>
-              <button 
-                onClick={() => setTroubleFindingAnswer(null)}
-                className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
-                title="Close AI search results"
-              >
-                <X className="w-3 h-3 opacity-40 hover:opacity-100" />
-              </button>
-            </div>
-            <div className="prose prose-invert prose-sm max-w-none">
-              <div className="text-white/80 font-display leading-relaxed whitespace-pre-wrap text-xs">
-                {troubleFindingAnswer}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Latest Result Summary Area */}
@@ -3789,8 +3967,8 @@ export default function App() {
 
       {/* Image Modal */}
       {viewingImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl glassmorphism neon-border-violet shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90">
+            <div className="relative w-full max-w-4xl bg-surface border border-border border-violet-500/30 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
               <div className="flex flex-col">
                 <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-violet-400">Record Image</span>
@@ -3833,18 +4011,18 @@ export default function App() {
 
       {/* Date Range Summary Report Modal */}
       {showDateRangeReport && (
-        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 overflow-y-auto">
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             className="relative w-full max-w-2xl glassmorphism neon-border-violet shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
           >
-            <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/[0.02] shimmer-ai">
+            <div className="flex items-center justify-between p-6 border-b border-white/5 bg-white/[0.02]">
               <div className="flex flex-col gap-1 relative z-10">
                 <h2 className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-violet-400">Summary Report</h2>
                 <div className="flex items-center gap-2 text-white/60 font-display font-bold text-xs uppercase tracking-widest">
                   <span>From {startDate || 'Start'}</span>
-                  <ChevronRight className="w-3 h-3 opacity-30 text-cyan-400" />
+                  <span className="opacity-30">→</span>
                   <span>To {endDate || 'Today'}</span>
                 </div>
               </div>
@@ -3976,10 +4154,7 @@ export default function App() {
       {/* Market Prices Modal */}
       <AnimatePresence>
         {showMarketPricesModal && (
-          <div 
-            className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto"
-            onClick={() => setShowMarketPricesModal(false)}
-          >
+          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 overflow-y-auto" onClick={() => setShowMarketPricesModal(false)}>
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -3987,7 +4162,7 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
               className="glassmorphism neon-border-violet w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] rounded-3xl my-auto"
             >
-              <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between bg-white/5 shimmer-ai">
+              <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between bg-white/5">
                 <div className="flex items-center gap-3 relative z-10">
                   <div className="p-2 bg-amber-500/20 rounded-lg border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.3)]">
                     <Tag className="w-4 h-4 text-amber-400" />
@@ -4045,6 +4220,45 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                <div className="p-4 border-t border-white/5 bg-blue-500/5 rounded-xl border border-blue-500/20 group hover:bg-blue-500/10 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Database className="w-4 h-4 text-blue-400" />
+                      <span className="text-[10px] font-display font-black text-white uppercase tracking-widest">IntelSync Harvest</span>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        if (!user) return;
+                        setNotification({ message: 'Harvesting from IntelCenter...', type: 'info' });
+                        try {
+                          const ledgerData = await fetchLedgerItems();
+                          const harvested = harvestMarketPrices(ledgerData);
+                          
+                          if (harvested.length === 0) {
+                            setNotification({ message: 'No clear price data found in Ledger.', type: 'warning' });
+                            return;
+                          }
+
+                          for (const item of harvested) {
+                            await handleSaveMarketPrice(item.item_name, item.price, item.currency);
+                          }
+                          
+                          setNotification({ message: `Successfully harvested ${harvested.length} prices!`, type: 'success' });
+                        } catch (err) {
+                          console.error("Harvest failed:", err);
+                          setNotification({ message: 'Failed to harvest prices.', type: 'error' });
+                        }
+                      }}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-display font-bold uppercase tracking-widest text-[8px] rounded transition-all shadow-[0_0_10px_rgba(37,99,235,0.3)]"
+                    >
+                      Sync Now
+                    </button>
+                  </div>
+                  <p className="text-[9px] text-white/40 leading-relaxed">
+                    Auto-update this database using smart intelligence from IntelCenter. It ignores duplicates and messy notes.
+                  </p>
+                </div>
               </div>
 
               <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end">
@@ -4063,7 +4277,7 @@ export default function App() {
       {/* Settings Modal */}
       <AnimatePresence>
         {showSettingsModal && (
-          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -4074,7 +4288,7 @@ export default function App() {
               
               <div className="flex items-start justify-between mb-8">
                 <div>
-                  <h2 className="text-2xl font-display font-black tracking-tighter italic mb-1 text-white">SETTINGS</h2>
+                  <h2 className="text-2xl font-display font-black tracking-tighter mb-1 text-white">SETTINGS</h2>
                   <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em]">Application Configuration & Tools</p>
                 </div>
                 <button 
@@ -4245,12 +4459,11 @@ export default function App() {
                         <div className="p-2.5 bg-green-500/10 rounded-xl border border-green-500/20 group-hover:bg-green-500/20 transition-all">
                           <Zap className="w-4 h-4 text-green-500" />
                         </div>
-                        <div className="flex flex-col items-start">
+                      <div className="flex flex-col items-start">
                           <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Usage Statistics</span>
                           <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Quota & Performance</span>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
                     </button>
 
                     <button 
@@ -4269,7 +4482,6 @@ export default function App() {
                           <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Price Reference Logs</span>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
                     </button>
 
                     <div className="space-y-2">
@@ -4287,7 +4499,6 @@ export default function App() {
                             <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Download CSV Report</span>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
                       </button>
 
                       <button 
@@ -4304,7 +4515,6 @@ export default function App() {
                             <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Generate PDF Document</span>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
                       </button>
                     </div>
 
@@ -4325,7 +4535,6 @@ export default function App() {
                           <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Manual Data Refresh</span>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-white/10 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all" />
                     </button>
                   </div>
                 </div>
@@ -4397,7 +4606,6 @@ export default function App() {
                           <span className="text-[8px] font-mono text-amber-500/40 uppercase tracking-widest">Master Access Required</span>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-amber-500/40 group-hover:text-amber-500/60 group-hover:translate-x-0.5 transition-all" />
                     </button>
                   ) : (
                     <button 
@@ -4512,7 +4720,6 @@ export default function App() {
                             <span className="text-[8px] font-mono text-red-500/30 uppercase tracking-widest">Permanent Data Cleanup</span>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-red-500/20 group-hover:text-red-500/40 group-hover:translate-x-0.5 transition-all" />
                       </button>
                     ) : (
                       <div className="p-5 bg-red-500/[0.03] border border-red-500/20 rounded-3xl space-y-5 shadow-2xl shadow-red-900/10">
@@ -4566,13 +4773,13 @@ export default function App() {
 
       {/* Usage Stats Modal */}
       {showUsageModal && (
-        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 overflow-y-auto">
           <div className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 relative rounded-3xl my-auto">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 via-cyan-500 to-violet-500 rounded-t-3xl" />
             
             <div className="flex items-start justify-between mb-8">
               <div>
-                <h2 className="text-2xl font-display font-black tracking-tighter italic mb-1 text-white">USAGE DASHBOARD</h2>
+                <h2 className="text-2xl font-display font-black tracking-tighter mb-1 text-white">USAGE DASHBOARD</h2>
                 <p className="text-[10px] text-violet-400/60 font-mono uppercase tracking-[0.2em]">Session Monitoring & Quota Estimates</p>
               </div>
               <button 
@@ -4704,6 +4911,8 @@ export default function App() {
             user_id={user?.id}
           />
         </div>
+      ) : viewMode === 'advanced-search' ? (
+        <AdvancedSearch records={records} />
       ) : (
         <FleetAuditReport 
           records={records} 
@@ -4774,7 +4983,7 @@ export default function App() {
             title="Scroll to top"
           >
             <ChevronUp className="w-6 h-6 group-hover:-translate-y-0.5 transition-transform" />
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-bg border border-border backdrop-blur-md px-2 py-1 rounded text-[8px] font-display font-bold uppercase tracking-widest text-text opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-bg border border-border px-2 py-1 rounded text-[8px] font-display font-bold uppercase tracking-widest text-text opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
               Go Up
             </div>
           </motion.button>
@@ -4782,7 +4991,10 @@ export default function App() {
       </AnimatePresence>
 
       {/* Floating Action Hub */}
-      <div className="fixed bottom-6 right-24 z-50 flex flex-col items-end gap-3">
+      <div className={cn(
+        "z-50 flex flex-col items-end gap-3 transition-all duration-500",
+        "fixed bottom-6 right-6"
+      )}>
         <AnimatePresence>
           {isFabOpen && (
             <motion.div 
@@ -4805,7 +5017,7 @@ export default function App() {
                   });
                   setIsFabOpen(false);
                 }}
-                className="flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border hover:neon-border-violet transition-all group"
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 text-text rounded-2xl shadow-xl border border-border transition-all group"
               >
                 <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-violet-500 dark:group-hover:text-violet-400 transition-colors">Manual Entry</span>
                 <div className="p-2 bg-violet-500/20 rounded-xl border border-violet-500/30">
@@ -4818,7 +5030,7 @@ export default function App() {
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border transition-all group cursor-pointer",
+                  "flex items-center gap-3 px-4 py-3 bg-bg/90 text-text rounded-2xl shadow-xl border border-border transition-all group cursor-pointer",
                   isAuditMode ? "hover:neon-border-cyan border-cyan-500/30" : "hover:neon-border-cyan"
                 )}
               >
@@ -4851,7 +5063,7 @@ export default function App() {
               <motion.label
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border hover:neon-border-cyan transition-all group cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 text-text rounded-2xl shadow-xl border border-border transition-all group cursor-pointer"
               >
                 <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">Fleet Camera Scan</span>
                 <div className="p-2 bg-cyan-500/20 rounded-xl border border-cyan-500/30">
@@ -4876,7 +5088,7 @@ export default function App() {
               <motion.label
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border hover:neon-border-amber transition-all group cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3 bg-bg/95 text-text rounded-2xl shadow-xl border border-border hover:neon-border-amber transition-all group cursor-pointer"
               >
                 <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Market Gallery Scan</span>
                 <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-500/30">
@@ -4899,7 +5111,7 @@ export default function App() {
               <motion.label
                 whileHover={{ scale: 1.05, x: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-3 px-4 py-3 bg-bg/90 backdrop-blur-md text-text rounded-2xl shadow-xl border border-border hover:neon-border-amber transition-all group cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3 bg-bg/95 text-text rounded-2xl shadow-xl border border-border hover:neon-border-amber transition-all group cursor-pointer"
               >
                 <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Market Camera Scan</span>
                 <div className="p-2 bg-amber-500/20 rounded-xl border border-amber-500/30">
@@ -4980,7 +5192,7 @@ export default function App() {
       {/* Service Password Modal */}
       <AnimatePresence>
         {showServicePasswordPrompt && (
-          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-bg/95 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-bg/95 overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -5064,6 +5276,7 @@ export default function App() {
       </AnimatePresence>
         </>
       )}
+      </div>
     </div>
   );
 }

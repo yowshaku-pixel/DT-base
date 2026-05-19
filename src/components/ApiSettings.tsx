@@ -37,7 +37,7 @@ const ApiSettings: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg/95 animate-in fade-in duration-200">
           <div className="bg-bg border border-border rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-3">

@@ -80,25 +80,30 @@ export function parseRawLedgerData(text: string): LedgerItem[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Date Pattern: Date: DD/MM/YYYY
-    const dateMatch = line.match(/Date:\s*(\d{2}\/\d{2}\/\d{4})/i);
+    // Date Pattern: Date: DD/MM/YYYY or just DD/MM/YYYY or DD.MM.YYYY
+    const dateMatch = line.match(/(?:Date:\s*)?(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})/i);
     if (dateMatch) {
-      const [d, m, y] = dateMatch[1].split('/');
-      currentDate = `${y}-${m}-${d}`; // ISO format
-      continue;
+      let d = dateMatch[1].padStart(2, '0');
+      let m = dateMatch[2].padStart(2, '0');
+      let y = dateMatch[3];
+      if (y.length === 2) y = `20${y}`;
+      
+      // Basic validation - check if it's likely a date
+      if (parseInt(d) <= 31 && parseInt(m) <= 12) {
+        currentDate = `${y}-${m}-${d}`; // ISO format
+        // Don't continue if it might also be a plate on the same line, but usually dates are standalone headers
+        if (line.length < 15) continue; 
+      }
     }
 
-    // Plate Pattern: ★PLATE or ◇PLATE at start of line
-    const plateMatch = line.match(/^[★◇]\s*([a-zA-Z0-9]+)/i);
+    // Plate Pattern: ★PLATE or ◇PLATE at start of line, or just ★PLATE
+    const plateMatch = line.match(/^[★◇]\s*([a-zA-Z0-9]+)/i) || line.match(/^[★\*]\s*([A-Z]{3}\s*\d{3}[A-Z]?)/i);
     if (plateMatch) {
-      currentPlate = plateMatch[1].toUpperCase();
+      currentPlate = plateMatch[1].replace(/\s+/g, '').toUpperCase();
       continue;
     }
 
     // Item Pattern: *Description : currency Amount
-    // Matches: *parking fee : ksh 3000
-    // Matches: *mechanic for equalizer : ksh1000
-    // Matches: * 13m.m , 4p bolt : ksh 160
     const itemMatch = line.match(/^\*\s*(.+?)\s*:\s*([a-zA-Z]+)?\s*(\d+(?:\.\d+)?(?:,\d+)*)/i);
     if (itemMatch && currentPlate && currentDate) {
       const description = itemMatch[1].trim();
@@ -118,7 +123,7 @@ export function parseRawLedgerData(text: string): LedgerItem[] {
     // Inline Plate Pattern: ◇UBD577z : parking fee : ksh 1000
     const inlineMatch = line.match(/[★◇]\s*([a-zA-Z0-9]+)\s*:\s*(.+?)\s*:\s*([a-zA-Z]+)?\s*(\d+(?:\.\d+)?(?:,\d+)*)/i);
     if (inlineMatch && currentDate) {
-      const plate = inlineMatch[1].toUpperCase();
+      const plate = inlineMatch[1].replace(/\s+/g, '').toUpperCase();
       const description = inlineMatch[2].trim();
       const currency = (inlineMatch[3] || 'KSH').toUpperCase();
       const amount = parseFloat(inlineMatch[4].replace(/,/g, ''));
@@ -134,4 +139,41 @@ export function parseRawLedgerData(text: string): LedgerItem[] {
   }
 
   return items;
+}
+
+/**
+ * Harvests potential market prices from ledger items using "Smart" logic.
+ */
+export function harvestMarketPrices(items: LedgerItem[]): { item_name: string, price: number, currency: string }[] {
+  const harvested: Map<string, { item_name: string, price: number, currency: string, date: string }> = new Map();
+
+  items.forEach(item => {
+    const desc = item.description.trim();
+    const normalized = desc.toLowerCase();
+
+    // "Smart" filter: Ignore complicated or unclear items
+    if (desc.length < 4 || desc.length > 55) return;
+    if (!/[a-zA-Z]/.test(desc)) return;
+    if ((desc.match(/[^a-zA-Z0-9\s]/g) || []).length > 5) return;
+
+    // Check if we already have this item
+    const existing = harvested.get(normalized);
+    
+    // Rule: Take the latest one, or if same date, maybe the one with a more plausible price?
+    // Let's keep it simple: Latest one wins.
+    if (!existing || new Date(item.service_date) > new Date(existing.date)) {
+      harvested.set(normalized, {
+        item_name: desc.toUpperCase(),
+        price: item.amount,
+        currency: item.currency,
+        date: item.service_date
+      });
+    }
+  });
+
+  return Array.from(harvested.values()).map(({ item_name, price, currency }) => ({
+    item_name,
+    price,
+    currency
+  }));
 }

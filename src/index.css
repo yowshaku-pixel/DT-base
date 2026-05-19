@@ -29,66 +29,230 @@
   --glass-border: rgba(28, 25, 23, 0.08);
 }
 
+/* Repair light theme contrast specifically */
+:root:not(.dark):not(.black) .text-white:not(button):not(a) {
+  color: #1a1a1a !important; /* Force dark text for readability on light themes */
+}
+
+:root:not(.dark):not(.black) .text-white\/30:not(button):not(a),
+:root:not(.dark):not(.black) .text-white\/40:not(button):not(a),
+:root:not(.dark):not(.black) .text-white\/50:not(button):not(a),
+:root:not(.dark):not(.black) .text-white\/60:not(button):not(a) {
+  color: rgba(0, 0, 0, 0.4) !important;
+}
+
+:root:not(.dark):not(.black) .bg-black\/40,
+:root:not(.dark):not(.black) .bg-black\/60,
+:root:not(.dark):not(.black) .bg-white\/2,
+:root:not(.dark):not(.black) .bg-white\/3,
+:root:not(.dark):not(.black) .bg-white\/5,
+:root:not(.dark):not(.black) .bg-white\/10,
+:root:not(.dark):not(.black) .bg-white\/20,
+:root:not(.dark):not(.black) .bg-white\/02,
+:root:not(.dark):not(.black) .bg-white\/03,
+:root:not(.dark):not(.black) .bg-white\/05 {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Ensure buttons with specific backgrounds KEEP their white text if they are dark buttons */
+:root:not(.dark):not(.black) .bg-purple-600 .text-white,
+:root:not(.dark):not(.black) .bg-violet-600 .text-white,
+:root:not(.dark):not(.black) .bg-cyan-600 .text-white,
+:root:not(.dark):not(.black) .bg-emerald-600 .text-white,
+:root:not(.dark):not(.black) .bg-red-600 .text-white {
+  color: #ffffff !important;
+}
+
+:root:not(.dark):not(.black) .placeholder\:text-white\/10::placeholder,
+:root:not(.dark):not(.black) .placeholder\:text-white\/5::placeholder {
+  color: rgba(0, 0, 0, 0.2) !important;
+}
+
+:root:not(.dark):not(.black) .neon-border-violet,
+:root:not(.dark):not(.black) .neon-border-cyan {
+  border-color: rgba(124, 58, 237, 0.2) !important;
+}
+
+:root:not(.dark):not(.black) .text-purple-400,
+:root:not(.dark):not(.black) .text-violet-400 {
+  color: #7c3aed !important;
+}
+
+:root:not(.dark):not(.black) .text-cyan-400 {
+  color: #0891b2 !important;
+}
+
+:root:not(.dark):not(.black) .text-amber-400 {
+  color: #d97706 !important;
+}
+
+:root:not(.dark):not(.black) .text-emerald-400 {
+  color: #059669 !important;
+}
+
+:root:not(.dark):not(.black) .text-red-400 {
+  color: #dc2626 !important;
+}
+
 .dark {
   --color-bg-val: #050b1a;
   --color-text-val: #ffffff;
   --color-muted-val: rgba(255, 255, 255, 0.5);
   --color-border-val: rgba(255, 255, 255, 0.1);
-  --color-surface-val: rgba(255, 255, 255, 0.03);
+  --color-surface-val: #0a1122;
   --color-accent-val: #a020f0;
   --color-cyan-val: #00f5ff;
   --color-violet-val: #a020f0;
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+.black {
+  --color-bg-val: #000000;
+  --color-text-val: #ffffff;
+  --color-muted-val: rgba(255, 255, 255, 0.5);
+  --color-border-val: #ffffff;
+  --color-surface-val: #000000;
+  --color-accent-val: #ffffff;
+  --color-cyan-val: #ffffff;
+  --color-violet-val: #ffffff;
+}
+
+/* Strip all colors in black theme */
+.black *:not(button):not(a):not(input):not(textarea) {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.black .text-cyan-400,
+.black .text-violet-400,
+.black .text-purple-400,
+.black .text-amber-400,
+.black .text-emerald-400,
+.black .text-red-400,
+.black .text-blue-500,
+.black .text-orange-500,
+.black .text-green-500,
+.black .text-rose-500 {
+  color: #ffffff !important;
+}
+
+/* Maintain dark backgrounds for items that were colored */
+.black [class*="bg-violet-"],
+.black [class*="bg-cyan-"],
+.black [class*="bg-purple-"],
+.black [class*="bg-amber-"],
+.black [class*="bg-emerald-"],
+.black [class*="bg-red-"],
+.black [class*="bg-blue-"],
+.black [class*="bg-orange-"],
+.black [class*="bg-green-"],
+.black [class*="bg-rose-"] {
+  background-image: none !important;
+  background-color: transparent !important;
+  border: 1px solid #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* Except for actual buttons that need to stand out */
+.black button[class*="bg-violet-"],
+.black button[class*="bg-cyan-"],
+.black a[class*="bg-violet-"],
+.black a[class*="bg-cyan-"] {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: none !important;
+}
+
+.black .from-violet-600,
+.black .to-cyan-500,
+.black .from-violet-900,
+.black .to-surface,
+.black [class*="bg-gradient-"] {
+  background-image: none !important;
+  background-color: #000000 !important;
+  border: 1px solid #ffffff !important;
+  color: #ffffff !important;
+}
+
+.black .neon-border-cyan,
+.black .neon-border-violet,
+.black .neon-glow-cyan,
+.black .neon-glow-violet {
+  border-color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.black [class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+.black .glassmorphism {
+  background-color: #000000 !important;
+  border: 1px solid #ffffff !important;
+  backdrop-filter: none !important;
+}
+
+.black input, .black textarea {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+.black ::placeholder {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.black svg {
+  filter: grayscale(100%) brightness(200%) !important;
+}
+
+.black .bg-bg, .black .bg-surface {
+  background-color: #000000 !important;
+}
+
+.black .text-text, .black .text-muted {
+  color: #ffffff !important;
+}
+
+.black .border-border {
+  border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
 @layer utilities {
   .neon-glow-cyan {
-    box-shadow: 0 0 15px rgba(0, 245, 255, 0.3), inset 0 0 5px rgba(0, 245, 255, 0.2);
+    @apply border-cyan-400/30;
   }
   .dark .neon-glow-cyan {
-    box-shadow: 0 0 20px rgba(0, 245, 255, 0.4), inset 0 0 5px rgba(0, 245, 255, 0.2);
+    @apply border-cyan-400/50;
   }
   .neon-glow-violet {
-    box-shadow: 0 0 15px rgba(160, 32, 240, 0.3), inset 0 0 5px rgba(160, 32, 240, 0.2);
+    @apply border-violet-400/30;
   }
   .dark .neon-glow-violet {
-    box-shadow: 0 0 20px rgba(160, 32, 240, 0.4), inset 0 0 5px rgba(160, 32, 240, 0.2);
+    @apply border-violet-400/50;
   }
   .neon-border-cyan {
     border-color: rgba(0, 245, 255, 0.5);
-    box-shadow: 0 0 10px rgba(0, 245, 255, 0.1);
   }
   .dark .neon-border-cyan {
-    box-shadow: 0 0 15px rgba(0, 245, 255, 0.3), inset 0 0 5px rgba(0, 245, 255, 0.2);
+    border-color: rgba(0, 245, 255, 0.6);
   }
   .neon-border-violet {
     border-color: rgba(160, 32, 240, 0.5);
-    box-shadow: 0 0 10px rgba(160, 32, 240, 0.1);
   }
   .dark .neon-border-violet {
-    box-shadow: 0 0 15px rgba(160, 32, 240, 0.3), inset 0 0 5px rgba(160, 32, 240, 0.2);
+    border-color: rgba(160, 32, 240, 0.6);
   }
   .glassmorphism {
-    background-color: var(--glass-bg);
-    backdrop-filter: blur(24px);
-    border: 1px solid var(--glass-border);
+    background-color: var(--color-surface-val);
+    border: 1px solid var(--color-border-val);
   }
-  .shimmer-ai {
-    background: linear-gradient(
-      90deg,
-      rgba(160, 32, 240, 0.1) 0%,
-      rgba(0, 245, 255, 0.2) 50%,
-      rgba(160, 32, 240, 0.1) 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 3s infinite linear;
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 body {
@@ -99,17 +263,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   position: relative;
-  background-image: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.1), transparent 70%),
-                    radial-gradient(circle at 100% 100%, rgba(251, 191, 36, 0.05), transparent 50%);
-  background-attachment: fixed;
   transition: background-color 0.5s ease, color 0.5s ease;
   touch-action: manipulation;
-  overscroll-behavior-y: contain;
 }
 
 .dark body {
-  background-image: radial-gradient(circle at 50% 0%, rgba(160, 32, 240, 0.15), transparent 50%),
-                    radial-gradient(circle at 100% 100%, rgba(0, 245, 255, 0.1), transparent 50%);
+  background-color: #050b1a;
+}
+
+.black body {
+  background-color: #000000;
 }
 
 @layer base {
@@ -134,5 +297,5 @@ body {
 
 /* Simplified panel for better performance */
 .glass-panel {
-  @apply bg-[#081025] border border-white/5;
+  @apply bg-surface border border-border rounded-xl;
 }

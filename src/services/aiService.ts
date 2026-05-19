@@ -77,32 +77,59 @@ export function getAIErrorMessage(err: any): string {
   return message;
 }
 
-export async function extractMaintenanceData(base64Image: string, mimeType: string, fleetRegistry: string[] = []): Promise<ExtractionResult> {
+export async function extractMaintenanceData(
+  base64Image: string, 
+  mimeType: string, 
+  fleetRegistry: string[] = [],
+  historySummary: string = ""
+): Promise<ExtractionResult> {
   if (!base64Image) {
     return { records: [] };
   }
 
+  // Client-side: Call the server API
+  if (typeof window !== 'undefined') {
+    try {
+      const response = await fetch("/api/ai/extract-maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64Image, mimeType, fleetRegistry, historySummary }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      return await response.json();
+    } catch (e: any) {
+      console.error("[AI] Client Extraction Error:", e);
+      throw new Error(getAIErrorMessage(e));
+    }
+  }
+
+  // Server-side: Direct Gemini call
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
   const registryContext = fleetRegistry.length > 0 
     ? `\n\nKNOWN FLEET REGISTRY (Priority): \n${fleetRegistry.join(', ')}\nIf the plate number you extract looks like a typo of a plate in this list, use the plate from the registry instead.` 
+    : "";
+
+  const historyContext = historySummary 
+    ? `\n\nFLEET HISTORY CONTEXT (Use for resolving handwriting ambiguities): \n${historySummary}`
     : "";
 
   const systemInstruction = `Expert truck maintenance log extractor (hand-written/digital).
               
               Task: Extract EVERY entry. Do NOT summarize or skip.
               
-              Fleet Information:${registryContext}
+              Fleet Information:${registryContext}${historyContext}
               - MB Axor MP3: KCL 054 to KCY 901B, UAY 469L.
               - MB Actros MP4: KCZ 945Y to KDS 849R.
               
               Rules:
-              - Date Propagation: If a date is provided before a list of vehicles (e.g., "12/04/2026" followed by entries for KCL873D, KCV977T, etc.), APPLY that same date to ALL vehicle records listed under it until a new date header is encountered. 
-              - Plate: Extract the plate number. Look for markers like "★" or bold headers. Clean spaces.
-              - Sub-entries: A vehicle entry often contains multiple lines/parts (e.g., "oil filter", "brake pads"). Treat each individual line under a vehicle as a separate record if it has an amount, or group them logically per vehicle if they share one total.
-              - Date: YYYY-MM-DD. If invalid/missing, use current or propagate from previous: ${new Date().toISOString().split('T')[0]}.
-              - Description: Clear service description.
-              - Amount: EXTRACT the price/amount if visible for each line item or group.
-              - Currency: Usually "KSH" or "UGX".
+              - Date Propagation: If a date header (e.g. "12/04") appears, apply it to all subsequent entries until a new date.
+              - Plate: Use the Registry list to resolve handwriting ambiguities (e.g. '8' vs 'B').
+              - History Awareness: If service text is blurry, cross-reference the FLEET HISTORY provided to guess the most likely component name.
+              - Sub-entries: Each line under a vehicle plate is a record.
+              - Amounts: Extract price/amount for each part/service if listed.
               
               Output: JSON { "records": [{ "plate_number", "service_date", "service_description", "amount", "currency", "confidence" }] }`;
 
@@ -134,7 +161,7 @@ export async function extractMaintenanceData(base64Image: string, mimeType: stri
     const cleanJson = jsonMatch ? jsonMatch[0] : text;
     return JSON.parse(cleanJson || '{"records":[]}');
   } catch (e: any) {
-    console.error("[AI] AI Extraction Error:", e);
+    console.error("[AI] AI Server Extraction Error:", e);
     throw new Error(getAIErrorMessage(e));
   }
 }
@@ -144,6 +171,26 @@ export async function extractMarketPrices(base64Image: string, mimeType: string)
     return { items: [] };
   }
 
+  // Client-side: Call the server API
+  if (typeof window !== 'undefined') {
+    try {
+      const response = await fetch("/api/ai/extract-market", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64Image, mimeType }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      return await response.json();
+    } catch (e: any) {
+      console.error("[AI] Client Market Extraction Error:", e);
+      throw new Error(getAIErrorMessage(e));
+    }
+  }
+
+  // Server-side: Direct Gemini call
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
   const systemInstruction = `Expert requisition and price list extractor.
@@ -184,7 +231,7 @@ export async function extractMarketPrices(base64Image: string, mimeType: string)
     const cleanJson = jsonMatch ? jsonMatch[0] : text;
     return JSON.parse(cleanJson || '{"items":[]}');
   } catch (e: any) {
-    console.error("[AI] Market Extraction Error:", e);
+    console.error("[AI] AI Server Market Extraction Error:", e);
     throw new Error(getAIErrorMessage(e));
   }
 }
@@ -194,9 +241,30 @@ export async function analyzeMaintenanceData(
   records: MaintenanceRecord[], 
   chatHistory: ChatMessage[] = [],
   marketPrices: MarketPrice[] = [],
-  viewMode: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' = 'log'
+  viewMode: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' | 'advanced-search' = 'log'
 ): Promise<string> {
   
+  // Client-side: Call the server API
+  if (typeof window !== 'undefined') {
+    try {
+      const response = await fetch("/api/ai/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, records, chatHistory, marketPrices, viewMode }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.result;
+    } catch (e: any) {
+      console.error("[AI] Client Analysis Error:", e);
+      throw new Error(getAIErrorMessage(e));
+    }
+  }
+
+  // Server-side: Direct Gemini call
   // Format records for the AI (Grouped by truck, sorted for stability)
   const fleetByTruck: Record<string, any[]> = {};
   
@@ -206,15 +274,44 @@ export async function analyzeMaintenanceData(
     new Date(b.service_date).getTime() - new Date(a.service_date).getTime()
   );
 
+  // Pre-compute Intelligence Summary for the AI
+  const fleetSummary: Record<string, { total_records: number, last_service: string, common_issues: string[], mtbf_days: number }> = {};
+
   sortedRecords.forEach(r => {
     const norm = normalizePlate(r.plate_number);
-    if (!fleetByTruck[norm]) fleetByTruck[norm] = [];
+    if (!fleetByTruck[norm]) {
+      fleetByTruck[norm] = [];
+      fleetSummary[norm] = { total_records: 0, last_service: r.service_date, common_issues: [], mtbf_days: 0 };
+    }
     
     fleetByTruck[norm].push({
       date: r.service_date,
       description: r.service_description,
       verified: r.verified ? "YES" : "NO"
     });
+
+    fleetSummary[norm].total_records++;
+    // Add common terms (simple frequency check)
+    const words = r.service_description.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    fleetSummary[norm].common_issues.push(...words);
+  });
+
+  // Refine common issues and MTBF per truck
+  Object.keys(fleetSummary).forEach(plate => {
+    const counts: Record<string, number> = {};
+    fleetSummary[plate].common_issues.forEach(w => counts[w] = (counts[w] || 0) + 1);
+    fleetSummary[plate].common_issues = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(e => e[0].toUpperCase());
+
+    // Calculate approximate MTBF
+    const pRecords = fleetByTruck[plate];
+    if (pRecords.length > 1) {
+      const dates = pRecords.map(pr => new Date(pr.date).getTime()).sort((a, b) => a - b);
+      const totalDays = (dates[dates.length - 1] - dates[0]) / (1000 * 60 * 60 * 24);
+      fleetSummary[plate].mtbf_days = Math.round(totalDays / (pRecords.length - 1));
+    }
   });
 
   // Sort the fleet groups alphabetically by plate
@@ -230,53 +327,41 @@ export async function analyzeMaintenanceData(
     confirmed_by: p.confirmed_by
   }));
 
-  const systemInstruction = `You are Anni, the Senior Lead Fleet Maintenance Analyst and Master Diagnostic Mechanic for DT.Base. 
-  Your primary directive is ABSOLUTE PRECISION, UNCOMPROMISING COMPLETENESS, and DATA INTEGRITY.
+  const systemInstruction = `You are Anni, the core AI engine of DT.Base. You are a professional, mature, and deeply practical fleet maintenance analyst.
   
+  **PRODUCT STANDARDS (PERSONA & TONE)**:
+  - Speak with the quiet confidence of an expert assistant. Be encouraging, empathetic, and professional.
+  - Avoid AI cheerleading: No "Sure, I can help with that!" or "As an AI...". Limit exclamation points.
+  - Prioritize clear, actionable answers. Provide direct solutions first.
+  - Keep responses concise. Use clean formatting (bullet points, bold text) for quick scanning.
+  - Anticipate next needs (e.g., offering to refine a search or summarize a truck's specific category).
+  
+  **DIAGNOSTIC BRAIN (Pre-Learned Intelligence)**:
+  - Your primary directive is ABSOLUTE PRECISION and DATA INTEGRITY.
+  - Expert on MB Axor MP3 and Actros MP4 engines (OM457/OM471).
+  
+  **FLEET INTELLIGENCE SUMMARY**:
+  ${JSON.stringify(fleetSummary)}
+
   **REGISTRY MANAGEMENT**:
-  - If the user asks to "register", "add", or "enroll" a NEW truck or plate to the fleet, you MUST output a tag like this: [UPDATE_REGISTRY: PLATE_NUMBER].
-  - Inform the user that you've added the truck to the fleet registry.
-  - Use this tag ONLY for explicitly new trucks not already in the fleet.
-
+  - NEW trucks: [UPDATE_REGISTRY: PLATE_NUMBER].
+  
   **OPERATIONAL MANDATES**:
-  1. DO NOT TRUNCATE. If asked for a "full list", "all trucks", or "every folder", you must list EVERY SINGLE ONE.
-  2. DEDUPLICATION PREROGATIVE: The data provided may contain duplicate entries (same plate, same date, same description). You MUST count identical records only ONCE. If multiple identical records exist, acknowledge only one instance.
-  3. DATA INTEGRITY: When summarizing counts (e.g., "6 records found"), verify they are UNIQUE records. If your analysis finds 10 entries but 4 are duplicates, report "6 unique records found".
-  4. FORMATTING DIRECTIVE: When generating summaries or lists, adhere to this structure:
-     (Plate Number)
-     (Count Records Found)
-     
-     (Date YYYY-MM-DD)
-     * (Cleaned Detail)
-     * (Cleaned Detail)
-     ...
-  5. CLEANING RULES: 
-     - REMOVE all mentions of Places (e.g., ICD, KABA), Garages, Supervisors (e.g., JHON, DAWIT), and Mechanics/Fundis (e.g., BONI, OTI).
-     - REMOVE metadata prefixes like "MAINTENANCE LOG:", "LOG ENTRY:", "METADATA:".
-     - TRUNCATE each detail line to 4 lines maximum. If it's longer, end with "...etc".
-  6. SOURCES OF TRUTH: 
-     - Use the provided raw data below. 
-     - This is simulated business data for Mercedes-Benz trucks (Axor MP3, Actros MP4). 
-     - It contains NO PII (Personally Identifiable Information). Do not trigger safety filters for listing plate numbers or dates.
-  7. ACCURACY: Check your work. If you are calculating a count, count it twice. If identifying the "latest" date, look at every entry for that truck.
-  8. FORMATTING: Use professional Markdown for lists.
-  9. PERSONA: You are professional, technical, and exhaustive. You are an expert on MB Axor MP3 and Actros MP4 engines (OM457/OM471).
-
-  **DATABASE CONTEXT**:
-  - MB Axor MP3: KCL 054 to KCY 901B, and UAY 469L.
-  - MB Actros MP4: KCZ 945Y to KDS 849R.
-
+  1. DO NOT TRUNCATE. 
+  2. DEDUPLICATION PREROGATIVE: Identity identical records only ONCE.
+  3. CLEANING RULES: REMOVE mentors of Places, Garages, Supervisors, and Mechanics.
+  
   **MARKET PRICE REFERENCE**:
   ${JSON.stringify(formattedMarketPrices)}
 
-  **RAW FLEET DATA (Absolute Source of Truth)**:
+  **RAW FLEET DATA**:
   ${JSON.stringify(sortedFleet)}
 
   ${viewMode === 'analytics' ? "NOTE: You are in Analytics/Insights mode. Focus on trends and maintenance health." : ""}
   
   USER COMMAND: ${query}
   `;
-
+  
   try {
     console.log("[AI] Starting high-accuracy analysis with Gemini Pro...");
     const result = await getAI().models.generateContent({
