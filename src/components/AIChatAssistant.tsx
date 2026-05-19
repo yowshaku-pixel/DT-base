@@ -26,7 +26,7 @@ interface AIChatAssistantProps {
   isLocked?: boolean;
   onUnlockRequest?: () => void;
   viewMode?: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' | 'advanced-search';
-  theme?: 'light' | 'dark' | 'black';
+  theme?: 'light' | 'dark' | 'black' | 'professional';
 }
 
 export default function AIChatAssistant({ 

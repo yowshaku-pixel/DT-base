@@ -278,84 +278,90 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
       </div>
 
       {/* THREE SEARCH BARS */}
-      <div className="space-y-2 px-2">
+      <div className="space-y-4 px-2">
         {/* 1. Plate Search */}
-        <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl blur-sm opacity-5 group-hover:opacity-20 transition-all" />
-          <div className="relative bg-black/60 rounded-2xl border border-white/10 p-2 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-xl">
-            <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20 flex-shrink-0 shadow-inner">
-              <Truck className="w-4 h-4 text-purple-400" />
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Primary Target</label>
+          <div className="relative group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl blur-sm opacity-5 group-hover:opacity-20 transition-all" />
+            <div className="relative bg-black/60 rounded-2xl border border-white/10 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-xl">
+              <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20 flex-shrink-0 shadow-inner">
+                <Truck className="w-4 h-4 text-purple-400" />
+              </div>
+              <div className="flex-1">
+                <input 
+                  type="text"
+                  placeholder="VEHICLE PLATE..."
+                  className="w-full bg-transparent border-none outline-none font-display font-black text-lg text-white placeholder:text-white/5 leading-none uppercase tracking-tighter"
+                  value={plateQuery}
+                  onChange={(e) => setPlateQuery(e.target.value)}
+                />
+              </div>
+              {plateQuery && (
+                <button onClick={() => setPlateQuery('')} className="p-2 hover:bg-white/5 rounded-full text-muted/30 hover:text-white transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
-            <div className="flex-1">
-              <label className="text-[7px] font-display font-black text-purple-400/50 uppercase tracking-[0.2em] block leading-none mb-1 ml-0.5">Primary Target</label>
-              <input 
-                type="text"
-                placeholder="VEHICLE PLATE..."
-                className="w-full bg-transparent border-none outline-none font-display font-black text-lg text-white placeholder:text-white/5 leading-none uppercase tracking-tighter"
-                value={plateQuery}
-                onChange={(e) => setPlateQuery(e.target.value)}
-              />
-            </div>
-            {plateQuery && (
-              <button onClick={() => setPlateQuery('')} className="p-2 hover:bg-white/5 rounded-full text-muted/30 hover:text-white transition-colors">
-                <X className="w-4 h-4" />
-              </button>
-            )}
           </div>
         </div>
 
         {/* 2. Keyword Search */}
-        <div className="relative group">
-          <div className={cn(
-            "relative bg-black/40 rounded-2xl border border-white/5 p-2 flex items-center gap-3 transition-all backdrop-blur-md",
-            !plateQuery ? "opacity-30 grayscale" : "hover:border-amber-500/30 group-hover:bg-black/60"
-          )}>
-            <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20 flex-shrink-0">
-              <Zap className="w-4 h-4 text-amber-500" />
-            </div>
-            <div className="flex-1">
-              <label className="text-[7px] font-display font-black text-amber-400/50 uppercase tracking-[0.2em] block leading-none mb-1 ml-0.5">Intelligence Keyword</label>
-              <input 
-                type="text"
-                placeholder="COMPONENT REFERENCE..."
-                className="w-full bg-transparent border-none outline-none font-display font-bold text-sm text-white placeholder:text-white/5 leading-none uppercase tracking-tight"
-                value={keywordQuery}
-                onChange={(e) => setKeywordQuery(e.target.value)}
-                disabled={!plateQuery}
-              />
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Intelligence Keyword</label>
+          <div className="relative group">
+            <div className={cn(
+              "relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 transition-all backdrop-blur-md",
+              !plateQuery ? "opacity-30 grayscale" : "hover:border-amber-500/30 group-hover:bg-black/60"
+            )}>
+              <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20 flex-shrink-0">
+                <Zap className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="flex-1">
+                <input 
+                  type="text"
+                  placeholder="COMPONENT REFERENCE..."
+                  className="w-full bg-transparent border-none outline-none font-display font-bold text-sm text-white placeholder:text-white/5 leading-none uppercase tracking-tight"
+                  value={keywordQuery}
+                  onChange={(e) => setKeywordQuery(e.target.value)}
+                  disabled={!plateQuery}
+                />
+              </div>
             </div>
           </div>
         </div>
 
         {/* 3. Price Search */}
-        <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-violet-600 rounded-2xl blur-sm opacity-0 group-hover:opacity-10 transition-all" />
-          <div className="relative bg-black/40 rounded-2xl border border-white/5 p-2 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-md">
-            <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20 flex-shrink-0">
-              <TrendingUp className="w-4 h-4 text-purple-500" />
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Market Analysis</label>
+          <div className="relative group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-violet-600 rounded-2xl blur-sm opacity-0 group-hover:opacity-10 transition-all" />
+            <div className="relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-md">
+              <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20 flex-shrink-0">
+                <TrendingUp className="w-4 h-4 text-purple-500" />
+              </div>
+              <div className="flex-1">
+                <input 
+                  type="text"
+                  placeholder="PRICE REFERENCE..."
+                  className="w-full bg-transparent border-none outline-none font-display font-bold text-sm text-white placeholder:text-white/5 leading-none uppercase tracking-tight"
+                  value={priceQuery}
+                  onChange={(e) => {
+                    setPriceQuery(e.target.value);
+                    setShowPriceResults(false);
+                  }}
+                />
+              </div>
+              <button 
+                onClick={() => priceQuery.trim() && setShowPriceResults(true)}
+                className={cn(
+                  "h-10 px-4 rounded-xl font-display font-black text-[10px] uppercase tracking-widest transition-all",
+                  priceQuery.trim() ? "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20" : "bg-white/5 text-white/20 cursor-not-allowed"
+                )}
+              >
+                Scan
+              </button>
             </div>
-            <div className="flex-1">
-              <label className="text-[7px] font-display font-black text-purple-400/50 uppercase tracking-[0.2em] block leading-none mb-1 ml-0.5">Market Analysis</label>
-              <input 
-                type="text"
-                placeholder="PRICE REFERENCE..."
-                className="w-full bg-transparent border-none outline-none font-display font-bold text-sm text-white placeholder:text-white/5 leading-none uppercase tracking-tight"
-                value={priceQuery}
-                onChange={(e) => {
-                  setPriceQuery(e.target.value);
-                  setShowPriceResults(false);
-                }}
-              />
-            </div>
-            <button 
-              onClick={() => priceQuery.trim() && setShowPriceResults(true)}
-              className={cn(
-                "h-10 px-4 rounded-xl font-display font-black text-[10px] uppercase tracking-widest transition-all",
-                priceQuery.trim() ? "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20" : "bg-white/5 text-white/20 cursor-not-allowed"
-              )}
-            >
-              Scan
-            </button>
           </div>
         </div>
       </div>

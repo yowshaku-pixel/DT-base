@@ -71,72 +71,84 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
       </div>
 
       {/* Search Console */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Plate Number */}
-        <div className="group relative">
-          <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
-          <div className="relative">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-              <Hash className="w-4 h-4 text-white/20 group-focus-within:text-purple-400 transition-colors" />
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Plate Number</label>
+          <div className="group relative">
+            <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                <Hash className="w-4 h-4 text-white/20 group-focus-within:text-purple-400 transition-colors" />
+              </div>
+              <input
+                type="text"
+                value={plateQuery}
+                onChange={(e) => setPlateQuery(e.target.value)}
+                placeholder="Enter plate..."
+                className="w-full bg-black/40 border neon-border-violet rounded-2xl py-3.5 pl-12 pr-6 text-xs font-display font-medium text-white placeholder:text-white/10 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-[0.2em] backdrop-blur-md shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              />
             </div>
-            <input
-              type="text"
-              value={plateQuery}
-              onChange={(e) => setPlateQuery(e.target.value)}
-              placeholder="PLATE NUMBER"
-              className="w-full bg-black/40 border neon-border-violet rounded-2xl py-4 pl-12 pr-6 text-xs font-display font-bold text-white placeholder:text-white/10 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-[0.2em] backdrop-blur-md shadow-[0_0_15px_rgba(160,32,240,0.1)]"
-            />
           </div>
         </div>
 
         {/* Maintenance Keyword */}
-        <div className="group relative">
-          <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
-          <div className="relative">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-              <Tag className="w-4 h-4 text-white/20 group-focus-within:text-purple-400 transition-colors" />
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Maintenance Keyword</label>
+          <div className="group relative">
+            <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                <Tag className="w-4 h-4 text-white/20 group-focus-within:text-purple-400 transition-colors" />
+              </div>
+              <input
+                type="text"
+                value={keywordQuery}
+                onChange={(e) => setKeywordQuery(e.target.value)}
+                placeholder="Service type..."
+                className="w-full bg-black/40 border neon-border-violet rounded-2xl py-3.5 pl-12 pr-6 text-xs font-display font-medium text-white placeholder:text-white/10 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-[0.2em] backdrop-blur-md shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              />
             </div>
-            <input
-              type="text"
-              value={keywordQuery}
-              onChange={(e) => setKeywordQuery(e.target.value)}
-              placeholder="MAINTENANCE KEYWORD"
-              className="w-full bg-black/40 border neon-border-violet rounded-2xl py-4 pl-12 pr-6 text-xs font-display font-bold text-white placeholder:text-white/10 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-[0.2em] backdrop-blur-md shadow-[0_0_15px_rgba(160,32,240,0.1)]"
-            />
           </div>
         </div>
 
         {/* Full Text Search */}
-        <div className="group relative">
-          <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
-          <div className="relative">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-              <AlignLeft className="w-4 h-4 text-white/20 group-focus-within:text-purple-400 transition-colors" />
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Full Text Search</label>
+          <div className="group relative">
+            <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                <AlignLeft className="w-4 h-4 text-white/20 group-focus-within:text-purple-400 transition-colors" />
+              </div>
+              <input
+                type="text"
+                value={fullTextQuery}
+                onChange={(e) => setFullTextQuery(e.target.value)}
+                placeholder="Search anything..."
+                className="w-full bg-black/40 border neon-border-violet rounded-2xl py-3.5 pl-12 pr-6 text-xs font-display font-medium text-white placeholder:text-white/10 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-[0.2em] backdrop-blur-md shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              />
             </div>
-            <input
-              type="text"
-              value={fullTextQuery}
-              onChange={(e) => setFullTextQuery(e.target.value)}
-              placeholder="FULL TEXT SEARCH"
-              className="w-full bg-black/40 border neon-border-violet rounded-2xl py-4 pl-12 pr-6 text-xs font-display font-bold text-white placeholder:text-white/10 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-[0.2em] backdrop-blur-md shadow-[0_0_15px_rgba(160,32,240,0.1)]"
-            />
           </div>
         </div>
 
         {/* Position or Side */}
-        <div className="group relative">
-          <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
-          <div className="relative">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-              <Layers className="w-4 h-4 text-white/20 group-focus-within:text-purple-400 transition-colors" />
+        <div className="flex flex-col gap-2">
+          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Position or Side</label>
+          <div className="group relative">
+            <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                <Layers className="w-4 h-4 text-white/20 group-focus-within:text-purple-400 transition-colors" />
+              </div>
+              <input
+                type="text"
+                value={positionQuery}
+                onChange={(e) => setPositionQuery(e.target.value)}
+                placeholder="Left/Right/Front..."
+                className="w-full bg-black/40 border neon-border-violet rounded-2xl py-3.5 pl-12 pr-6 text-xs font-display font-medium text-white placeholder:text-white/10 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-[0.2em] backdrop-blur-md shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              />
             </div>
-            <input
-              type="text"
-              value={positionQuery}
-              onChange={(e) => setPositionQuery(e.target.value)}
-              placeholder="POSITION OR SIDE"
-              className="w-full bg-black/40 border neon-border-violet rounded-2xl py-4 pl-12 pr-6 text-xs font-display font-bold text-white placeholder:text-white/10 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-[0.2em] backdrop-blur-md shadow-[0_0_15px_rgba(160,32,240,0.1)]"
-            />
           </div>
         </div>
       </div>
@@ -213,25 +225,12 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
             </div>
           ))
         ) : (
-          <div className="py-24 text-center bg-black/20 border border-dashed border-white/10 rounded-[3rem] backdrop-blur-xl">
-            <div className="mx-auto w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-6 opacity-20">
-              {!(plateQuery.trim() || keywordQuery.trim() || fullTextQuery.trim() || positionQuery.trim()) ? (
-                <Database className="w-8 h-8 text-white" />
-              ) : (
-                <Search className="w-8 h-8 text-white" />
-              )}
-            </div>
-            {!(plateQuery.trim() || keywordQuery.trim() || fullTextQuery.trim() || positionQuery.trim()) ? (
-              <>
-                <h3 className="text-xs font-display font-black text-white/30 uppercase tracking-[0.5em] mb-3">Historical Archive Locked</h3>
-                <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.3em]">Enter search parameters to extract records</p>
-              </>
-            ) : (
-              <>
-                <h3 className="text-xs font-display font-black text-white/30 uppercase tracking-[0.5em] mb-3">No Analytical Matches</h3>
-                <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.3em]">Recalibrating extraction parameters...</p>
-              </>
-            )}
+          <div className="py-20 text-center">
+            <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.3em]">
+              {!(plateQuery.trim() || keywordQuery.trim() || fullTextQuery.trim() || positionQuery.trim()) 
+                ? "Empty before search" 
+                : "No matching results found"}
+            </p>
           </div>
         )}
       </div>

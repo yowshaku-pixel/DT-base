@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, Sun, Moon, Wrench, Receipt, Globe, Sparkles } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, Sun, Moon, Wrench, Receipt, Globe, Sparkles, Briefcase } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -795,10 +795,10 @@ export default function App() {
   };
 
   const [isFabOpen, setIsFabOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark' | 'black'>(() => {
+  const [theme, setTheme] = useState<'light' | 'dark' | 'black' | 'professional'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('dtbase_theme');
-      if (saved === 'light' || saved === 'dark' || saved === 'black') return saved;
+      if (saved === 'light' || saved === 'dark' || saved === 'black' || saved === 'professional') return saved;
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
     return 'dark';
@@ -806,11 +806,14 @@ export default function App() {
 
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.remove('dark', 'black');
+    root.classList.remove('dark', 'black', 'professional');
     if (theme === 'dark') {
       root.classList.add('dark');
     } else if (theme === 'black') {
       root.classList.add('black');
+      root.classList.add('dark');
+    } else if (theme === 'professional') {
+      root.classList.add('professional');
       root.classList.add('dark');
     }
     localStorage.setItem('dtbase_theme', theme);
@@ -820,6 +823,7 @@ export default function App() {
     setTheme(prev => {
       if (prev === 'light') return 'dark';
       if (prev === 'dark') return 'black';
+      if (prev === 'black') return 'professional';
       return 'light';
     });
   };
@@ -2814,6 +2818,7 @@ export default function App() {
           >
             {theme === 'dark' ? <Moon className="w-4 h-4 text-violet-600" /> : 
              theme === 'black' ? <Zap className="w-4 h-4 text-cyan-400" /> : 
+             theme === 'professional' ? <Briefcase className="w-4 h-4 text-indigo-500" /> :
              <Sun className="w-4 h-4 text-amber-500" />}
           </button>
           {viewMode === 'log' && (
@@ -2829,11 +2834,25 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-600/20 border border-purple-500/30 rounded-2xl">
-              <Wrench className="w-6 h-6 text-purple-400" strokeWidth={1.5} />
-            </div>
+                <div className={cn(
+                  "p-2 rounded-2xl border transition-all duration-500",
+                  theme === 'professional' ? "bg-indigo-500/5 border-indigo-500/20" : "bg-purple-600/20 border-purple-500/30"
+                )}>
+                  <Wrench className={cn("w-6 h-6 stroke-[1.5]", theme === 'professional' ? "text-indigo-400" : "text-purple-400")} />
+                </div>
             <div>
-              <h1 className="text-5xl md:text-8xl font-display font-bold tracking-tighter leading-none">DT.Base</h1>
+              <div className="flex items-center gap-2">
+                <h1 className={cn(
+                  "text-5xl md:text-8xl font-display font-bold tracking-tighter leading-none transition-colors duration-500",
+                  theme === 'professional' ? "text-indigo-400" : "text-text"
+                )}>DT.Base</h1>
+                {theme === 'professional' && (
+                  <div className="hidden sm:flex items-center gap-2 px-2 py-0.5 mt-2 bg-indigo-500/10 border border-indigo-500/20 rounded-md">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                    <span className="text-[8px] font-mono font-bold text-indigo-400 uppercase tracking-widest">Fleet Authority</span>
+                  </div>
+                )}
+              </div>
               <p className="text-[11px] opacity-50 uppercase tracking-[0.5em] font-display font-bold mt-1">Mechanical History Log</p>
             </div>
           </div>
@@ -2878,7 +2897,9 @@ export default function App() {
                   }}
                   className={cn(
                     "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
-                    (viewMode === 'log' || viewMode === 'advanced-search') ? "bg-purple-600 text-white" : "text-muted hover:text-text"
+                    (viewMode === 'log' || viewMode === 'advanced-search') 
+                      ? (theme === 'professional' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "bg-purple-600 text-white") 
+                      : "text-muted hover:text-text"
                   )}
                 >
                   History
@@ -2892,7 +2913,9 @@ export default function App() {
                   }}
                   className={cn(
                     "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                    (viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') ? "bg-purple-600 text-white" : "text-muted hover:text-text"
+                    (viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') 
+                      ? (theme === 'professional' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "bg-purple-600 text-white") 
+                      : "text-muted hover:text-text"
                   )}
                 >
                   {(viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') && <ClipboardCheck className="w-3 h-3" />}
@@ -2902,10 +2925,12 @@ export default function App() {
                   onClick={() => setViewMode('marketplace')}
                   className={cn(
                     "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                    viewMode === 'marketplace' ? "bg-purple-600 text-white" : "text-muted hover:text-text"
+                    viewMode === 'marketplace' 
+                      ? (theme === 'professional' ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20" : "bg-purple-600 text-white") 
+                      : "text-muted hover:text-text"
                   )}
                 >
-                  {viewMode === 'marketplace' && <Globe className="w-3 h-3" />}
+                  {(viewMode === 'marketplace') && <Globe className="w-3 h-3" />}
                   IntelCenter
                 </button>
               </div>
@@ -2915,13 +2940,15 @@ export default function App() {
                 <motion.div 
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center p-1 bg-surface/50 border border-border/50 rounded-xl ml-4 w-fit"
+                  className="flex items-center p-1 bg-surface/50 border border-border/50 rounded-xl sm:ml-4 w-fit"
                 >
                   <button 
                     onClick={() => setViewMode('log')}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
-                      viewMode === 'log' ? "bg-purple-500/20 text-purple-400" : "text-muted hover:text-text"
+                      viewMode === 'log' 
+                        ? (theme === 'professional' ? "bg-indigo-500/20 text-indigo-400" : "bg-purple-500/20 text-purple-400") 
+                        : "text-muted hover:text-text"
                     )}
                   >
                     Logs
@@ -2930,7 +2957,9 @@ export default function App() {
                     onClick={() => setViewMode('advanced-search')}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
-                      viewMode === 'advanced-search' ? "bg-purple-500/20 text-purple-400" : "text-muted hover:text-text"
+                      viewMode === 'advanced-search' 
+                        ? (theme === 'professional' ? "bg-indigo-500/20 text-indigo-400" : "bg-purple-500/20 text-purple-400") 
+                        : "text-muted hover:text-text"
                     )}
                   >
                     Adv Search
@@ -3016,15 +3045,17 @@ export default function App() {
             )}
           </div>
         </div>
-      </header>
         
         {/* Progress Bar */}
         {isProcessing && (
           <div className="mt-4 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-display font-bold text-purple-400 uppercase tracking-widest animate-pulse">
-                  {isStopping ? "Stopping..." : "Processing Queue..."}
+                <span className={cn(
+                  "text-[10px] font-display font-bold uppercase tracking-widest",
+                  theme === 'professional' ? "text-indigo-400" : "text-purple-400 animate-pulse"
+                )}>
+                  {isStopping ? "Stopping..." : "Analysis in Progress..."}
                 </span>
                 {(() => {
                   const activeEntry = uploadLog.find(e => e.status === 'processing');
@@ -3054,14 +3085,18 @@ export default function App() {
                 </button>
               )}
             </div>
-            <div className="h-1 w-full bg-surface overflow-hidden rounded-full border border-border/50">
+            <div className="h-1 w-full bg-zinc-900 overflow-hidden rounded-full border border-border/30">
               <div 
-                className="h-full bg-purple-500 transition-all duration-300" 
+                className={cn(
+                  "h-full transition-all duration-300",
+                  theme === 'professional' ? "bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.3)]" : "bg-purple-500"
+                )}
                 style={{ width: `${(progress.current / progress.total) * 100}%` }}
               />
             </div>
           </div>
         )}
+      </header>
 
       {/* Error Message */}
       {error && (
@@ -3641,7 +3676,7 @@ export default function App() {
                 </span>
               </div>
               <div className="flex flex-col">
-                <h3 className="text-sm font-display font-black text-white uppercase tracking-widest leading-none">Anni AI Intelligence</h3>
+                <h3 className="text-sm font-display font-black text-white uppercase tracking-widest leading-none">Ask AI for help</h3>
                 <p className="text-[8px] font-display font-medium text-violet-400/60 uppercase tracking-[0.2em] mt-1">Deep Pattern Analysis</p>
               </div>
             </div>
@@ -3659,7 +3694,7 @@ export default function App() {
               ) : (
                 <>
                   <Zap className="w-3 h-3 fill-current" />
-                  INITIATE SCAN
+                  SCAN
                 </>
               )}
             </button>
