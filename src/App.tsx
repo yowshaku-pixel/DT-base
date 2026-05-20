@@ -2815,6 +2815,7 @@ export default function App() {
             onClick={toggleTheme}
             className="p-2 bg-surface border border-border hover:bg-white/10 dark:hover:bg-white/10 transition-all rounded-full text-muted hover:text-text"
             title={`Switch Theme (Current: ${theme})`}
+            aria-label={`Switch Theme (Current: ${theme})`}
           >
             {theme === 'dark' ? <Moon className="w-4 h-4 text-violet-600" /> : 
              theme === 'black' ? <Zap className="w-4 h-4 text-cyan-400" /> : 
@@ -2826,6 +2827,7 @@ export default function App() {
               onClick={() => setShowSettingsModal(true)}
               className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet"
               title="Open Settings"
+              aria-label="Open Settings"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -3920,7 +3922,7 @@ export default function App() {
                       navigator.share({ title: 'DT.Base Record', text });
                     } else {
                       navigator.clipboard.writeText(text);
-                      alert("Copied to clipboard!");
+                      setNotification({ message: 'Copied to clipboard!', type: 'success' });
                     }
                   }}
                   className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-violet-600 text-white hover:from-cyan-400 hover:to-violet-500 transition-all active:scale-95 rounded-full shadow-[0_0_20px_rgba(0,245,255,0.3)]"
@@ -4156,7 +4158,7 @@ export default function App() {
                     navigator.share({ title: 'DT.Base Summary Report', text: fullText });
                   } else {
                     navigator.clipboard.writeText(fullText);
-                    alert("Report copied to clipboard!");
+                    setNotification({ message: 'Report copied to clipboard!', type: 'success' });
                   }
                 }}
                 className="flex items-center gap-2 px-6 py-3 bg-text text-bg hover:opacity-90 transition-all active:scale-95 rounded-xl font-display font-black uppercase tracking-widest text-[10px]"
