@@ -203,6 +203,7 @@ export default function AIChatAssistant({
             ? "bg-bg text-text border-border" 
             : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
         )}
+        aria-label={isOpen ? "Close AI Chat Assistant" : "Open AI Chat Assistant"}
       >
         {isOpen ? <X className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
       </motion.button>
