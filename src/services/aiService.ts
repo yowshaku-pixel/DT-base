@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { ExtractionResult, MaintenanceRecord, ChatMessage, MarketPrice } from "../types";
 import { arePlatesSimilar, normalizePlate, deduplicateRecords } from "../lib/utils";
 
@@ -8,9 +8,115 @@ let aiInstance: GoogleGenAI | null = null;
 function getAI(): GoogleGenAI {
   if (!aiInstance) {
     const apiKey = process.env.GEMINI_API_KEY;
-    aiInstance = new GoogleGenAI({ apiKey: apiKey || "" });
+    aiInstance = new GoogleGenAI({ 
+      apiKey: apiKey || "",
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
   return aiInstance;
+}
+
+async function generateContentWithRetry(params: any, maxRetries = 3, initialDelay = 1500): Promise<any> {
+  const baseModel = params.model || "gemini-3.5-flash";
+  
+  // Decide the fallback model chain to use when limits/quotas are hit
+  let fallbackChain: string[] = [];
+  if (baseModel === "gemini-3.5-flash") {
+    fallbackChain = [
+      "gemini-3.5-flash", 
+      "gemini-3.1-flash-lite", 
+      "gemini-2.5-flash", 
+      "gemini-2.5-pro"
+    ];
+  } else if (baseModel === "gemini-3.1-pro-preview") {
+    fallbackChain = [
+      "gemini-3.1-pro-preview", 
+      "gemini-2.5-pro",
+      "gemini-3.5-flash", 
+      "gemini-3.1-flash-lite", 
+      "gemini-2.5-flash"
+    ];
+  } else {
+    fallbackChain = [
+      baseModel,
+      "gemini-3.5-flash",
+      "gemini-3.1-flash-lite",
+      "gemini-2.5-flash",
+      "gemini-2.5-pro"
+    ];
+  }
+
+  let attempt = 0;
+  let modelIndex = 0;
+
+  while (modelIndex < fallbackChain.length) {
+    const activeModel = fallbackChain[modelIndex];
+    const attemptParams = { ...params, model: activeModel };
+    
+    try {
+      console.log(`[AI] Attempting request using model: ${activeModel} (Current fallback chain index: ${modelIndex}, model attempt: ${attempt})`);
+      return await getAI().models.generateContent(attemptParams);
+    } catch (error: any) {
+      attempt++;
+      
+      let message = "";
+      if (typeof error === 'object') {
+        if (error.error && typeof error.error === 'object') {
+          message = error.error.message || JSON.stringify(error.error);
+        } else if (error.message) {
+          message = error.message;
+        } else {
+          message = JSON.stringify(error);
+        }
+      } else {
+        message = String(error);
+      }
+      
+      const errString = message.toLowerCase();
+      
+      // Separate standard transient rate-limits (QPM / RPM / 429) from complete daily/billing quota blockades.
+      // Genuine daily limit messages contain "perday", "daily", "billing" or "limit: 0".
+      const isDailyLimitExceeded = 
+        errString.includes("perday") || 
+        errString.includes("daily quota") || 
+        errString.includes("daily limit") || 
+        errString.includes("billing") || 
+        errString.includes("limit: 0");
+        
+      const isInvalidKey = errString.includes("api key not valid");
+      
+      if (isDailyLimitExceeded) {
+        console.log(`[AI] Info (Expected): Model ${activeModel} daily quota limit reached on attempt ${attempt}. Switching model immediate.`);
+      } else {
+        console.warn(`[AI] Error with model ${activeModel} (attempt ${attempt}): "${message.substring(0, 150)}..."`);
+      }
+      
+      // Let standard rate limits (RESOURCE_EXHAUSTED / 429) retry on the current active model FIRST,
+      // and only switch to fallback if we hit 3 attempts or a firm daily/billing block.
+      const shouldSwitchModel = isDailyLimitExceeded || isInvalidKey || attempt >= 3;
+      
+      if (shouldSwitchModel) {
+        modelIndex++;
+        if (modelIndex < fallbackChain.length) {
+          console.log(`[AI] Info: Switching from ${activeModel} to fallback model: ${fallbackChain[modelIndex]} (attempts: ${attempt}, daily limit: ${isDailyLimitExceeded})`);
+          attempt = 0; // reset attempts for the next model
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        } else {
+          throw error;
+        }
+      }
+
+      // Calculate exponential backoff delay with random jitter (between 0 and 500ms) to spread out parallel calls
+      const delay = initialDelay * Math.pow(2.2, attempt - 1) + Math.random() * 500;
+      console.warn(`[AI] Transient rate limit or error. Retrying same model ${activeModel} in ${Math.round(delay)}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
 }
 
 export function isApiKeyAvailable(): boolean {
@@ -59,8 +165,20 @@ export function getAIErrorMessage(err: any): string {
     return "AI model not found. This might be a temporary issue with the Gemini service or an incorrect model configuration. Please try again in a few minutes.";
   }
 
-  const isDailyQuota = errString.includes("billing details") || errString.includes("plan") || errString.includes("quota exceeded");
-  const isRateLimit = errString.includes("429") || errString.includes("quota") || errString.includes("limit") || errString.includes("resource_exhausted");
+  const isDailyQuota = 
+    errString.includes("billing details") || 
+    errString.includes("plan") || 
+    errString.includes("perday") || 
+    errString.includes("daily quota") || 
+    errString.includes("daily limit");
+    
+  const isRateLimit = 
+    errString.includes("429") || 
+    errString.includes("quota exceeded") || 
+    errString.includes("quota limit") || 
+    errString.includes("limit") || 
+    errString.includes("resource_exhausted") || 
+    errString.includes("too many requests");
 
   if (isDailyQuota) {
     return "AI daily quota exceeded. Google limits free usage; this will reset at midnight (PT). Please try again later.";
@@ -135,8 +253,8 @@ export async function extractMaintenanceData(
 
   try {
     console.log("[AI] Starting extraction with Gemini...");
-    const result = await getAI().models.generateContent({
-      model: "gemini-3-flash-preview",
+    const result = await generateContentWithRetry({
+      model: "gemini-3.5-flash",
       contents: [
         {
           role: "user",
@@ -151,15 +269,40 @@ export async function extractMaintenanceData(
           ]
         }
       ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            records: {
+              type: Type.ARRAY,
+              description: "List of extracted maintenance records",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  plate_number: { type: Type.STRING, description: "Normalized license plate number" },
+                  service_date: { type: Type.STRING, description: "Service date in YYYY-MM-DD format" },
+                  service_description: { type: Type.STRING, description: "Detailed description of the service" },
+                  amount: { type: Type.NUMBER, description: "Amount or cost" },
+                  currency: { type: Type.STRING, description: "Currency (defaults to KES)" },
+                  confidence: { type: Type.NUMBER, description: "Confidence score between 0 and 1" }
+                },
+                required: ["plate_number", "service_date", "service_description"]
+              }
+            }
+          },
+          required: ["records"]
+        }
+      }
     });
 
     const text = result.text;
     console.log("[AI] Extraction raw response:", text);
 
-    // Clean markdown if present
-    const jsonMatch = text?.match(/\{[\s\S]*\}/);
-    const cleanJson = jsonMatch ? jsonMatch[0] : text;
-    return JSON.parse(cleanJson || '{"records":[]}');
+    if (!text) {
+      return { records: [] };
+    }
+    return JSON.parse(text);
   } catch (e: any) {
     console.error("[AI] AI Server Extraction Error:", e);
     throw new Error(getAIErrorMessage(e));
@@ -206,8 +349,8 @@ export async function extractMarketPrices(base64Image: string, mimeType: string)
 
   try {
     console.log("[AI] Starting market price extraction with Gemini...");
-    const result = await getAI().models.generateContent({
-      model: "gemini-3-flash-preview",
+    const result = await generateContentWithRetry({
+      model: "gemini-3.5-flash",
       contents: [
         {
           role: "user",
@@ -222,14 +365,37 @@ export async function extractMarketPrices(base64Image: string, mimeType: string)
           ]
         }
       ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            items: {
+              type: Type.ARRAY,
+              description: "List of extracted requisition and parts/service prices",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  item_name: { type: Type.STRING, description: "Item description" },
+                  price: { type: Type.NUMBER, description: "Unit price of the item" },
+                  currency: { type: Type.STRING, description: "Currency (defaults to KES)" }
+                },
+                required: ["item_name", "price", "currency"]
+              }
+            }
+          },
+          required: ["items"]
+        }
+      }
     });
 
     const text = result.text;
     console.log("[AI] Market extraction raw response:", text);
 
-    const jsonMatch = text?.match(/\{[\s\S]*\}/);
-    const cleanJson = jsonMatch ? jsonMatch[0] : text;
-    return JSON.parse(cleanJson || '{"items":[]}');
+    if (!text) {
+      return { items: [] };
+    }
+    return JSON.parse(text);
   } catch (e: any) {
     console.error("[AI] AI Server Market Extraction Error:", e);
     throw new Error(getAIErrorMessage(e));
@@ -363,9 +529,9 @@ export async function analyzeMaintenanceData(
   `;
   
   try {
-    console.log("[AI] Starting high-accuracy analysis with Gemini Pro...");
-    const result = await getAI().models.generateContent({
-      model: "gemini-3.1-pro-preview",
+    console.log("[AI] Starting analysis with Gemini Flash (High Capacity Free Tier)...");
+    const result = await generateContentWithRetry({
+      model: "gemini-3.5-flash",
       contents: [
         ...chatHistory.map(msg => ({
           role: msg.role === 'user' ? 'user' : 'model',
@@ -373,7 +539,7 @@ export async function analyzeMaintenanceData(
         })),
         {
           role: "user",
-          parts: [{ text: "Please execute my last command with 100% completeness and accuracy based on the provided data." }]
+          parts: [{ text: query || "Please execute my last command with 100% completeness and accuracy based on the provided data." }]
         }
       ],
       config: {
@@ -387,27 +553,7 @@ export async function analyzeMaintenanceData(
   } catch (e: any) {
     console.error("[AI] AI Analysis Error:", e);
     
-    // Fallback to Flash if Pro fails (e.g. quota/availability)
-    if (e.message?.includes("not found") || e.message?.includes("404")) {
-      console.log("[AI] Falling back to Flash model...");
-      const flashResult = await getAI().models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          ...chatHistory.map(msg => ({
-            role: msg.role === 'user' ? 'user' : 'model',
-            parts: [{ text: msg.content }]
-          })),
-          { role: "user", parts: [{ text: query }] }
-        ],
-        config: {
-          systemInstruction: systemInstruction,
-          maxOutputTokens: 8192,
-          temperature: 0.1,
-        }
-      });
-      return flashResult.text || "I was unable to retrieve the fleet analysis.";
-    }
-    
+    // If Flash fails (less likely to be quota but possible), we catch and return error message
     throw new Error(getAIErrorMessage(e));
   }
 }

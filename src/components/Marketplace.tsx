@@ -281,7 +281,7 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
       <div className="space-y-4 px-2">
         {/* 1. Plate Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Primary Target</label>
+          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Primary Target</label>
           <div className="relative group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl blur-sm opacity-5 group-hover:opacity-20 transition-all" />
             <div className="relative bg-black/60 rounded-2xl border border-white/10 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-xl">
@@ -292,7 +292,7 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
                 <input 
                   type="text"
                   placeholder="VEHICLE PLATE..."
-                  className="w-full bg-transparent border-none outline-none font-display font-black text-lg text-white placeholder:text-white/5 leading-none uppercase tracking-tighter"
+                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight"
                   value={plateQuery}
                   onChange={(e) => setPlateQuery(e.target.value)}
                 />
@@ -308,7 +308,7 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
 
         {/* 2. Keyword Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Intelligence Keyword</label>
+          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Intelligence Keyword</label>
           <div className="relative group">
             <div className={cn(
               "relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 transition-all backdrop-blur-md",
@@ -321,7 +321,7 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
                 <input 
                   type="text"
                   placeholder="COMPONENT REFERENCE..."
-                  className="w-full bg-transparent border-none outline-none font-display font-bold text-sm text-white placeholder:text-white/5 leading-none uppercase tracking-tight"
+                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight"
                   value={keywordQuery}
                   onChange={(e) => setKeywordQuery(e.target.value)}
                   disabled={!plateQuery}
@@ -333,7 +333,7 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
 
         {/* 3. Price Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-black text-white/40 uppercase tracking-[0.2em] ml-1">Market Analysis</label>
+          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Market Analysis</label>
           <div className="relative group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-violet-600 rounded-2xl blur-sm opacity-0 group-hover:opacity-10 transition-all" />
             <div className="relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-md">
@@ -344,7 +344,7 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
                 <input 
                   type="text"
                   placeholder="PRICE REFERENCE..."
-                  className="w-full bg-transparent border-none outline-none font-display font-bold text-sm text-white placeholder:text-white/5 leading-none uppercase tracking-tight"
+                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight"
                   value={priceQuery}
                   onChange={(e) => {
                     setPriceQuery(e.target.value);

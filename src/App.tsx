@@ -652,6 +652,17 @@ export default function App() {
   const shouldStopRef = React.useRef(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, failed: 0 });
   const [failedFiles, setFailedFiles] = useState<string[]>([]);
+  const [batchSessionSummary, setBatchSessionSummary] = useState<{
+    totalImages: number;
+    successCount: number;
+    recordsBefore: number;
+    recordsAfter: number;
+    newRecordsCount: number;
+    newMarketPricesCount: number;
+    mode: 'fleet' | 'market';
+    isAudit: boolean;
+    totalExtractedCount?: number;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [serviceHintQuery, setServiceHintQuery] = useState('');
   const [serviceHintAnswer, setServiceHintAnswer] = useState<string | null>(null);
@@ -688,11 +699,11 @@ export default function App() {
     }
   });
   const [isServiceUnlocked, setIsServiceUnlocked] = useState(() => {
-    try {
-      return localStorage.getItem('dtbase_service_unlocked') === 'true';
-    } catch (e) {
-      return false;
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dtbase_service_unlocked');
+      return saved !== 'false';
     }
+    return true;
   });
   const [showServicePasswordPrompt, setShowServicePasswordPrompt] = useState(false);
   const [servicePasswordInput, setServicePasswordInput] = useState('');
@@ -703,12 +714,22 @@ export default function App() {
   }, [usageStats]);
 
   useEffect(() => {
-    localStorage.setItem('dtbase_service_unlocked', String(isServiceUnlocked));
+    localStorage.setItem('dtbase_service_unlocked', isServiceUnlocked ? 'true' : 'false');
   }, [isServiceUnlocked]);
 
-  const [isAppUnlocked, setIsAppUnlocked] = useState(false);
+  const [isAppUnlocked, setIsAppUnlocked] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dtbase_app_unlocked');
+      return saved !== 'false';
+    }
+    return true;
+  });
   const [appPasswordInput, setAppPasswordInput] = useState('');
   const [appPasswordError, setAppPasswordError] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('dtbase_app_unlocked', isAppUnlocked ? 'true' : 'false');
+  }, [isAppUnlocked]);
 
   const handleAppUnlock = () => {
     if (appPasswordInput === APP_PASSWORD) {
@@ -795,14 +816,7 @@ export default function App() {
   };
 
   const [isFabOpen, setIsFabOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark' | 'black' | 'professional'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('dtbase_theme');
-      if (saved === 'light' || saved === 'dark' || saved === 'black' || saved === 'professional') return saved;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'dark';
-  });
+  const [theme, setTheme] = useState<'light' | 'dark' | 'black' | 'professional'>('professional');
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -1300,6 +1314,7 @@ export default function App() {
       
       // Cache in localStorage
       localStorage.setItem(`records_${user.id}`, JSON.stringify(uniqueRecords));
+      return uniqueRecords;
     } catch (err: any) {
       console.warn("Fetch failed:", err);
       setIsCloudConnected(false);
@@ -1313,8 +1328,10 @@ export default function App() {
       const cached = localStorage.getItem(`records_${user.id}`);
       if (cached) {
         try {
-          setRecords(JSON.parse(cached));
+          const parsed = JSON.parse(cached);
+          setRecords(parsed);
           setError(null);
+          return parsed;
         } catch (e) {
           console.error("Failed to parse cached records", e);
           setError(getSupabaseErrorMessage(err));
@@ -1322,17 +1339,49 @@ export default function App() {
       } else {
         setError(getSupabaseErrorMessage(err));
       }
+      return [];
     } finally {
       setIsRefreshing(false);
     }
   }, [user]);
 
+  const fetchMarketPrices = useCallback(async () => {
+    if (!user || !supabase) return [];
+    try {
+      const { data, error } = await supabase
+        .from('market_prices')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (error) {
+        const isMissingTable = error.code === '42P01' || 
+                              error.message?.toLowerCase().includes('not found') ||
+                              error.message?.toLowerCase().includes('does not exist');
+        
+        if (isMissingTable) {
+          console.warn("Market prices table not found in Supabase. This feature is optional.");
+          return [];
+        }
+        throw error;
+      }
+      if (data) {
+        setMarketPrices(data);
+        return data;
+      }
+      return [];
+    } catch (err) {
+      console.error("Error fetching market prices:", err);
+      return [];
+    }
+  }, [user, supabase]);
+
   // Initial fetch
   useEffect(() => {
     if (user && isAuthReady) {
       fetchRecords();
+      fetchMarketPrices();
     }
-  }, [user, isAuthReady, fetchRecords]);
+  }, [user, isAuthReady, fetchRecords, fetchMarketPrices]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1378,164 +1427,172 @@ export default function App() {
     logId: string | number, // timestamp or fileName
     isBatch: boolean = true,
     mode: 'fleet' | 'market' = 'fleet',
-    isAudit: boolean = false
+    isAudit: boolean = false,
+    forceReprocess: boolean = false
   ): Promise<any> => {
     const maxRetries = 10;
     let currentDelay = 5000;
     
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        // Fast-path: Check if file already exists in database (Normal mode only)
-        if (supabase && user && mode === 'fleet' && !isAudit) {
-          const { data: existing } = await supabase
-            .from('maintenance_records')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('file_name', fileName)
-            .limit(1);
-          
-          if (existing && existing.length > 0) {
-            console.log(`[PROCESS] ${fileName} already exists. Skipping.`);
-            return { records: [], alreadyProcessed: true };
-          }
-        }
-        // Prepare a brief history summary to help extraction accuracy
-        const historySummary = records.slice(0, 30).map(r => `${r.plate_number}:${r.service_description}`).join(' | ');
+    try {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          // Prepare a brief history summary to help extraction accuracy
+          const historySummary = records.slice(0, 30).map(r => `${r.plate_number}:${r.service_description}`).join(' | ');
 
-        const extractionPromise = mode === 'market' 
-          ? extractMarketPrices(base64, 'image/jpeg')
-          : extractMaintenanceData(base64, 'image/jpeg', fleetRegistry, historySummary);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("AI extraction timed out.")), 120000)
-        );
-        const result = await Promise.race([extractionPromise, timeoutPromise]) as any;
-        setUsageStats(prev => ({ ...prev, extractions: prev.extractions + 1 }));
+          const extractionPromise = mode === 'market' 
+            ? extractMarketPrices(base64, 'image/jpeg')
+            : extractMaintenanceData(base64, 'image/jpeg', fleetRegistry, historySummary);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("AI extraction timed out.")), 120000)
+          );
+          const result = await Promise.race([extractionPromise, timeoutPromise]) as any;
+          setUsageStats(prev => ({ ...prev, extractions: prev.extractions + 1 }));
 
-        // Step 3: Database Writes (if not in Audit Mode)
-        if (!isAudit && supabase && user) {
-          if (mode === 'market') {
-            if (result.items && result.items.length > 0) {
-              for (const item of result.items) {
-                const { error: marketError } = await supabase
-                  .from('market_prices')
-                  .upsert({
-                    item_name: item.item_name,
-                    price: item.price,
-                    currency: item.currency,
-                    confirmed_by: i > 0 ? `AI Scan (Retry ${i})` : 'AI Scan',
-                    last_updated: new Date().toISOString(),
-                    user_id: user.id
-                  }, { onConflict: 'item_name,user_id' });
+          // Step 3: Database Writes (if not in Audit Mode)
+          if (!isAudit && supabase && user) {
+            if (forceReprocess) {
+              console.log(`[RETRY SYSTEM] Deleting existing database entries for ${fileName} before fresh AI insertion...`);
+              if (mode === 'market') {
+                // market uses upsert on unique keys, no delete needed
+              } else {
+                const { data: recordsToDelete } = await supabase
+                  .from('maintenance_records')
+                  .select('id')
+                  .eq('user_id', user.id)
+                  .eq('file_name', fileName);
                 
-                if (marketError) throw marketError;
-                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+                if (recordsToDelete && recordsToDelete.length > 0) {
+                  const rIds = recordsToDelete.map(r => r.id);
+                  await supabase
+                    .from('maintenance_record_images')
+                    .delete()
+                    .in('record_id', rIds);
+                  await supabase
+                    .from('maintenance_records')
+                    .delete()
+                    .in('id', rIds);
+                }
               }
             }
-          } else {
-            if (result.records && result.records.length > 0) {
-              for (const record of result.records) {
-                const normPlate = normalizePlate(record.plate_number).toUpperCase();
-                const normDate = normalizeDate(record.service_date);
-                const normDesc = record.service_description.toLowerCase().trim().replace(/\s+/g, ' ');
 
-                // Deduplication check based on Plate, Date, and Description
-                const { data: existing } = await supabase
-                  .from('maintenance_records')
-                  .select('id, service_description')
-                  .eq('user_id', user.id)
-                  .eq('plate_number', normPlate)
-                  .eq('service_date', normDate);
-
-                // Check for close description match among same plate/date records
-                const isDuplicate = existing && existing.some(r => {
-                  const existingDesc = r.service_description.toLowerCase().trim().replace(/\s+/g, ' ');
-                  return existingDesc === normDesc || existingDesc.includes(normDesc) || normDesc.includes(existingDesc);
-                });
-
-                if (isDuplicate) {
-                  console.log(`[DE-DUP] Duplicate record detected for ${normPlate} on ${normDate}. Skipping.`);
-                  continue;
-                }
-
-                const { data: recordData, error: recordError } = await supabase
-                  .from('maintenance_records')
-                  .insert({
-                    plate_number: normPlate,
-                    service_date: normDate,
-                    service_description: record.service_description.trim(),
-                    confidence: record.confidence,
-                    user_id: user.id,
-                    file_name: fileName,
-                    created_at: new Date().toISOString()
-                  })
-                  .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at')
-                  .single();
-
-                if (recordError) throw recordError;
-                setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
-
-                if (recordData) {
-                  const { error: imageError } = await supabase
-                    .from('maintenance_record_images')
-                    .insert({
-                      record_id: recordData.id,
-                      image_data: base64,
-                      user_id: user.id,
-                      created_at: new Date().toISOString()
-                    });
+            if (mode === 'market') {
+              if (result.items && result.items.length > 0) {
+                for (const item of result.items) {
+                  const { error: marketError } = await supabase
+                    .from('market_prices')
+                    .upsert({
+                      item_name: item.item_name,
+                      price: item.price,
+                      currency: item.currency,
+                      confirmed_by: i > 0 ? `AI Scan (Retry ${i})` : 'AI Scan',
+                      last_updated: new Date().toISOString(),
+                      user_id: user.id
+                    }, { onConflict: 'item_name,user_id' });
                   
-                  if (imageError) throw imageError;
+                  if (marketError) throw marketError;
                   setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
                 }
+              } else {
+                throw new Error("AI was unable to extract any items from the image.");
+              }
+            } else {
+              if (result.records && result.records.length > 0) {
+                for (const record of result.records) {
+                  const normPlate = normalizePlate(record.plate_number).toUpperCase();
+                  const normDate = normalizeDate(record.service_date);
+
+                  const { data: recordData, error: recordError } = await supabase
+                    .from('maintenance_records')
+                    .insert({
+                      plate_number: normPlate,
+                      service_date: normDate,
+                      service_description: record.service_description.trim(),
+                      confidence: record.confidence,
+                      user_id: user.id,
+                      file_name: fileName,
+                      created_at: new Date().toISOString()
+                    })
+                    .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at')
+                    .single();
+
+                  if (recordError) throw recordError;
+                  setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+
+                  if (recordData) {
+                    const { error: imageError } = await supabase
+                      .from('maintenance_record_images')
+                      .insert({
+                        record_id: recordData.id,
+                        image_data: base64,
+                        user_id: user.id,
+                        created_at: new Date().toISOString()
+                      });
+                    
+                    if (imageError) throw imageError;
+                    setSessionStats(prev => ({ ...prev, writes: prev.writes + 1 }));
+                  }
+                }
+              } else {
+                throw new Error("AI could not read any maintenance records from the image.");
               }
             }
           }
+
+          return result;
+        } catch (err: any) {
+          const errorMessage = getAIErrorMessage(err).toLowerCase();
+          if (errorMessage.includes("quota exceeded") || errorMessage.includes("billing details")) {
+            throw new Error("DAILY_QUOTA_EXCEEDED");
+          }
+
+          const isTransient = 
+            errorMessage.includes("429") || 
+            errorMessage.includes("rate limit") ||
+            errorMessage.includes("500") ||
+            errorMessage.includes("internal error") ||
+            errorMessage.includes("failed to fetch") ||
+            errorMessage.includes("connection error") ||
+            errorMessage.includes("load failed") ||
+            errorMessage.includes("timed out") ||
+            errorMessage.includes("xhr error") ||
+            errorMessage.includes("rpc failed") ||
+            errorMessage.includes("proxyunarycall") ||
+            errorMessage.includes("makersuiteservice") ||
+            errorMessage.includes("error code: 6") ||
+            errorMessage.includes("overloaded") ||
+            errorMessage.includes("high demand") ||
+            errorMessage.includes("retry") ||
+            errorMessage.includes("syntax") ||
+            errorMessage.includes("unexpected token") ||
+            errorMessage.includes("json") ||
+            errorMessage.includes("malformed");
+
+          if (isTransient && i < maxRetries - 1) {
+            const reason = errorMessage.includes("429") ? "Rate limit" : "Network error";
+            const retryDelay = errorMessage.includes("429") ? currentDelay * 2.5 : currentDelay;
+            
+            setUploadLog(prev => prev.map(entry => {
+              const match = isBatch ? entry.fileName === fileName : entry.timestamp === logId;
+              return match && entry.status === 'processing' 
+                ? { ...entry, error: `${reason}, retrying... (${i + 1}/${maxRetries})` } 
+                : entry;
+            }));
+
+            await new Promise(r => setTimeout(r, retryDelay));
+            currentDelay = retryDelay * 1.5;
+            continue;
+          }
+          throw err;
         }
-
-        return result;
-      } catch (err: any) {
-        const errorMessage = getAIErrorMessage(err).toLowerCase();
-        if (errorMessage.includes("quota exceeded") || errorMessage.includes("billing details")) {
-          throw new Error("DAILY_QUOTA_EXCEEDED");
-        }
-
-        const isTransient = 
-          errorMessage.includes("429") || 
-          errorMessage.includes("rate limit") ||
-          errorMessage.includes("500") ||
-          errorMessage.includes("internal error") ||
-          errorMessage.includes("failed to fetch") ||
-          errorMessage.includes("connection error") ||
-          errorMessage.includes("load failed") ||
-          errorMessage.includes("timed out") ||
-          errorMessage.includes("xhr error") ||
-          errorMessage.includes("rpc failed") ||
-          errorMessage.includes("proxyunarycall") ||
-          errorMessage.includes("makersuiteservice") ||
-          errorMessage.includes("error code: 6") ||
-          errorMessage.includes("overloaded") ||
-          errorMessage.includes("high demand") ||
-          errorMessage.includes("retry");
-
-        if (isTransient && i < maxRetries - 1) {
-          const reason = errorMessage.includes("429") ? "Rate limit" : "Network error";
-          const retryDelay = errorMessage.includes("429") ? currentDelay * 2.5 : currentDelay;
-          
-          setUploadLog(prev => prev.map(entry => {
-            const match = isBatch ? entry.fileName === fileName : entry.timestamp === logId;
-            return match && entry.status === 'processing' 
-              ? { ...entry, error: `${reason}, retrying... (${i + 1}/${maxRetries})` } 
-              : entry;
-          }));
-
-          await new Promise(r => setTimeout(r, retryDelay));
-          currentDelay = retryDelay * 1.5;
-          continue;
-        }
-        throw err;
       }
+      
+      // If the loop finished without exiting, throw the last error
+      throw new Error("AI extraction failed after maximum retries.");
+    } catch (finalError: any) {
+      console.error(`[AI ERROR] Failed to process ${fileName}:`, finalError);
+      throw finalError;
     }
-  }, [user, supabase, fleetRegistry]);
+  }, [user, supabase, fleetRegistry, records]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, mode: 'fleet' | 'market' = 'fleet') => {
     if (!supabase) {
@@ -1613,13 +1670,18 @@ export default function App() {
     const queuedItems = uploadLog.filter(entry => entry.status === 'queued');
     if (queuedItems.length === 0) return;
 
+    const recordsCountBefore = records.length;
+    const marketPricesCountBefore = marketPrices.length;
+    const totalImages = queuedItems.length;
+
     try {
       setIsProcessing(true);
       setIsStopping(false);
       shouldStopRef.current = false;
       setError(null);
       setFailedFiles([]);
-      setProgress({ current: 0, total: queuedItems.length, failed: 0 });
+      setProgress({ current: 0, total: totalImages, failed: 0 });
+      setBatchSessionSummary(null);
 
       let localCompletedCount = 0;
       let localFailedCount = 0;
@@ -1636,18 +1698,6 @@ export default function App() {
           if (!entry.imageData) throw new Error("Image data missing for queued item.");
 
           const result = await processImageWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode, isAuditMode);
-          
-          if (result.alreadyProcessed) {
-            setNotification({
-              message: `${entry.fileName} was already processed successfully.`,
-              type: 'success'
-            });
-            setUploadLog(prev => prev.map(e => 
-              e.timestamp === entry.timestamp ? { ...e, status: 'success' } : e
-            ));
-            localCompletedCount++;
-            continue;
-          }
           
           if (shouldStopRef.current) {
             setUploadLog(prev => prev.map(e => 
@@ -1707,7 +1757,7 @@ export default function App() {
               type: 'success'
             });
             setUploadLog(prev => prev.map(e => 
-              e.timestamp === entry.timestamp ? { ...e, status: 'success' } : e
+              e.timestamp === entry.timestamp ? { ...e, status: 'success', error: undefined } : e
             ));
 
             // Update usage stats on success
@@ -1793,7 +1843,28 @@ export default function App() {
         setTimeout(() => setProgress({ current: 0, total: 0, failed: 0 }), 2000);
       }
 
-      fetchRecords();
+      const recordsAfterArray = await fetchRecords();
+      const marketPricesAfterArray = await fetchMarketPrices();
+
+      const recordsCountAfter = recordsAfterArray?.length ?? recordsCountBefore;
+      const marketPricesCountAfter = marketPricesAfterArray?.length ?? marketPricesCountBefore;
+
+      const successCount = localCompletedCount - localFailedCount;
+      const newRecordsCount = Math.max(0, recordsCountAfter - recordsCountBefore);
+      const newMarketPricesCount = Math.max(0, marketPricesCountAfter - marketPricesCountBefore);
+
+      if (successCount > 0) {
+        setBatchSessionSummary({
+          totalImages,
+          successCount,
+          recordsBefore: recordsCountBefore,
+          recordsAfter: recordsCountAfter,
+          newRecordsCount,
+          newMarketPricesCount,
+          mode: queuedItems[0]?.mode || 'fleet',
+          isAudit: !!isAuditMode
+        });
+      }
 
     } catch (err: any) {
       console.error("Batch processing error:", err);
@@ -1803,7 +1874,7 @@ export default function App() {
       setIsStopping(false);
       shouldStopRef.current = false;
     }
-  }, [user, supabase, uploadLog, isProcessing, fetchRecords, processImageWithRetry, records, isAuditMode, isServiceUnlocked]);
+  }, [user, supabase, uploadLog, isProcessing, fetchRecords, fetchMarketPrices, processImageWithRetry, records, marketPrices, isAuditMode, isServiceUnlocked]);
 
   const stopBatchProcessing = useCallback(() => {
     setIsStopping(true);
@@ -1824,19 +1895,7 @@ export default function App() {
         type: 'info'
       });
 
-      const result = await processImageWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode, entry.isAudit);
-
-      if (result.alreadyProcessed) {
-        setNotification({
-          message: `${entry.fileName} was already processed successfully.`,
-          type: 'success'
-        });
-        setUploadLog(prev => prev.map(e => 
-          e.timestamp === entry.timestamp ? { ...e, status: 'success', error: undefined } : e
-        ));
-        fetchRecords();
-        return;
-      }
+      const result = await processImageWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode, entry.isAudit, true);
 
       if (entry.isAudit && entry.mode === 'fleet') {
         // Audit Mode: Check for duplicates instead of saving
@@ -2217,37 +2276,10 @@ export default function App() {
 
   // Fetch Market Prices
   useEffect(() => {
-    if (!user || !supabase) return;
-    
-    const fetchMarketPrices = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('market_prices')
-          .select('*')
-          .eq('user_id', user.id);
-        
-        if (error) {
-          // If table doesn't exist (42P01) or PostgREST can't find it
-          const isMissingTable = error.code === '42P01' || 
-                                error.message?.toLowerCase().includes('not found') ||
-                                error.message?.toLowerCase().includes('does not exist');
-          
-          if (isMissingTable) {
-            console.warn("Market prices table not found in Supabase. This feature is optional.");
-            return;
-          }
-          throw error;
-        }
-        if (data) {
-          setMarketPrices(data);
-        }
-      } catch (err) {
-        console.error("Error fetching market prices:", err);
-      }
-    };
-    
-    fetchMarketPrices();
-  }, [user]);
+    if (user && isAuthReady) {
+      fetchMarketPrices();
+    }
+  }, [user, isAuthReady, fetchMarketPrices]);
 
   const handleSaveMarketPrice = async (item: string, price: number, currency: string) => {
     if (!user || !supabase) return;
@@ -3255,51 +3287,151 @@ export default function App() {
           
           {showUploadLog && (
             <>
-              <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar animate-in fade-in duration-300">
-                {uploadLog.map((entry, i) => (
-              <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex items-center justify-between p-3 bg-surface border border-border rounded group/log">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className={cn(
-                    "w-2 h-2 rounded-full flex-shrink-0",
-                    entry.status === 'success' ? "bg-green-500" : 
-                    entry.status === 'failed' ? "bg-red-500" : 
-                    entry.status === 'processing' ? "bg-purple-500 animate-pulse" : 
-                    entry.status === 'queued' ? "bg-blue-500" : "bg-white/20"
-                  )} />
-                  <div className="flex flex-col overflow-hidden">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-mono truncate opacity-80" title={entry.fileName}>{entry.fileName}</span>
-                      {entry.mode && (
-                        <span className={cn(
-                          "text-[8px] px-1 rounded border font-display font-bold uppercase tracking-tighter flex items-center gap-1",
-                          entry.mode === 'market' ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-cyan-500/10 border-cyan-500/30 text-cyan-400",
-                          entry.isAudit && "border-white/40 text-white shadow-[0_0_5px_rgba(255,255,255,0.2)]"
-                        )}>
-                          {entry.isAudit && <Eye className="w-2.5 h-2.5" />}
-                          {entry.mode}
-                          {entry.isAudit && <span className="opacity-60 ml-0.5">Audit</span>}
+              {batchSessionSummary && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -20, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                  className="mb-4 overflow-hidden border border-emerald-500/30 bg-emerald-500/5 rounded-xl p-4 flex flex-col gap-3 relative animate-in fade-in duration-500 shadow-sm"
+                >
+                  <button 
+                    onClick={() => setBatchSessionSummary(null)}
+                    className="absolute top-3 right-3 p-1.5 hover:bg-white/10 rounded-full transition-all text-muted hover:text-text"
+                    title="Dismiss notification"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 mt-0.5">
+                      <Sparkles className="w-4 h-4 animate-pulse" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-display font-black uppercase tracking-widest text-emerald-400">
+                        Scan Queue Completed!
+                      </h4>
+                      <p className="text-[11px] text-muted leading-relaxed mt-1 font-display">
+                        Your latest batch image processing session succeeded! Clear statistics of database integrity and impacts are detailed below.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Calculations Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-black/20 p-4 border border-white/5 rounded-xl">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[9px] font-display font-bold text-muted uppercase tracking-widest">
+                        Queue Performance
+                      </span>
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-display font-medium text-lg text-text">
+                          {batchSessionSummary.totalImages} {batchSessionSummary.totalImages === 1 ? 'image' : 'images'}
                         </span>
+                        <span className="text-xs text-emerald-400 font-bold">
+                          ({batchSessionSummary.successCount} successful)
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted font-mono leading-tight">
+                        Processed completely without critical timeouts
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
+                      <span className="text-[9px] font-display font-bold text-muted uppercase tracking-widest">
+                        Extracted Output
+                      </span>
+                      {batchSessionSummary.isAudit ? (
+                        <>
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-display font-bold text-lg text-cyan-400">
+                              Audit Verified
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted font-mono leading-tight">
+                            Preexisting matches identified and flagged. Database was untouched to protect historical integrity.
+                          </p>
+                        </>
+                      ) : batchSessionSummary.mode === 'market' ? (
+                        <>
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-display font-bold text-lg text-amber-400">
+                              = {batchSessionSummary.newMarketPricesCount} {batchSessionSummary.newMarketPricesCount === 1 ? 'item' : 'items'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted font-mono leading-tight">
+                            Market records updated: <span className="text-text font-bold">{batchSessionSummary.recordsBefore}</span> items before, now <span className="text-amber-400 font-bold">{batchSessionSummary.recordsAfter}</span>.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-display font-bold text-lg text-emerald-400">
+                              = {batchSessionSummary.newRecordsCount} {batchSessionSummary.newRecordsCount === 1 ? 'record' : 'records'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted font-mono leading-tight">
+                            Database catalog grew: <span className="text-text font-bold">{batchSessionSummary.recordsBefore}</span> records before, now <span className="text-emerald-400 font-bold">{batchSessionSummary.recordsAfter}</span>.
+                          </p>
+                        </>
                       )}
                     </div>
-                    {entry.status === 'failed' && entry.error && (
-                      <span className="text-[8px] font-mono text-red-400/60 truncate" title={entry.error}>
-                        {entry.error}
-                      </span>
-                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-4 flex-shrink-0">
-                  <span className={cn(
-                    "text-[9px] font-display font-bold uppercase tracking-widest",
-                    entry.status === 'success' ? "text-green-400" : 
-                    entry.status === 'failed' ? "text-red-400" : 
-                    entry.status === 'processing' ? "text-purple-400" : 
-                    entry.status === 'queued' ? "text-blue-400" : "text-white/40"
-                  )}>
-                    {entry.status}
-                  </span>
-                  
-                  {entry.status === 'failed' && (
+                </motion.div>
+              )}
+
+              <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar animate-in fade-in duration-300">
+                {uploadLog.map((entry, i) => {
+                  const isFallbackSuccess = entry.status === 'success' && !!entry.error;
+                  return (
+                    <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex items-center justify-between p-3 bg-surface border border-border rounded group/log">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full flex-shrink-0",
+                          isFallbackSuccess ? "bg-amber-500 animate-pulse" :
+                          entry.status === 'success' ? "bg-green-500" : 
+                          entry.status === 'failed' ? "bg-red-500" : 
+                          entry.status === 'processing' ? "bg-purple-500 animate-pulse" : 
+                          entry.status === 'queued' ? "bg-blue-500" : "bg-white/20"
+                        )} />
+                        <div className="flex flex-col overflow-hidden">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono truncate opacity-80" title={entry.fileName}>{entry.fileName}</span>
+                            {entry.mode && (
+                              <span className={cn(
+                                "text-[8px] px-1 rounded border font-display font-bold uppercase tracking-tighter flex items-center gap-1",
+                                entry.mode === 'market' ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-cyan-500/10 border-cyan-500/30 text-cyan-400",
+                                entry.isAudit && "border-white/40 text-white shadow-[0_0_5px_rgba(255,255,255,0.2)]"
+                              )}>
+                                {entry.isAudit && <Eye className="w-2.5 h-2.5" />}
+                                {entry.mode}
+                                {entry.isAudit && <span className="opacity-60 ml-0.5">Audit</span>}
+                              </span>
+                            )}
+                          </div>
+                          {entry.error && (
+                            <span className={cn(
+                              "text-[8px] font-mono truncate",
+                              entry.status === 'failed' ? "text-red-400/60" : "text-amber-400/80 font-bold animate-pulse"
+                            )} title={entry.error}>
+                              {entry.error}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 flex-shrink-0">
+                        <span className={cn(
+                          "text-[9px] font-display font-bold uppercase tracking-widest",
+                          isFallbackSuccess ? "text-amber-400" :
+                          entry.status === 'success' ? "text-green-400" : 
+                          entry.status === 'failed' ? "text-red-400" : 
+                          entry.status === 'processing' ? "text-purple-400" : 
+                          entry.status === 'queued' ? "text-blue-400" : "text-white/40"
+                        )}>
+                          {isFallbackSuccess 
+                            ? (entry.error?.includes("could not read") ? "SAVED (UNREADABLE)" : "SAVED (OFFLINE)") 
+                            : entry.status}
+                        </span>
+                        
+                        {entry.status === 'failed' && (
                     <div className="flex items-center gap-2">
                       <button 
                         onClick={() => setManualEntryData({ 
@@ -3337,14 +3469,26 @@ export default function App() {
                     </div>
                   )}
 
-                  {entry.status !== 'failed' && entry.imageData && (
-                    <button 
-                      onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
-                      className="text-[9px] font-display font-bold uppercase tracking-widest text-white/40 hover:text-white underline flex items-center gap-1"
-                    >
-                      <Eye className="w-2.5 h-2.5" />
-                      View
-                    </button>
+                   {entry.status !== 'failed' && entry.imageData && (
+                    <div className="flex items-center gap-2">
+                      {isFallbackSuccess && (
+                        <button 
+                          onClick={() => handleRetry(entry)}
+                          className="text-[9px] font-display font-bold uppercase tracking-widest bg-amber-500/20 hover:bg-amber-500/40 px-2.5 py-1 rounded text-amber-300 flex items-center gap-1 transition-colors animate-pulse"
+                          title="Re-run AI extraction"
+                        >
+                          <RefreshCw className="w-2.5 h-2.5 animate-spin-slow" />
+                          Retry AI
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
+                        className="text-[9px] font-display font-bold uppercase tracking-widest text-white/40 hover:text-white underline flex items-center gap-1"
+                      >
+                        <Eye className="w-2.5 h-2.5" />
+                        View
+                      </button>
+                    </div>
                   )}
 
                   <button 
@@ -3356,7 +3500,8 @@ export default function App() {
                   </button>
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
 
           {uploadLog.some(e => e.status === 'queued') && (
