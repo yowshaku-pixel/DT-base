@@ -203,6 +203,8 @@ export default function AIChatAssistant({
             ? "bg-bg text-text border-border" 
             : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
         )}
+        aria-label={isOpen ? "Close chat" : "Open chat"}
+        aria-expanded={isOpen}
       >
         {isOpen ? <X className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
       </motion.button>
@@ -232,6 +234,7 @@ export default function AIChatAssistant({
                   onClick={clearChat}
                   className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500"
                   title="Clear Chat"
+                  aria-label="Clear Chat"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
