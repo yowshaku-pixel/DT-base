@@ -7,7 +7,7 @@ let aiInstance: GoogleGenAI | null = null;
 
 function getAI(): GoogleGenAI {
   if (!aiInstance) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = typeof process !== 'undefined' && process?.env ? process.env.GEMINI_API_KEY : "";
     aiInstance = new GoogleGenAI({ 
       apiKey: apiKey || "",
       httpOptions: {
@@ -120,7 +120,10 @@ async function generateContentWithRetry(params: any, maxRetries = 3, initialDela
 }
 
 export function isApiKeyAvailable(): boolean {
-  return !!process.env.GEMINI_API_KEY;
+  if (typeof process !== 'undefined' && process?.env) {
+    return !!process.env.GEMINI_API_KEY;
+  }
+  return false;
 }
 
 export function getAIErrorMessage(err: any): string {

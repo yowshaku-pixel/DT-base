@@ -1,3 +1,7 @@
+import dotenv from "dotenv";
+// Load environment variables from .env file securely. Dotenv by default preserves existing host environment variables.
+dotenv.config();
+
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";

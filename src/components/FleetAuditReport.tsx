@@ -87,16 +87,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
       };
     });
 
-    // Add "Needs Review" group if there are records that don't match any folder
-    if (needsReview.length > 0) {
-      const stats = calculateAuditStats(needsReview);
-      
-      results.unshift({
-        plate: '⚠️ NEEDS REVIEW',
-        isRegistry: false,
-        stats
-      });
-    }
+    // Only registry folders are displayed as per user requirements. No need to show "Needs Review" folder in audits.
 
     // Apply search filter
     if (reportSearch) {

@@ -36,6 +36,93 @@ interface UploadLogEntry {
   imageData?: string; // Base64 image data for viewing
   mode?: 'fleet' | 'market';
   isAudit?: boolean;
+  diagnostic?: {
+    short: string;
+    detailed: string;
+    solution: string;
+    category: 'ai' | 'database' | 'network' | 'validation';
+  };
+}
+
+export function getDiagnosticError(err: any): { short: string; detailed: string; solution: string; category: 'ai' | 'database' | 'network' | 'validation' } {
+  if (!err) {
+    return {
+      short: "Operation failed",
+      detailed: "An unspecified or unknown error occurred during processing.",
+      solution: "Try refreshing the application or uploading the file again.",
+      category: 'validation'
+    };
+  }
+
+  const message = err.message || (typeof err === 'string' ? err : "");
+  const errString = String(message || err).toLowerCase();
+
+  // 1. Quota / Limits
+  if (errString.includes("quota") || errString.includes("limit") || errString.includes("resource_exhausted") || errString.includes("429") || errString.includes("daily_quota_exceeded")) {
+    return {
+      short: "Rate Limit/Quota Reached",
+      detailed: "You have hit Google's Gemini free-tier daily usage query limits or rate limits.",
+      solution: "Wait a few seconds before retrying, or configure a custom Gemini API Key under App Settings to remove limits.",
+      category: 'ai'
+    };
+  }
+
+  // 2. Network / Fetch Errors
+  if (errString.includes("failed to fetch") || errString.includes("networkerror") || errString.includes("load failed") || errString.includes("connection error") || errString.includes("timed out") || errString.includes("xhr error") || errString.includes("proxyunarycall") || errString.includes("makersuiteservice")) {
+    return {
+      short: "Network Connection Timeout",
+      detailed: "The browser or proxy server failed to contact the external endpoint. This is usually due to a temporary network issue, VPN restriction, or local firewall.",
+      solution: "Check your internet connection, temporarily disable any strict VPN/adblockers, and try the upload again.",
+      category: 'network'
+    };
+  }
+
+  // 3. Database Errors (RLS/Permissions, unique checks)
+  if (err.code === '42501' || errString.includes("insufficient permissions") || errString.includes("row-level security")) {
+    return {
+      short: "Database Permission Denied",
+      detailed: "The database rejected the operation due to Row-Level Security (RLS) policies. You might not have authorization to write to this fleet repository.",
+      solution: "Ensure you are properly logged into a valid account with appropriate workspace access rights.",
+      category: 'database'
+    };
+  }
+
+  if (err.code === '23505' || errString.includes("unique violation") || errString.includes("duplicate key")) {
+    return {
+      short: "Duplicate Record",
+      detailed: "A database record with this identical combination of plate number, service date, and description already exists in the ledger.",
+      solution: "If this is a unique log, change the plate number or service details. Otherwise, enjoy automatic double-save protection!",
+      category: 'database'
+    };
+  }
+
+  // 4. Content / Format Errors
+  if (errString.includes("could not read") || errString.includes("unable to extract") || errString.includes("no readable records")) {
+    return {
+      short: "Unreadable/Handwriting Ambiguity",
+      detailed: "The AI scanned the image but was unable to identify any legible column structures, fleet plate numbers, or service items. Handwritten text may be too blurry or low contrast.",
+      solution: "Use a higher resolution, front-facing, or better-lit photo of the paper receipt/log, or input the details manually.",
+      category: 'validation'
+    };
+  }
+
+  // 5. Placeholders Errors
+  if (errString.includes("todo_project_id") || errString.includes("supabase url contains placeholders")) {
+    return {
+      short: "Environment Setup Missing",
+      detailed: "Your workspace has not been fully configured with the necessary database connection parameters (Supabase URL or keys).",
+      solution: "Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your Secrets / Environment Variables in AI Studio and reboot the server.",
+      category: 'network'
+    };
+  }
+
+  // Fallback
+  return {
+    short: err.message || "Processing Error",
+    detailed: "An unexpected issue was encountered while reading the invoice/receipt or updating database records.",
+    solution: "Review the original image clarity or click 'Add Manually' to bypass automation.",
+    category: 'validation'
+  };
 }
 
 const CONCURRENCY_LIMIT = 1; // Reduced for mobile stability
@@ -662,6 +749,7 @@ export default function App() {
     mode: 'fleet' | 'market';
     isAudit: boolean;
     totalExtractedCount?: number;
+    extractedItems?: any[];
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [serviceHintQuery, setServiceHintQuery] = useState('');
@@ -900,6 +988,7 @@ export default function App() {
   const [showLatestOnly, setShowLatestOnly] = useState(false);
   const [showUploadLog, setShowUploadLog] = useState(true);
   const [uploadLog, setUploadLog] = useState<UploadLogEntry[]>([]);
+  const [expandedLogDiagnostics, setExpandedLogDiagnostics] = useState<number[]>([]);
   const [latestImage, setLatestImage] = useState<string | null>(null);
   const [isLoadingLatestImage, setIsLoadingLatestImage] = useState(false);
   const lastFetchedRecordIdRef = React.useRef<string | null>(null);
@@ -1685,6 +1774,8 @@ export default function App() {
 
       let localCompletedCount = 0;
       let localFailedCount = 0;
+      let totalExtractedItemsCount = 0;
+      const extractedItemsList: any[] = [];
 
       for (const entry of queuedItems) {
         if (shouldStopRef.current) break;
@@ -1704,6 +1795,16 @@ export default function App() {
               e.timestamp === entry.timestamp ? { ...e, status: 'queued', error: undefined } : e
             ));
             break;
+          }
+
+          if (result) {
+            if (entry.mode === 'market' && result.items && Array.isArray(result.items)) {
+              totalExtractedItemsCount += result.items.length;
+              extractedItemsList.push(...result.items.map((it: any) => ({ ...it, fileName: entry.fileName, mode: 'market' })));
+            } else if (entry.mode === 'fleet' && result.records && Array.isArray(result.records)) {
+              totalExtractedItemsCount += result.records.length;
+              extractedItemsList.push(...result.records.map((rec: any) => ({ ...rec, fileName: entry.fileName, mode: 'fleet' })));
+            }
           }
 
           if (isAuditMode && entry.mode === 'fleet') {
@@ -1808,8 +1909,14 @@ export default function App() {
               </div> as any
             );
             
+            const diagnostic = getDiagnosticError(new Error("DAILY_QUOTA_EXCEEDED"));
             setUploadLog(prev => prev.map(e => 
-              e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: "Daily limit reached. Try again after midnight or switch API key." } : e
+              e.timestamp === entry.timestamp ? { 
+                ...e, 
+                status: 'failed', 
+                error: diagnostic.short,
+                diagnostic: diagnostic
+              } : e
             ));
             
             // Stop the entire batch
@@ -1820,8 +1927,14 @@ export default function App() {
           localFailedCount++;
           setFailedFiles(prev => [...prev, entry.fileName]);
           
+          const diagnostic = getDiagnosticError(err);
           setUploadLog(prev => prev.map(e => 
-            e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: getSupabaseErrorMessage(err) } : e
+            e.timestamp === entry.timestamp ? { 
+              ...e, 
+              status: 'failed', 
+              error: diagnostic.short,
+              diagnostic: diagnostic
+            } : e
           ));
         } finally {
           localCompletedCount++;
@@ -1862,7 +1975,9 @@ export default function App() {
           newRecordsCount,
           newMarketPricesCount,
           mode: queuedItems[0]?.mode || 'fleet',
-          isAudit: !!isAuditMode
+          isAudit: !!isAuditMode,
+          totalExtractedCount: totalExtractedItemsCount,
+          extractedItems: extractedItemsList
         });
       }
 
@@ -1960,14 +2075,19 @@ export default function App() {
 
     } catch (err: any) {
       console.error(`[RETRY] Failed: ${entry.fileName}`, err);
-      const errorMessage = getSupabaseErrorMessage(err);
+      const diagnostic = getDiagnosticError(err);
       
       setUploadLog(prev => prev.map(e => 
-        e.timestamp === entry.timestamp ? { ...e, status: 'failed', error: errorMessage } : e
+        e.timestamp === entry.timestamp ? { 
+          ...e, 
+          status: 'failed', 
+          error: diagnostic.short,
+          diagnostic: diagnostic
+        } : e
       ));
 
       setNotification({
-        message: `Retry failed: ${errorMessage}`,
+        message: `Retry failed: ${diagnostic.short}`,
         type: 'warning'
       });
     }
@@ -2843,16 +2963,6 @@ export default function App() {
       <header className="relative mb-4 md:mb-6 border-b border-border pb-4 bg-surface/80 p-4 rounded-3xl">
         {/* Top Right Controls */}
         <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-          <button 
-            onClick={toggleTheme}
-            className="p-2 bg-surface border border-border hover:bg-white/10 dark:hover:bg-white/10 transition-all rounded-full text-muted hover:text-text"
-            title={`Switch Theme (Current: ${theme})`}
-          >
-            {theme === 'dark' ? <Moon className="w-4 h-4 text-violet-600" /> : 
-             theme === 'black' ? <Zap className="w-4 h-4 text-cyan-400" /> : 
-             theme === 'professional' ? <Briefcase className="w-4 h-4 text-indigo-500" /> :
-             <Sun className="w-4 h-4 text-amber-500" />}
-          </button>
           {viewMode === 'log' && (
             <button 
               onClick={() => setShowSettingsModal(true)}
@@ -2866,12 +2976,48 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-                <div className={cn(
-                  "p-2 rounded-2xl border transition-all duration-500",
-                  theme === 'professional' ? "bg-indigo-500/5 border-indigo-500/20" : "bg-purple-600/20 border-purple-500/30"
-                )}>
-                  <Wrench className={cn("w-6 h-6 stroke-[1.5]", theme === 'professional' ? "text-indigo-400" : "text-purple-400")} />
-                </div>
+                <motion.div 
+                  className={cn(
+                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
+                    theme === 'professional' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                  )}
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={toggleTheme}
+                  title={`Switch Theme (Current: ${theme})`}
+                >
+                  <motion.div 
+                    className="absolute inset-0 opacity-10 bg-gradient-to-tr from-purple-500 to-indigo-500"
+                    animate={{ rotate: 360 }}
+                    transition={{ ease: "linear", duration: 8, repeat: Infinity }}
+                  />
+                  
+                  <div className="relative flex items-center justify-center w-9 h-9">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ ease: "linear", duration: 12, repeat: Infinity }}
+                      className="absolute inset-0 flex items-center justify-center"
+                    >
+                      <Settings className={cn("w-9 h-9 stroke-[1.2] opacity-40", theme === 'professional' ? "text-indigo-400" : "text-purple-400")} />
+                    </motion.div>
+                    
+                    <motion.div
+                      initial={{ rotate: -10 }}
+                      animate={{ rotate: [15, -15, 15] }}
+                      transition={{
+                        ease: "easeInOut",
+                        duration: 3.5,
+                        repeat: Infinity,
+                        repeatType: "reverse"
+                      }}
+                      className="absolute inset-0 flex items-center justify-center"
+                    >
+                      <Wrench className={cn("w-6 h-6 stroke-[1.8]", theme === 'professional' ? "text-indigo-300" : "text-purple-300")} />
+                    </motion.div>
+
+                    <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
+                  </div>
+                </motion.div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={cn(
@@ -3352,29 +3498,98 @@ export default function App() {
                         </>
                       ) : batchSessionSummary.mode === 'market' ? (
                         <>
-                          <div className="flex items-baseline gap-2">
+                          <div className="flex items-baseline gap-2 flex-wrap">
                             <span className="font-display font-bold text-lg text-amber-400">
                               = {batchSessionSummary.newMarketPricesCount} {batchSessionSummary.newMarketPricesCount === 1 ? 'item' : 'items'}
                             </span>
+                            {batchSessionSummary.totalExtractedCount !== undefined && batchSessionSummary.totalExtractedCount > batchSessionSummary.newMarketPricesCount && (
+                              <span className="text-[9px] text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                {batchSessionSummary.totalExtractedCount - batchSessionSummary.newMarketPricesCount} duplicate{batchSessionSummary.totalExtractedCount - batchSessionSummary.newMarketPricesCount === 1 ? '' : 's'} skipped
+                              </span>
+                            )}
                           </div>
                           <p className="text-[10px] text-muted font-mono leading-tight">
-                            Market records updated: <span className="text-text font-bold">{batchSessionSummary.recordsBefore}</span> items before, now <span className="text-amber-400 font-bold">{batchSessionSummary.recordsAfter}</span>.
+                            {batchSessionSummary.totalExtractedCount !== undefined && batchSessionSummary.totalExtractedCount > batchSessionSummary.newMarketPricesCount ? (
+                              <>
+                                Extracted <span className="font-bold text-text">{batchSessionSummary.totalExtractedCount}</span> items. Skipped <span className="font-bold text-amber-400">{batchSessionSummary.totalExtractedCount - batchSessionSummary.newMarketPricesCount}</span> duplicate pricing entry that is already active.
+                              </>
+                            ) : (
+                              <>
+                                Market records updated: <span className="text-text font-bold">{batchSessionSummary.recordsBefore}</span> items before, now <span className="text-amber-400 font-bold">{batchSessionSummary.recordsAfter}</span>.
+                              </>
+                            )}
                           </p>
                         </>
                       ) : (
                         <>
-                          <div className="flex items-baseline gap-2">
+                          <div className="flex items-baseline gap-2 flex-wrap">
                             <span className="font-display font-bold text-lg text-emerald-400">
                               = {batchSessionSummary.newRecordsCount} {batchSessionSummary.newRecordsCount === 1 ? 'record' : 'records'}
                             </span>
+                            {batchSessionSummary.totalExtractedCount !== undefined && batchSessionSummary.totalExtractedCount > batchSessionSummary.newRecordsCount && (
+                              <span className="text-[9px] text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                {batchSessionSummary.totalExtractedCount - batchSessionSummary.newRecordsCount} duplicate{batchSessionSummary.totalExtractedCount - batchSessionSummary.newRecordsCount === 1 ? '' : 's'} skipped
+                              </span>
+                            )}
                           </div>
                           <p className="text-[10px] text-muted font-mono leading-tight">
-                            Database catalog grew: <span className="text-text font-bold">{batchSessionSummary.recordsBefore}</span> records before, now <span className="text-emerald-400 font-bold">{batchSessionSummary.recordsAfter}</span>.
+                            {batchSessionSummary.totalExtractedCount !== undefined && batchSessionSummary.totalExtractedCount > batchSessionSummary.newRecordsCount ? (
+                              <>
+                                Extracted <span className="font-bold text-text">{batchSessionSummary.totalExtractedCount}</span> records. Skipped <span className="font-bold text-amber-400">{batchSessionSummary.totalExtractedCount - batchSessionSummary.newRecordsCount}</span> duplicate receipts to protect catalog integrity.
+                              </>
+                            ) : (
+                              <>
+                                Database catalog grew: <span className="text-text font-bold">{batchSessionSummary.recordsBefore}</span> records before, now <span className="text-emerald-400 font-bold">{batchSessionSummary.recordsAfter}</span>.
+                              </>
+                            )}
                           </p>
                         </>
                       )}
                     </div>
                   </div>
+
+                  {batchSessionSummary.extractedItems && batchSessionSummary.extractedItems.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-white/5">
+                      <span className="text-[9px] font-display font-bold text-muted uppercase tracking-widest block mb-2">
+                        Details of {batchSessionSummary.extractedItems.length} Extracted {batchSessionSummary.mode === 'market' ? 'Prices' : 'Records'}
+                      </span>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 select-none">
+                        {batchSessionSummary.extractedItems.map((item, idx) => (
+                          <div key={idx} className="flex flex-col gap-1 text-[11px] bg-white/5 rounded p-2.5 border border-white/5">
+                            <div className="flex items-center justify-between gap-2 overflow-hidden">
+                              <div className="flex items-center gap-2 overflow-hidden mr-2">
+                                {batchSessionSummary.mode === 'market' ? (
+                                  <>
+                                    <span className="font-mono text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 border border-amber-500/20 rounded text-[9px] whitespace-nowrap">
+                                      {item.price} {item.currency}
+                                    </span>
+                                    <span className="truncate text-text font-medium">{item.item_name}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="font-mono text-cyan-400 font-bold bg-cyan-400/10 px-1.5 py-0.5 border border-cyan-500/20 rounded text-[9px] whitespace-nowrap">
+                                      {item.plate_number || 'UNKNOWN'}
+                                    </span>
+                                    <span className="text-muted/80 font-mono text-[9px] whitespace-nowrap bg-white/5 px-1 py-0.5 rounded italic">
+                                      {item.service_date}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              <span className="font-mono text-[7px] text-muted whitespace-nowrap bg-white/5 px-1 py-0.5 rounded select-all" title={item.fileName}>
+                                {item.fileName}
+                              </span>
+                            </div>
+                            {batchSessionSummary.mode !== 'market' && (
+                              <p className="text-[10px] text-text font-medium italic border-l-2 border-cyan-500/30 pl-2 mt-0.5">
+                                {item.service_description}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -3382,127 +3597,166 @@ export default function App() {
                 {uploadLog.map((entry, i) => {
                   const isFallbackSuccess = entry.status === 'success' && !!entry.error;
                   return (
-                    <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex items-center justify-between p-3 bg-surface border border-border rounded group/log">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <div className={cn(
-                          "w-2 h-2 rounded-full flex-shrink-0",
-                          isFallbackSuccess ? "bg-amber-500 animate-pulse" :
-                          entry.status === 'success' ? "bg-green-500" : 
-                          entry.status === 'failed' ? "bg-red-500" : 
-                          entry.status === 'processing' ? "bg-purple-500 animate-pulse" : 
-                          entry.status === 'queued' ? "bg-blue-500" : "bg-white/20"
-                        )} />
-                        <div className="flex flex-col overflow-hidden">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-mono truncate opacity-80" title={entry.fileName}>{entry.fileName}</span>
-                            {entry.mode && (
-                              <span className={cn(
-                                "text-[8px] px-1 rounded border font-display font-bold uppercase tracking-tighter flex items-center gap-1",
-                                entry.mode === 'market' ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-cyan-500/10 border-cyan-500/30 text-cyan-400",
-                                entry.isAudit && "border-white/40 text-white shadow-[0_0_5px_rgba(255,255,255,0.2)]"
-                              )}>
-                                {entry.isAudit && <Eye className="w-2.5 h-2.5" />}
-                                {entry.mode}
-                                {entry.isAudit && <span className="opacity-60 ml-0.5">Audit</span>}
-                              </span>
+                    <div key={`${entry.fileName}-${entry.timestamp}-${i}`} className="flex flex-col p-3 bg-surface border border-border rounded-xl group/log gap-2 transition-all duration-300">
+                      <div className="flex items-center justify-between gap-3 overflow-hidden">
+                        <div className="flex items-center gap-3 overflow-hidden relational-container">
+                          <div className={cn(
+                            "w-2 h-2 rounded-full flex-shrink-0 animate-pulse",
+                            isFallbackSuccess ? "bg-amber-500" :
+                            entry.status === 'success' ? "bg-green-500 animate-none" : 
+                            entry.status === 'failed' ? "bg-red-500 animate-none" : 
+                            entry.status === 'processing' ? "bg-purple-500" : 
+                            entry.status === 'queued' ? "bg-blue-500" : "bg-white/20 animate-none"
+                          )} />
+                          <div className="flex flex-col overflow-hidden">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-mono truncate opacity-90 font-semibold text-text" title={entry.fileName}>{entry.fileName}</span>
+                              {entry.mode && (
+                                <span className={cn(
+                                  "text-[8px] px-1 rounded border font-display font-bold uppercase tracking-tighter flex items-center gap-1",
+                                  entry.mode === 'market' ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-cyan-500/10 border-cyan-500/30 text-cyan-400",
+                                  entry.isAudit && "border-white/40 text-white shadow-[0_0_5px_rgba(255,255,255,0.2)]"
+                                )}>
+                                  {entry.isAudit && <Eye className="w-2.5 h-2.5" />}
+                                  {entry.mode}
+                                  {entry.isAudit && <span className="opacity-60 ml-0.5">Audit</span>}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {entry.error && (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                <span className={cn(
+                                  "text-[9px] font-mono leading-none py-0.5 px-1.5 rounded-sm font-semibold select-all",
+                                  entry.status === 'failed' ? "bg-red-500/10 text-red-400 border border-red-500/15" : "bg-amber-500/10 text-amber-400 border border-amber-500/15"
+                                )} title={entry.error}>
+                                  {entry.error}
+                                </span>
+                                
+                                {entry.status === 'failed' && (
+                                  <button
+                                    onClick={() => {
+                                      setExpandedLogDiagnostics(prev => 
+                                        prev.includes(entry.timestamp) ? prev.filter(t => t !== entry.timestamp) : [...prev, entry.timestamp]
+                                      );
+                                    }}
+                                    className="text-[9px] text-purple-400 hover:text-purple-300 font-medium underline flex items-center gap-0.5 cursor-pointer select-none"
+                                  >
+                                    <AlertCircle className="w-2.5 h-2.5" />
+                                    {expandedLogDiagnostics.includes(entry.timestamp) ? "Hide Details" : "Troubleshoot"}
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
-                          {entry.error && (
-                            <span className={cn(
-                              "text-[8px] font-mono truncate",
-                              entry.status === 'failed' ? "text-red-400/60" : "text-amber-400/80 font-bold animate-pulse"
-                            )} title={entry.error}>
-                              {entry.error}
-                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span className={cn(
+                            "text-[9px] font-display font-bold uppercase tracking-widest",
+                            isFallbackSuccess ? "text-amber-400" :
+                            entry.status === 'success' ? "text-green-400" : 
+                            entry.status === 'failed' ? "text-red-400" : 
+                            entry.status === 'processing' ? "text-purple-400" : 
+                            entry.status === 'queued' ? "text-blue-400" : "text-white/40"
+                          )}>
+                            {isFallbackSuccess 
+                              ? (entry.error?.includes("could not read") ? "SAVED (UNREADABLE)" : "SAVED (OFFLINE)") 
+                              : entry.status}
+                          </span>
+                          
+                          {entry.status === 'failed' && (
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => setManualEntryData({ 
+                                  fileName: entry.fileName, 
+                                  plateNumber: '', 
+                                  date: new Date().toISOString().split('T')[0], 
+                                  service: '',
+                                  verified: false
+                                })}
+                                className="text-[9px] font-display font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <Plus className="w-2.5 h-2.5" />
+                                Add Manually
+                              </button>
+                              
+                              {entry.imageData && (
+                                <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => handleRetry(entry)}
+                                    className="text-[9px] font-display font-bold uppercase tracking-widest bg-purple-500/20 hover:bg-purple-500/40 px-2 py-1 rounded text-purple-300 flex items-center gap-1 transition-colors cursor-pointer"
+                                  >
+                                    <RefreshCw className="w-2.5 h-2.5" />
+                                    Retry
+                                  </button>
+                                  
+                                  <button 
+                                    onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
+                                    className="text-[9px] font-display font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-white flex items-center gap-1 transition-colors cursor-pointer"
+                                  >
+                                    <Eye className="w-2.5 h-2.5" />
+                                    View Image
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           )}
+
+                          {entry.status !== 'failed' && entry.imageData && (
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {isFallbackSuccess && (
+                                <button 
+                                  onClick={() => handleRetry(entry)}
+                                  className="text-[9px] font-display font-bold uppercase tracking-widest bg-amber-500/20 hover:bg-amber-500/40 px-2.5 py-1 rounded text-amber-300 flex items-center gap-1 transition-colors animate-pulse cursor-pointer animate-none"
+                                  title="Re-run AI extraction"
+                                >
+                                  <RefreshCw className="w-2.5 h-2.5 animate-spin-slow" />
+                                  Retry AI
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
+                                className="text-[9px] font-display font-bold uppercase tracking-widest text-white/40 hover:text-white underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <Eye className="w-2.5 h-2.5" />
+                                View
+                              </button>
+                            </div>
+                          )}
+
+                          <button 
+                            onClick={() => removeLogEntry(entry.fileName, entry.timestamp)}
+                            className="p-1.5 hover:bg-white/10 rounded-full transition-all text-white/20 hover:text-white active:scale-90 cursor-pointer flex-shrink-0 self-center"
+                            title="Remove from log"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 flex-shrink-0">
-                        <span className={cn(
-                          "text-[9px] font-display font-bold uppercase tracking-widest",
-                          isFallbackSuccess ? "text-amber-400" :
-                          entry.status === 'success' ? "text-green-400" : 
-                          entry.status === 'failed' ? "text-red-400" : 
-                          entry.status === 'processing' ? "text-purple-400" : 
-                          entry.status === 'queued' ? "text-blue-400" : "text-white/40"
-                        )}>
-                          {isFallbackSuccess 
-                            ? (entry.error?.includes("could not read") ? "SAVED (UNREADABLE)" : "SAVED (OFFLINE)") 
-                            : entry.status}
-                        </span>
-                        
-                        {entry.status === 'failed' && (
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => setManualEntryData({ 
-                          fileName: entry.fileName, 
-                          plateNumber: '', 
-                          date: new Date().toISOString().split('T')[0], 
-                          service: '',
-                          verified: false
-                        })}
-                        className="text-[9px] font-display font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 underline flex items-center gap-1"
-                      >
-                        <Plus className="w-2.5 h-2.5" />
-                        Add Manually
-                      </button>
-                      
-                      {entry.imageData && (
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => handleRetry(entry)}
-                            className="text-[9px] font-display font-bold uppercase tracking-widest bg-purple-500/20 hover:bg-purple-500/40 px-2 py-1 rounded text-purple-300 flex items-center gap-1 transition-colors"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            Retry
-                          </button>
-                          
-                          <button 
-                            onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
-                            className="text-[9px] font-display font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-white flex items-center gap-1 transition-colors"
-                          >
-                            <Eye className="w-2.5 h-2.5" />
-                            View Image
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
-                   {entry.status !== 'failed' && entry.imageData && (
-                    <div className="flex items-center gap-2">
-                      {isFallbackSuccess && (
-                        <button 
-                          onClick={() => handleRetry(entry)}
-                          className="text-[9px] font-display font-bold uppercase tracking-widest bg-amber-500/20 hover:bg-amber-500/40 px-2.5 py-1 rounded text-amber-300 flex items-center gap-1 transition-colors animate-pulse"
-                          title="Re-run AI extraction"
+                      {/* Diagnostic troubleshoot message expanded inline */}
+                      {entry.status === 'failed' && expandedLogDiagnostics.includes(entry.timestamp) && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="p-3 bg-red-950/25 border border-red-500/15 rounded-lg space-y-2.5 mt-1 select-text text-left max-w-full block"
                         >
-                          <RefreshCw className="w-2.5 h-2.5 animate-spin-slow" />
-                          Retry AI
-                        </button>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[9px] font-bold text-red-400 font-sans uppercase tracking-wider block bg-red-500/10 px-1.5 py-0.5 rounded w-max">Diagnostic Analysis</span>
+                            <p className="text-[11px] text-zinc-300 leading-relaxed font-sans">{entry.diagnostic?.detailed || "The scan failed during step execution. This can happen if the image contains no legible text, structural boundaries aren't respected, or there are network delays with Google's APIs."}</p>
+                          </div>
+                          <div className="flex flex-col gap-1 border-t border-white/5 pt-2">
+                            <span className="text-[9px] font-bold text-green-400 font-sans uppercase tracking-wider block bg-green-500/10 px-1.5 py-0.5 rounded w-max">Recommended Solution</span>
+                            <p className="text-[11px] text-zinc-300 leading-relaxed font-sans">{entry.diagnostic?.solution || "Check that the image displays clear column divisions, dates, and vehicle numbers. Retrying at a later time or submitting manual log inputs resolves this immediately."}</p>
+                          </div>
+                        </motion.div>
                       )}
-                      <button 
-                        onClick={() => setViewingImage({ id: entry.fileName, image: entry.imageData!, loading: false })}
-                        className="text-[9px] font-display font-bold uppercase tracking-widest text-white/40 hover:text-white underline flex items-center gap-1"
-                      >
-                        <Eye className="w-2.5 h-2.5" />
-                        View
-                      </button>
                     </div>
-                  )}
-
-                  <button 
-                    onClick={() => removeLogEntry(entry.fileName, entry.timestamp)}
-                    className="p-1.5 hover:bg-white/10 rounded-full transition-all text-white/20 hover:text-white active:scale-90"
-                    title="Remove from log"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
-          </div>
 
           {uploadLog.some(e => e.status === 'queued') && (
             <div className="mt-6 p-4 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
