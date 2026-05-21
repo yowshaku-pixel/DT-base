@@ -1,19 +1,27 @@
 import dotenv from "dotenv";
-// Load environment variables from .env file securely. Dotenv by default preserves existing host environment variables.
-dotenv.config();
-
-import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import express from "express";
+import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { extractMaintenanceData, extractMarketPrices, analyzeMaintenanceData } from "./src/services/aiService.ts";
 
-// We don't use dotenv here because the platform provides GEMINI_API_KEY directly.
-// Loading it manually can sometimes overwrite valid keys with empty values from .env files.
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 1. Try default process.cwd() first
+dotenv.config();
+
+// 2. Fallback relative paths for absolute robustness in bundles and virtual drives (e.g., Termux)
+try {
+  const baseDir = typeof __dirname !== 'undefined' ? __dirname : path.dirname(__filename);
+  // Try loading from project root folder if running from dist/ directory (production)
+  dotenv.config({ path: path.resolve(baseDir, "../.env") });
+  // Try loading from the same folder as the script (development)
+  dotenv.config({ path: path.resolve(baseDir, ".env") });
+} catch (e) {
+  console.warn("[SERVER] Unable to resolve relative path for .env file:", e);
+}
 
 async function startServer() {
   const app = express();

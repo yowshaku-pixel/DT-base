@@ -16,18 +16,30 @@ function getAI(apiKeyOverride?: string): GoogleGenAI {
       }
     });
   }
-  if (!aiInstance) {
-    const apiKey = typeof process !== 'undefined' && process?.env ? process.env.GEMINI_API_KEY : "";
-    aiInstance = new GoogleGenAI({ 
-      apiKey: apiKey || "",
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
+  
+  const envKey = typeof process !== 'undefined' && process?.env ? process.env.GEMINI_API_KEY : "";
+  if (envKey) {
+    if (!aiInstance) {
+      aiInstance = new GoogleGenAI({ 
+        apiKey: envKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
         }
-      }
-    });
+      });
+    }
+    return aiInstance;
   }
-  return aiInstance;
+  
+  return new GoogleGenAI({ 
+    apiKey: "",
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build-unconfigured',
+      }
+    }
+  });
 }
 
 async function generateContentWithRetry(params: any, maxRetries = 3, initialDelay = 1500, apiKeyOverride?: string): Promise<any> {

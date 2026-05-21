@@ -116,6 +116,16 @@ export function getDiagnosticError(err: any): { short: string; detailed: string;
     };
   }
 
+  // 6. Gemini Unregistered Callers / Key Missing (Termux / Local Host)
+  if (errString.includes("unregistered callers") || errString.includes("unregistered") || errString.includes("api key") || errString.includes("403")) {
+    return {
+      short: "Gemini API Key Missing/Invalid",
+      detailed: "The query failed (403 Permission Denied) because there's no custom API Key defined, or the server environment variable GEMINI_API_KEY is not set/invalid.",
+      solution: "Provide your own Gemini API Key in the 'App Settings' card (top-right gear icon) to process images offline/directly, OR create a `.env` file in the project folder with `GEMINI_API_KEY=AIzaSy...`",
+      category: 'ai'
+    };
+  }
+
   // Fallback
   return {
     short: err.message || "Processing Error",
