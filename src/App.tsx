@@ -68,6 +68,7 @@ const PlateFolder = React.memo(({
         onClick={() => onToggle(plate)}
         className="w-full flex items-center justify-between p-3.5 px-5 text-text transition-all"
         title={`Click to ${isExpanded ? 'collapse' : 'expand'} records for ${plate}`}
+        aria-expanded={isExpanded}
       >
         <div className="flex items-center gap-4">
           <div className={cn(
@@ -133,6 +134,7 @@ const PlateFolder = React.memo(({
                           : "bg-surface border border-border text-muted hover:text-text hover:bg-bg/20"
                       )}
                       title={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
+                      aria-label={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
                     >
                       <CheckCircle2 className={cn("w-3 h-3", record.verified && "animate-pulse")} />
                     </button>
@@ -140,6 +142,7 @@ const PlateFolder = React.memo(({
                       onClick={() => onEdit(record)}
                       className="p-2 bg-surface border border-border text-muted hover:text-text hover:bg-bg/20 transition-all rounded-full"
                       title="Edit this record"
+                      aria-label="Edit this record"
                     >
                       <Settings className="w-3 h-3" />
                     </button>
@@ -147,6 +150,7 @@ const PlateFolder = React.memo(({
                       onClick={() => onViewImage(record)}
                       className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full"
                       title="View the original image for this record"
+                      aria-label="View the original image for this record"
                     >
                       View
                     </button>
@@ -330,6 +334,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Search"
+              aria-label="Clear Search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -361,6 +366,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Description Filter"
+              aria-label="Clear Description Filter"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -2847,6 +2853,7 @@ export default function App() {
             onClick={toggleTheme}
             className="p-2 bg-surface border border-border hover:bg-white/10 dark:hover:bg-white/10 transition-all rounded-full text-muted hover:text-text"
             title={`Switch Theme (Current: ${theme})`}
+            aria-label={`Switch Theme (Current: ${theme})`}
           >
             {theme === 'dark' ? <Moon className="w-4 h-4 text-violet-600" /> : 
              theme === 'black' ? <Zap className="w-4 h-4 text-cyan-400" /> : 
@@ -2858,6 +2865,7 @@ export default function App() {
               onClick={() => setShowSettingsModal(true)}
               className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet"
               title="Open Settings"
+              aria-label="Open Settings"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -5161,6 +5169,7 @@ export default function App() {
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             className="fixed bottom-24 md:bottom-8 right-6 z-40 p-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl shadow-xl shadow-purple-900/40 border border-purple-400/30 transition-all active:scale-95 group"
             title="Scroll to top"
+            aria-label="Scroll to top"
           >
             <ChevronUp className="w-6 h-6 group-hover:-translate-y-0.5 transition-transform" />
             <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-bg border border-border px-2 py-1 rounded text-[8px] font-display font-bold uppercase tracking-widest text-text opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
@@ -5329,6 +5338,8 @@ export default function App() {
             isFabOpen ? "bg-bg text-text border-border" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50",
             isAuditMode && !isFabOpen && "shadow-[0_0_40px_rgba(6,182,212,0.6)] border-cyan-400 ring-2 ring-cyan-400/20"
           )}
+          aria-label="Toggle action menu"
+          aria-expanded={isFabOpen}
         >
           <AnimatePresence mode="wait">
             {isFabOpen ? (
