@@ -38,7 +38,8 @@ async function startServer() {
   app.post("/api/ai/extract-maintenance", async (req, res) => {
     try {
       const { base64Image, mimeType, fleetRegistry, historySummary } = req.body;
-      const result = await extractMaintenanceData(base64Image, mimeType, fleetRegistry, historySummary);
+      const apiKeyOverride = req.headers['x-gemini-api-key'] as string;
+      const result = await extractMaintenanceData(base64Image, mimeType, fleetRegistry, historySummary, apiKeyOverride);
       res.json(result);
     } catch (error: any) {
       console.error("[SERVER] AI Extraction Error:", error);
@@ -49,7 +50,8 @@ async function startServer() {
   app.post("/api/ai/extract-market", async (req, res) => {
     try {
       const { base64Image, mimeType } = req.body;
-      const result = await extractMarketPrices(base64Image, mimeType);
+      const apiKeyOverride = req.headers['x-gemini-api-key'] as string;
+      const result = await extractMarketPrices(base64Image, mimeType, apiKeyOverride);
       res.json(result);
     } catch (error: any) {
       console.error("[SERVER] AI Market Extraction Error:", error);
@@ -60,7 +62,8 @@ async function startServer() {
   app.post("/api/ai/analyze", async (req, res) => {
     try {
       const { query, records, chatHistory, marketPrices, viewMode } = req.body;
-      const result = await analyzeMaintenanceData(query, records, chatHistory, marketPrices, viewMode);
+      const apiKeyOverride = req.headers['x-gemini-api-key'] as string;
+      const result = await analyzeMaintenanceData(query, records, chatHistory, marketPrices, viewMode, apiKeyOverride);
       res.json({ result });
     } catch (error: any) {
       console.error("[SERVER] AI Analysis Error:", error);

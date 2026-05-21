@@ -5,7 +5,17 @@ import { arePlatesSimilar, normalizePlate, deduplicateRecords } from "../lib/uti
 // Initialize AI client lazily to handle cases where the API key might change or be loaded later
 let aiInstance: GoogleGenAI | null = null;
 
-function getAI(): GoogleGenAI {
+function getAI(apiKeyOverride?: string): GoogleGenAI {
+  if (apiKeyOverride) {
+    return new GoogleGenAI({ 
+      apiKey: apiKeyOverride,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build-override',
+        }
+      }
+    });
+  }
   if (!aiInstance) {
     const apiKey = typeof process !== 'undefined' && process?.env ? process.env.GEMINI_API_KEY : "";
     aiInstance = new GoogleGenAI({ 
@@ -20,7 +30,7 @@ function getAI(): GoogleGenAI {
   return aiInstance;
 }
 
-async function generateContentWithRetry(params: any, maxRetries = 3, initialDelay = 1500): Promise<any> {
+async function generateContentWithRetry(params: any, maxRetries = 3, initialDelay = 1500, apiKeyOverride?: string): Promise<any> {
   const baseModel = params.model || "gemini-3.5-flash";
   
   // Decide the fallback model chain to use when limits/quotas are hit
@@ -59,7 +69,7 @@ async function generateContentWithRetry(params: any, maxRetries = 3, initialDela
     
     try {
       console.log(`[AI] Attempting request using model: ${activeModel} (Current fallback chain index: ${modelIndex}, model attempt: ${attempt})`);
-      return await getAI().models.generateContent(attemptParams);
+      return await getAI(apiKeyOverride).models.generateContent(attemptParams);
     } catch (error: any) {
       attempt++;
       
@@ -202,7 +212,8 @@ export async function extractMaintenanceData(
   base64Image: string, 
   mimeType: string, 
   fleetRegistry: string[] = [],
-  historySummary: string = ""
+  historySummary: string = "",
+  apiKeyOverride?: string
 ): Promise<ExtractionResult> {
   if (!base64Image) {
     return { records: [] };
@@ -211,9 +222,14 @@ export async function extractMaintenanceData(
   // Client-side: Call the server API
   if (typeof window !== 'undefined') {
     try {
+      const customKey = localStorage.getItem("DT_BASE_CUSTOM_GEMINI_API_KEY") || "";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (customKey) {
+        headers["x-gemini-api-key"] = customKey;
+      }
       const response = await fetch("/api/ai/extract-maintenance", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ base64Image, mimeType, fleetRegistry, historySummary }),
       });
       if (!response.ok) {
@@ -297,7 +313,7 @@ export async function extractMaintenanceData(
           required: ["records"]
         }
       }
-    });
+    }, 3, 1500, apiKeyOverride);
 
     const text = result.text;
     console.log("[AI] Extraction raw response:", text);
@@ -312,7 +328,7 @@ export async function extractMaintenanceData(
   }
 }
 
-export async function extractMarketPrices(base64Image: string, mimeType: string): Promise<{ items: { item_name: string, price: number, currency: string }[] }> {
+export async function extractMarketPrices(base64Image: string, mimeType: string, apiKeyOverride?: string): Promise<{ items: { item_name: string, price: number, currency: string }[] }> {
   if (!base64Image) {
     return { items: [] };
   }
@@ -320,9 +336,14 @@ export async function extractMarketPrices(base64Image: string, mimeType: string)
   // Client-side: Call the server API
   if (typeof window !== 'undefined') {
     try {
+      const customKey = localStorage.getItem("DT_BASE_CUSTOM_GEMINI_API_KEY") || "";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (customKey) {
+        headers["x-gemini-api-key"] = customKey;
+      }
       const response = await fetch("/api/ai/extract-market", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ base64Image, mimeType }),
       });
       if (!response.ok) {
@@ -390,7 +411,7 @@ export async function extractMarketPrices(base64Image: string, mimeType: string)
           required: ["items"]
         }
       }
-    });
+    }, 3, 1500, apiKeyOverride);
 
     const text = result.text;
     console.log("[AI] Market extraction raw response:", text);
@@ -410,15 +431,21 @@ export async function analyzeMaintenanceData(
   records: MaintenanceRecord[], 
   chatHistory: ChatMessage[] = [],
   marketPrices: MarketPrice[] = [],
-  viewMode: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' | 'advanced-search' = 'log'
+  viewMode: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' | 'advanced-search' = 'log',
+  apiKeyOverride?: string
 ): Promise<string> {
   
   // Client-side: Call the server API
   if (typeof window !== 'undefined') {
     try {
+      const customKey = localStorage.getItem("DT_BASE_CUSTOM_GEMINI_API_KEY") || "";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (customKey) {
+        headers["x-gemini-api-key"] = customKey;
+      }
       const response = await fetch("/api/ai/analyze", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ query, records, chatHistory, marketPrices, viewMode }),
       });
       if (!response.ok) {
@@ -550,7 +577,7 @@ export async function analyzeMaintenanceData(
         maxOutputTokens: 8192,
         temperature: 0.1,
       }
-    });
+    }, 3, 1500, apiKeyOverride);
 
     return result.text || "I was unable to retrieve the fleet analysis.";
   } catch (e: any) {

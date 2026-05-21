@@ -999,6 +999,7 @@ export default function App() {
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [showMarketPricesModal, setShowMarketPricesModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [customGeminiKey, setCustomGeminiKey] = useState(() => typeof window !== 'undefined' ? localStorage.getItem("DT_BASE_CUSTOM_GEMINI_API_KEY") || "" : "");
   const [showFleetRegistryList, setShowFleetRegistryList] = useState(false);
   const [isAuditMode, setIsAuditMode] = useState(false); // Used as "Confirm Duplicates Mode"
   const [auditResults, setAuditResults] = useState<{
@@ -4821,6 +4822,39 @@ export default function App() {
                         </span>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Section: Termux & Local API Configuration */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-3 bg-violet-500 rounded-full animate-pulse" />
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-white/40">Local API Configuration (Termux)</p>
+                  </div>
+                  <div className="p-5 bg-violet-500/[0.03] border border-violet-500/20 rounded-3xl space-y-3 shadow-md">
+                    <p className="text-[9px] text-violet-300/60 uppercase tracking-widest leading-relaxed">
+                      Running locally or on Termux without .env configured? Input a Gemini API Key here to run analysis and OCR tasks autonomously. Saved securely inside your browser.
+                    </p>
+                    <div className="relative">
+                      <input 
+                        type="password"
+                        placeholder="PASTE GEMINI API KEY..."
+                        className="w-full bg-black/60 border border-white/10 p-4 pl-11 font-mono text-xs focus:outline-none focus:border-violet-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-violet-500/30"
+                        value={customGeminiKey}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          setCustomGeminiKey(val);
+                          localStorage.setItem("DT_BASE_CUSTOM_GEMINI_API_KEY", val);
+                        }}
+                      />
+                      <Key className="w-4 h-4 text-violet-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    </div>
+                    {customGeminiKey && (
+                      <div className="flex items-center gap-1.5 text-[8px] font-mono text-green-400 uppercase tracking-widest">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Key is Saved & Active Client-Side
+                      </div>
+                    )}
                   </div>
                 </div>
 
