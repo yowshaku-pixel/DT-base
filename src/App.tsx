@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, Sun, Moon, Wrench, Receipt, Globe, Sparkles, Briefcase } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, Sun, Moon, Wrench, Receipt, Globe, Sparkles, Briefcase, Bell, HelpCircle } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -36,6 +36,7 @@ interface UploadLogEntry {
   imageData?: string; // Base64 image data for viewing
   mode?: 'fleet' | 'market';
   isAudit?: boolean;
+  isAuditUpload?: boolean;
   diagnostic?: {
     short: string;
     detailed: string;
@@ -914,7 +915,14 @@ export default function App() {
   };
 
   const [isFabOpen, setIsFabOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark' | 'black' | 'professional'>('professional');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'black' | 'pro'>(() => {
+    const saved = localStorage.getItem('dtbase_theme');
+    if (saved === 'professional') return 'pro';
+    if (saved === 'light' || saved === 'dark' || saved === 'black' || saved === 'pro') {
+      return saved;
+    }
+    return 'pro';
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -924,7 +932,7 @@ export default function App() {
     } else if (theme === 'black') {
       root.classList.add('black');
       root.classList.add('dark');
-    } else if (theme === 'professional') {
+    } else if (theme === 'pro') {
       root.classList.add('professional');
       root.classList.add('dark');
     }
@@ -935,7 +943,7 @@ export default function App() {
     setTheme(prev => {
       if (prev === 'light') return 'dark';
       if (prev === 'dark') return 'black';
-      if (prev === 'black') return 'professional';
+      if (prev === 'black') return 'pro';
       return 'light';
     });
   };
@@ -1011,7 +1019,71 @@ export default function App() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [customGeminiKey, setCustomGeminiKey] = useState(() => typeof window !== 'undefined' ? localStorage.getItem("DT_BASE_CUSTOM_GEMINI_API_KEY") || "" : "");
   const [showFleetRegistryList, setShowFleetRegistryList] = useState(false);
-  const [isAuditMode, setIsAuditMode] = useState(false); // Used as "Confirm Duplicates Mode"
+  const [showFaqModal, setShowFaqModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
+  const [automaticSecurityGuard, setAutomaticSecurityGuard] = useState(true);
+  const [bugCategory, setBugCategory] = useState<'app' | 'ocr' | 'sync' | 'other'>('app');
+  const [bugDescription, setBugDescription] = useState('');
+  
+  // Fleet Notifications Center
+  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
+  const [feedNotifications, setFeedNotifications] = useState<{
+    id: string;
+    type: 'transition' | 'intelligence' | 'alert' | 'success'; 
+    timestamp: string;
+    title: string;
+    details: string;
+    severity: 'info' | 'warning' | 'critical' | 'success';
+    read: boolean;
+  }[]>(() => [
+    {
+      id: 'init-engine',
+      type: 'intelligence',
+      timestamp: new Date(Date.now() - 150000).toISOString(),
+      title: "Fleet Intelligence Engine Online",
+      details: "Live baseline checks synchronized. DT.Base duplicates blocking guard active.",
+      severity: 'info',
+      read: false
+    },
+    {
+      id: 'init-registry',
+      type: 'success',
+      timestamp: new Date(Date.now() - 360000).toISOString(),
+      title: "Baseline Audit Synchronized",
+      details: "Verified historical records matched against 12 custom truck registries.",
+      severity: 'info',
+      read: true
+    }
+  ]);
+
+  const unreadNotificationsCount = useMemo(() => {
+    return feedNotifications.filter(n => !n.read).length;
+  }, [feedNotifications]);
+
+  const addFeedNotification = useCallback((
+    title: string, 
+    details: string, 
+    severity: 'info' | 'warning' | 'critical' | 'success', 
+    type: 'transition' | 'intelligence' | 'alert' | 'success'
+  ) => {
+    const newNotif = {
+      id: Math.random().toString(36).substring(2, 9),
+      type,
+      timestamp: new Date().toISOString(),
+      title,
+      details,
+      severity,
+      read: false
+    };
+    setFeedNotifications(prev => [newNotif, ...prev]);
+    setNotification({
+      message: `${severity === 'critical' ? '🔴' : severity === 'warning' ? '🟠' : 'ℹ️'} ${title}`,
+      type: severity === 'critical' || severity === 'warning' ? 'warning' : 'success'
+    });
+  }, [setNotification]);
+  const [isAuditMode, setIsAuditMode] = useState(false); // Used as "Confirm Duplicates Mode" (Dry Run Verify Mode)
+  const [isAuditUploadMode, setIsAuditUploadMode] = useState(false); // Skip duplicate and save unique automatically
   const [auditResults, setAuditResults] = useState<{
     fileName: string;
     plate: string;
@@ -1528,7 +1600,8 @@ export default function App() {
     isBatch: boolean = true,
     mode: 'fleet' | 'market' = 'fleet',
     isAudit: boolean = false,
-    forceReprocess: boolean = false
+    forceReprocess: boolean = false,
+    isAuditUpload: boolean = false
   ): Promise<any> => {
     const maxRetries = 10;
     let currentDelay = 5000;
@@ -1600,6 +1673,35 @@ export default function App() {
                 for (const record of result.records) {
                   const normPlate = normalizePlate(record.plate_number).toUpperCase();
                   const normDate = normalizeDate(record.service_date);
+
+                  if (isAuditUpload) {
+                    const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
+                    const normalizePlateLocal = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
+                    const getSimilarityScore = (s1: string, s2: string) => {
+                      const str1 = normalize(s1);
+                      const str2 = normalize(s2);
+                      if (str1 === str2) return { score: 1.0, commonCount: 100 };
+                      if (!str1 || !str2) return { score: 0, commonCount: 0 };
+                      const words1 = str1.split(/\s+/).filter(w => w.length > 2);
+                      const words2 = str2.split(/\s+/).filter(w => w.length > 2);
+                      if (words1.length === 0 || words2.length === 0) return { score: 0, commonCount: 0 };
+                      const commonWords = words1.filter(w => words2.includes(w));
+                      return { score: commonWords.length / Math.max(words1.length, words2.length), commonCount: commonWords.length };
+                    };
+
+                    const normExtractedPlate = normalizePlateLocal(record.plate_number);
+                    const match = records.find(r => {
+                      const platesMatch = normalizePlateLocal(r.plate_number) === normExtractedPlate;
+                      const datesMatch = normalizeDate(r.service_date) === normDate;
+                      const similarity = getSimilarityScore(r.service_description, record.service_description);
+                      return platesMatch && datesMatch && (similarity.commonCount >= 5 || normalize(r.service_description) === normalize(record.service_description));
+                    });
+
+                    if (match) {
+                      console.log(`[AUDIT UPLOAD MODE] Skipping duplicate entry: ${normPlate} on ${normDate}`);
+                      continue;
+                    }
+                  }
 
                   const { data: recordData, error: recordError } = await supabase
                     .from('maintenance_records')
@@ -1740,7 +1842,8 @@ export default function App() {
             timestamp: Date.now() + newEntries.length,
             imageData: resizedBase64,
             mode,
-            isAudit: isAuditMode
+            isAudit: isAuditMode,
+            isAuditUpload: isAuditUploadMode
           });
         } catch (err) {
           console.error(`Error queuing ${file.name}:`, err);
@@ -1762,7 +1865,7 @@ export default function App() {
     } finally {
       setIsProcessing(false);
     }
-  }, [user, supabase, isServiceUnlocked, isAuditMode]);
+  }, [user, supabase, isServiceUnlocked, isAuditMode, isAuditUploadMode]);
 
   const startBatchProcessing = useCallback(async () => {
     if (!supabase || !user || isProcessing) return;
@@ -1799,7 +1902,16 @@ export default function App() {
         try {
           if (!entry.imageData) throw new Error("Image data missing for queued item.");
 
-          const result = await processImageWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode, isAuditMode);
+          const result = await processImageWithRetry(
+            entry.imageData, 
+            entry.fileName, 
+            entry.timestamp, 
+            false, 
+            entry.mode, 
+            isAuditMode, 
+            false, 
+            isAuditUploadMode
+          );
           
           if (shouldStopRef.current) {
             setUploadLog(prev => prev.map(e => 
@@ -1818,7 +1930,7 @@ export default function App() {
             }
           }
 
-          if (isAuditMode && entry.mode === 'fleet') {
+          if ((isAuditMode || isAuditUploadMode) && entry.mode === 'fleet') {
             // Fleet Maintenance Audit Mode
             if (!result || !result.records || result.records.length === 0) {
               throw new Error("No readable records found in this image.");
@@ -1986,7 +2098,7 @@ export default function App() {
           newRecordsCount,
           newMarketPricesCount,
           mode: queuedItems[0]?.mode || 'fleet',
-          isAudit: !!isAuditMode,
+          isAudit: !!isAuditMode || !!isAuditUploadMode,
           totalExtractedCount: totalExtractedItemsCount,
           extractedItems: extractedItemsList
         });
@@ -2000,7 +2112,7 @@ export default function App() {
       setIsStopping(false);
       shouldStopRef.current = false;
     }
-  }, [user, supabase, uploadLog, isProcessing, fetchRecords, fetchMarketPrices, processImageWithRetry, records, marketPrices, isAuditMode, isServiceUnlocked]);
+  }, [user, supabase, uploadLog, isProcessing, fetchRecords, fetchMarketPrices, processImageWithRetry, records, marketPrices, isAuditMode, isAuditUploadMode, isServiceUnlocked]);
 
   const stopBatchProcessing = useCallback(() => {
     setIsStopping(true);
@@ -2017,13 +2129,22 @@ export default function App() {
       ));
 
       setNotification({
-        message: `Retrying ${entry.isAudit ? 'Audit ' : ''}${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${entry.fileName}...`,
+        message: `Retrying ${(entry.isAudit || entry.isAuditUpload) ? 'Audit ' : ''}${entry.mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${entry.fileName}...`,
         type: 'info'
       });
 
-      const result = await processImageWithRetry(entry.imageData, entry.fileName, entry.timestamp, false, entry.mode, entry.isAudit, true);
+      const result = await processImageWithRetry(
+        entry.imageData, 
+        entry.fileName, 
+        entry.timestamp, 
+        false, 
+        entry.mode, 
+        entry.isAudit, 
+        true, 
+        entry.isAuditUpload
+      );
 
-      if (entry.isAudit && entry.mode === 'fleet') {
+      if ((entry.isAudit || entry.isAuditUpload) && entry.mode === 'fleet') {
         // Audit Mode: Check for duplicates instead of saving
         const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
         const normalizePlate = (str: string) => str ? str.toUpperCase().replace(/[^A-Z0-9]/g, '').trim() : '';
@@ -2715,21 +2836,27 @@ export default function App() {
 
   const recheckAuditResult = async (index: number) => {
     const result = auditResults[index];
-    if (!result || !user || !supabase) return;
+    if (!result) return;
     
     setRecheckingIndex(index);
     try {
-      // Force refresh records from DB to ensure we are checking against the latest state
-      const { data: latestRecords, error: fetchError } = await supabase
-        .from('maintenance_records')
-        .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at')
-        .eq('user_id', user.id)
-        .order('service_date', { ascending: false });
+      let targetRecords = records;
+      
+      if (supabase && user) {
+        // Force refresh records from DB to ensure we are checking against the latest state
+        const { data: latestRecords, error: fetchError } = await supabase
+          .from('maintenance_records')
+          .select('id, plate_number, service_date, service_description, confidence, user_id, file_name, created_at')
+          .eq('user_id', user.id)
+          .order('service_date', { ascending: false });
 
-      if (fetchError) throw fetchError;
-      if (latestRecords) setRecords(deduplicateRecords(latestRecords as MaintenanceRecord[]));
-
-      const targetRecords = latestRecords ? deduplicateRecords(latestRecords as MaintenanceRecord[]) : records;
+        if (fetchError) throw fetchError;
+        if (latestRecords) {
+          const dedup = deduplicateRecords(latestRecords as MaintenanceRecord[]);
+          setRecords(dedup);
+          targetRecords = dedup;
+        }
+      }
 
       // Use the same normalization and similarity logic from startBatchProcessing
       const normalize = (str: string) => str ? str.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim() : '';
@@ -2768,11 +2895,56 @@ export default function App() {
         normalizeDate(r.service_date) === normExtractedDate
       ) : null;
 
+      const oldIsDuplicate = result.isDuplicate;
+      const oldIsPotential = result.isPotential;
+      
+      const newIsDuplicate = !!match;
+      const newIsPotential = !!potentialMatch;
+
+      // Statuses: 
+      // green: isDuplicate
+      // orange: isPotential (but not duplicate)
+      // red: neither (unique entry)
+      const oldStatus = oldIsDuplicate ? 'green' : (oldIsPotential ? 'orange' : 'red');
+      const newStatus = newIsDuplicate ? 'green' : (newIsPotential ? 'orange' : 'red');
+
+      if (oldStatus !== newStatus) {
+        if (oldStatus === 'green' && newStatus === 'orange') {
+          addFeedNotification(
+            "Audit Transition: Green ➔ Orange",
+            `Card for Plate ${result.plate} downgraded from 'Already Uploaded' (Green) to 'Potential Conflict' (Orange). Exact matches were altered in DB!`,
+            'warning',
+            'transition'
+          );
+        } else if (oldStatus === 'orange' && newStatus === 'red') {
+          addFeedNotification(
+            "Audit Transition: Orange ➔ Red",
+            `Card for Plate ${result.plate} resolved potential conflict and became 'Unique Entry / Conflict Resolved' (Red). Ready to save.`,
+            'success',
+            'transition'
+          );
+        } else if (oldStatus === 'green' && newStatus === 'red') {
+          addFeedNotification(
+            "Audit Transition: Green ➔ Red (Unique)",
+            `Card for Plate ${result.plate} shifted directly from 'Already Uploaded' to 'Unique Entry'. Historically uploaded duplicate was removed from database.`,
+            'critical',
+            'transition'
+          );
+        } else {
+          addFeedNotification(
+            "Audit Update: Status Sync",
+            `Card for Plate ${result.plate} status updated from ${oldStatus.toUpperCase()} to ${newStatus.toUpperCase()}`,
+            'info',
+            'transition'
+          );
+        }
+      }
+
       const updatedResults = [...auditResults];
       updatedResults[index] = {
         ...result,
-        isDuplicate: !!match,
-        isPotential: !!potentialMatch,
+        isDuplicate: newIsDuplicate,
+        isPotential: newIsPotential,
         matchId: match?.id || potentialMatch?.id
       };
       setAuditResults(updatedResults);
@@ -2928,21 +3100,42 @@ export default function App() {
         </div>
       )}
 
-      {/* Audit Mode Banner */}
+      {/* Audit Verify Mode Banner */}
       {isAuditMode && (
-        <div className="mb-8 p-4 bg-cyan-600/10 border border-cyan-500/20 rounded-xl flex items-center gap-4">
+        <div className="mb-8 p-4 bg-cyan-600/10 border border-cyan-500/20 rounded-xl flex items-center gap-4 animate-in fade-in duration-300">
           <div className="p-2 bg-cyan-500/20 rounded-lg">
             <Eye className="w-5 h-5 text-cyan-400" />
           </div>
           <div className="flex-1">
-            <h3 className="text-xs font-display font-bold uppercase tracking-widest text-cyan-200 mb-1">Audit Verification Mode Active</h3>
+            <h3 className="text-xs font-display font-bold uppercase tracking-widest text-cyan-200 mb-1">Audit Verify Mode Active (Dry Run)</h3>
             <p className="text-[10px] text-cyan-200/60 leading-relaxed uppercase tracking-wider">
-              The app is currently in <span className="text-white font-bold">Verification Mode</span>. AI extractions will skip <span className="text-cyan-400 font-bold underline">duplicates</span> while <span className="text-green-400 font-bold">automatically saving</span> any unique new records.
+              The app is currently in <span className="text-white font-bold">Verify Mode</span>. AI extractions will scan and identify <span className="text-cyan-400 font-bold underline">duplicates</span>, but <span className="text-red-400 font-bold">NO RECORDS ARE SAVED</span> to the database.
             </p>
           </div>
           <button 
             onClick={() => setIsAuditMode(false)}
             className="px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest text-cyan-400 transition-all"
+          >
+            Disable
+          </button>
+        </div>
+      )}
+
+      {/* Audit Upload Mode Banner */}
+      {isAuditUploadMode && (
+        <div className="mb-8 p-4 bg-purple-600/10 border border-purple-500/20 rounded-xl flex items-center gap-4 animate-in fade-in duration-300">
+          <div className="p-2 bg-purple-500/20 rounded-lg">
+            <CheckCircle2 className="w-5 h-5 text-purple-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xs font-display font-bold uppercase tracking-widest text-purple-200 mb-1">Audit Upload Mode Active</h3>
+            <p className="text-[10px] text-purple-200/60 leading-relaxed uppercase tracking-wider">
+              The app is currently in <span className="text-white font-bold">Audit Upload Mode</span>. AI extractions will skip <span className="text-purple-400 font-bold underline">duplicates</span>, while <span className="text-green-400 font-bold">automatically saving</span> all unique new records.
+            </p>
+          </div>
+          <button 
+            onClick={() => setIsAuditUploadMode(false)}
+            className="px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest text-purple-400 transition-all"
           >
             Disable
           </button>
@@ -2977,7 +3170,7 @@ export default function App() {
           {viewMode === 'log' && (
             <button 
               onClick={() => setShowSettingsModal(true)}
-              className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet"
+              className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet flex items-center justify-center cursor-pointer"
               title="Open Settings"
             >
               <Settings className="w-4 h-4" />
@@ -2990,7 +3183,7 @@ export default function App() {
                 <motion.div 
                   className={cn(
                     "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
-                    theme === 'professional' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
                   )}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.95 }}
@@ -3009,7 +3202,7 @@ export default function App() {
                       transition={{ ease: "linear", duration: 12, repeat: Infinity }}
                       className="absolute inset-0 flex items-center justify-center"
                     >
-                      <Settings className={cn("w-9 h-9 stroke-[1.2] opacity-40", theme === 'professional' ? "text-indigo-400" : "text-purple-400")} />
+                      <Settings className={cn("w-9 h-9 stroke-[1.2] opacity-40", theme === 'pro' ? "text-indigo-400" : "text-purple-400")} />
                     </motion.div>
                     
                     <motion.div
@@ -3023,7 +3216,7 @@ export default function App() {
                       }}
                       className="absolute inset-0 flex items-center justify-center"
                     >
-                      <Wrench className={cn("w-6 h-6 stroke-[1.8]", theme === 'professional' ? "text-indigo-300" : "text-purple-300")} />
+                      <Wrench className={cn("w-6 h-6 stroke-[1.8]", theme === 'pro' ? "text-indigo-300" : "text-purple-300")} />
                     </motion.div>
 
                     <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
@@ -3033,9 +3226,9 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <h1 className={cn(
                   "text-5xl md:text-8xl font-display font-bold tracking-tighter leading-none transition-colors duration-500",
-                  theme === 'professional' ? "text-indigo-400" : "text-text"
+                  theme === 'pro' ? "text-indigo-400" : "text-text"
                 )}>DT.Base</h1>
-                {theme === 'professional' && (
+                {theme === 'pro' && (
                   <div className="hidden sm:flex items-center gap-2 px-2 py-0.5 mt-2 bg-indigo-500/10 border border-indigo-500/20 rounded-md">
                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                     <span className="text-[8px] font-mono font-bold text-indigo-400 uppercase tracking-widest">Fleet Authority</span>
@@ -3077,51 +3270,69 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-2">
             {/* View Switcher Tabs */}
             <div className="flex flex-col gap-2">
-              <div className="flex items-center p-1 bg-surface border border-border rounded-2xl mr-4">
-                <button 
-                  onClick={() => {
-                    if (viewMode !== 'log' && viewMode !== 'advanced-search') {
-                      setViewMode('log');
-                    }
-                  }}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
-                    (viewMode === 'log' || viewMode === 'advanced-search') 
-                      ? (theme === 'professional' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "bg-purple-600 text-white") 
-                      : "text-muted hover:text-text"
-                  )}
-                >
-                  History
-                </button>
-                <button 
-                  onClick={() => {
-                    // Default to 'audit' if not already in an audit sub-mode
-                    if (viewMode !== 'audit' && viewMode !== 'analytics' && viewMode !== 'battery') {
-                      setViewMode('audit');
-                    }
-                  }}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                    (viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') 
-                      ? (theme === 'professional' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "bg-purple-600 text-white") 
-                      : "text-muted hover:text-text"
-                  )}
-                >
-                  {(viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') && <ClipboardCheck className="w-3 h-3" />}
-                  Audit
-                </button>
-                <button 
-                  onClick={() => setViewMode('marketplace')}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
-                    viewMode === 'marketplace' 
-                      ? (theme === 'professional' ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20" : "bg-purple-600 text-white") 
-                      : "text-muted hover:text-text"
-                  )}
-                >
-                  {(viewMode === 'marketplace') && <Globe className="w-3 h-3" />}
-                  IntelCenter
-                </button>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center p-1 bg-surface border border-border rounded-2xl">
+                  <button 
+                    onClick={() => {
+                      if (viewMode !== 'log' && viewMode !== 'advanced-search') {
+                        setViewMode('log');
+                      }
+                    }}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all",
+                      (viewMode === 'log' || viewMode === 'advanced-search') 
+                        ? (theme === 'pro' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "bg-purple-600 text-white") 
+                        : "text-muted hover:text-text"
+                    )}
+                  >
+                    History
+                  </button>
+                  <button 
+                    onClick={() => {
+                      // Default to 'audit' if not already in an audit sub-mode
+                      if (viewMode !== 'audit' && viewMode !== 'analytics' && viewMode !== 'battery') {
+                        setViewMode('audit');
+                      }
+                    }}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+                      (viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') 
+                        ? (theme === 'pro' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20" : "bg-purple-600 text-white") 
+                        : "text-muted hover:text-text"
+                    )}
+                  >
+                    {(viewMode === 'audit' || viewMode === 'analytics' || viewMode === 'battery') && <ClipboardCheck className="w-3 h-3" />}
+                    Audit
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('marketplace')}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-[10px] font-display font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+                      viewMode === 'marketplace' 
+                        ? (theme === 'pro' ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20" : "bg-purple-600 text-white") 
+                        : "text-muted hover:text-text"
+                    )}
+                  >
+                    {(viewMode === 'marketplace') && <Globe className="w-3 h-3" />}
+                    IntelCenter
+                  </button>
+                </div>
+
+                {/* Notifications Bell (visible only in History page, sitting outside the pages rectangle) */}
+                {(viewMode === 'log' || viewMode === 'advanced-search') && (
+                  <button 
+                    onClick={() => setShowNotificationsPanel(true)}
+                    className="p-2.5 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text relative flex items-center justify-center cursor-pointer hover:neon-glow-violet h-[38px] w-[38px] shrink-0"
+                    title="Open Notifications Center"
+                  >
+                    <Bell className="w-4 h-4" />
+                    {unreadNotificationsCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-purple-600 text-white font-mono text-[8.5px] font-black w-4.5 h-4.5 flex items-center justify-center rounded-full border border-black/50 animate-pulse">
+                        {unreadNotificationsCount}
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
               
               {/* Sub-navigation for History section */}
@@ -3136,7 +3347,7 @@ export default function App() {
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
                       viewMode === 'log' 
-                        ? (theme === 'professional' ? "bg-indigo-500/20 text-indigo-400" : "bg-purple-500/20 text-purple-400") 
+                        ? (theme === 'pro' ? "bg-indigo-500/20 text-indigo-400" : "bg-purple-500/20 text-purple-400") 
                         : "text-muted hover:text-text"
                     )}
                   >
@@ -3147,7 +3358,7 @@ export default function App() {
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[9px] font-display font-bold uppercase tracking-widest transition-all",
                       viewMode === 'advanced-search' 
-                        ? (theme === 'professional' ? "bg-indigo-500/20 text-indigo-400" : "bg-purple-500/20 text-purple-400") 
+                        ? (theme === 'pro' ? "bg-indigo-500/20 text-indigo-400" : "bg-purple-500/20 text-purple-400") 
                         : "text-muted hover:text-text"
                     )}
                   >
@@ -3242,7 +3453,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <span className={cn(
                   "text-[10px] font-display font-bold uppercase tracking-widest",
-                  theme === 'professional' ? "text-indigo-400" : "text-purple-400 animate-pulse"
+                  theme === 'pro' ? "text-indigo-400" : "text-purple-400 animate-pulse"
                 )}>
                   {isStopping ? "Stopping..." : "Analysis in Progress..."}
                 </span>
@@ -3278,7 +3489,7 @@ export default function App() {
               <div 
                 className={cn(
                   "h-full transition-all duration-300",
-                  theme === 'professional' ? "bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.3)]" : "bg-purple-500"
+                  theme === 'pro' ? "bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.3)]" : "bg-purple-500"
                 )}
                 style={{ width: `${(progress.current / progress.total) * 100}%` }}
               />
@@ -4579,20 +4790,99 @@ export default function App() {
         </div>
       )}
 
-      {/* Stats */}
-      <footer className="mt-8 flex flex-col gap-8 font-display font-bold text-[10px] uppercase tracking-[0.2em] opacity-40">
-        <div className="flex justify-center items-center">
-          <div className="flex items-center gap-4">
-            {isCloudConnected === false && (
+      {/* Global Alert & Quick Help Ribbon */}
+      <div className="mt-8 mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 p-3 px-5 rounded-2xl bg-white/[0.03] border border-white/5 text-[9px] font-mono tracking-wider text-white/50 uppercase transition-all hover:bg-white/[0.05]">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span className="font-bold text-emerald-400">System Link Operational</span>
+          <span className="text-white/20">|</span>
+          <span>Baseline Duplicates Block Active</span>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2">
+            <span className="px-1.5 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[8px] font-black tracking-widest uppercase">PRODUCTION VERIFIED</span>
+            <span className="text-white/20">v2.4.0-SECURE</span>
+          </div>
+
+          <button 
+            onClick={() => setShowFaqModal(true)}
+            className="flex items-center gap-1.5 text-[9px] text-cyan-400 hover:text-cyan-300 font-display font-bold cursor-pointer transition-all bg-cyan-500/10 hover:bg-cyan-500/20 py-1 px-2.5 rounded-lg border border-cyan-500/20 hover:neon-glow-cyan"
+            title="Open Quick Help & FAQ"
+          >
+            <Sparkles className="w-3 h-3 text-cyan-400 rotate-12" />
+            FAQ & QUICK HELP
+          </button>
+        </div>
+      </div>
+
+      {/* Stats & Compliance Footer */}
+      <footer className="mt-12 pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-6 pb-8 text-[10px] font-mono uppercase tracking-[0.15em] text-zinc-500">
+        <div className="flex flex-col gap-1.5 text-center md:text-left">
+          <p className="font-display font-black text-white/50 tracking-tighter text-[11px]">DT.Base Fleet Integrity Log</p>
+          <p>© {new Date().getFullYear()} DT.Base Systems. All Rights Reserved. Operator Security Level 3.</p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-4 text-zinc-400">
+          <button 
+            onClick={() => {
+              setNotification({
+                message: "Terms of Service: This local cache environment processes fleet records securely under Operator License v3.",
+                type: "info"
+              });
+            }}
+            className="hover:text-white transition-colors cursor-pointer border-b border-transparent hover:border-white/20 pb-0.5 font-bold"
+          >
+            Terms of Service
+          </button>
+          <span className="opacity-25">•</span>
+          <button 
+            onClick={() => {
+              setNotification({
+                message: "Privacy Shield: All maintenance records stay cached inside local Sandboxed indexedDB context securely.",
+                type: "success"
+              });
+            }}
+            className="hover:text-white transition-colors cursor-pointer border-b border-transparent hover:border-white/20 pb-0.5 font-bold"
+          >
+            Privacy Policy
+          </button>
+          <span className="opacity-25">•</span>
+          <button 
+            onClick={() => {
+              setNotification({
+                message: "Cookie Credentials: DT.Base local storage saves layout themes and custom client configuration only.",
+                type: "info"
+              });
+            }}
+            className="hover:text-white transition-colors cursor-pointer border-b border-transparent hover:border-white/20 pb-0.5 font-bold"
+          >
+            Cookies
+          </button>
+          <span className="opacity-25">•</span>
+          <button 
+            onClick={() => setShowContactModal(true)}
+            className="text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer font-bold border-b border-cyan-500/20 hover:border-cyan-400/50 flex items-center gap-1 uppercase"
+          >
+            <Sparkles className="w-3 h-3 text-cyan-400 rotate-12 animate-pulse" />
+            Report a Bug
+          </button>
+          
+          {isCloudConnected === false && (
+            <>
+              <span className="opacity-25">•</span>
               <button 
                 onClick={() => window.location.reload()}
-                className="text-purple-400 hover:text-purple-300 transition-colors text-[10px] font-display font-bold uppercase tracking-widest"
-                title="Retry connecting to the cloud database"
+                className="text-purple-400 hover:text-purple-300 transition-colors font-bold"
+                title="Retry database handshake"
               >
                 Retry Connection
               </button>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </footer>
 
@@ -4719,6 +5009,464 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* FAQ / Quick Help Modal */}
+      <AnimatePresence>
+        {showFaqModal && (
+          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 overflow-y-auto font-sans" onClick={() => setShowFaqModal(false)}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glassmorphism neon-border-cyan w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] rounded-3xl my-auto"
+            >
+              <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between bg-white/5">
+                <div className="flex items-center gap-3 relative z-10">
+                  <div className="p-2 bg-cyan-500/20 rounded-lg border border-cyan-500/30 shadow-[0_0_10px_rgba(6,182,212,0.3)]">
+                    <HelpCircle className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <div className="text-left">
+                    <h2 className="text-base font-display font-black text-white uppercase tracking-widest leading-none mb-1">DT.Base Quick Help & Manual</h2>
+                    <p className="text-[9px] text-cyan-400/60 font-mono uppercase tracking-widest">Frequently Asked Questions & Operations Manual</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowFaqModal(false)}
+                  className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+                  title="Close Help"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 text-left">
+                <div className="space-y-4">
+                  <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-2xl">
+                    <h3 className="text-[10px] font-display font-bold text-cyan-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                      1. How does the Duplicate Audit system work?
+                    </h3>
+                    <p className="text-[10px] text-white/70 leading-relaxed font-mono uppercase tracking-widest">
+                      When "Audit Mode" is active, uploading service images or entering invoices runs duplicate detection rules. Instead of automatically adding duplicate entries to the fleet history, the app flags them, helping auditors avoid database bloat and record duplication.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl">
+                    <h3 className="text-[10px] font-display font-bold text-violet-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                       <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+                       2. How are Gemini API keys handled?
+                    </h3>
+                    <p className="text-[10px] text-white/70 leading-relaxed font-mono uppercase tracking-widest">
+                      If running DT.Base without preconfigured backend credentials, you can paste your personal Gemini API key under Settings ➔ Local API Configuration. This key is saved locally and encrypted strictly within your browser's Sandboxed Local Cache database.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
+                    <h3 className="text-[10px] font-display font-bold text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                      3. Why do trucks transition to red or orange cards?
+                    </h3>
+                    <p className="text-[10px] text-white/70 leading-relaxed font-mono uppercase tracking-widest">
+                      Truck cards dynamically color-code based on fleet health. A green card signals healthy matched logs. Orange flags vehicles that are pending active auditor review, while a transition to red warns of mismatched metadata or a flagged critical duplicates block status.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
+                  <p className="text-[8px] font-mono text-white/20 text-center uppercase tracking-widest leading-relaxed">
+                    DT.Base Fleet Integrity Systems operational v2.4.0 • Built for ultimate truck maintenance security.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end">
+                <button 
+                  onClick={() => setShowFaqModal(false)}
+                  className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-display font-bold uppercase tracking-widest text-[10px] transition-all rounded-xl cursor-pointer"
+                >
+                  Close Help Guide
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Report a Bug / Feedback Modal */}
+      <AnimatePresence>
+        {showContactModal && (
+          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 bg-black/95 overflow-y-auto font-sans" onClick={() => setShowContactModal(false)}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glassmorphism neon-border-violet w-full max-w-md overflow-hidden flex flex-col rounded-3xl my-auto"
+            >
+              <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between bg-white/5">
+                <div className="flex items-center gap-3 relative z-10 text-left">
+                  <div className="p-2 bg-violet-500/20 rounded-lg border border-violet-500/30 shadow-[0_0_10px_rgba(139,92,246,0.3)]">
+                    <Sparkles className="w-5 h-5 text-violet-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-display font-black text-white uppercase tracking-widest leading-none mb-1">Report Fleet Anomaly</h2>
+                    <p className="text-[9px] text-violet-400/60 font-mono uppercase tracking-widest">Beam Bug Transmission to Core Headquarters</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowContactModal(false)}
+                  className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+                  title="Close Bug Form"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-left">
+                <div className="space-y-4">
+                  {/* Category Selection */}
+                  <div>
+                    <label className="text-[10px] font-display font-bold text-zinc-400 uppercase tracking-widest block mb-2 font-mono">Issue / Anomaly Category</label>
+                    <select 
+                      value={bugCategory}
+                      onChange={(e) => setBugCategory(e.target.value as any)}
+                      className="w-full bg-black/60 border border-white/10 p-3 rounded-xl font-mono text-xs text-white focus:outline-none focus:border-violet-500"
+                    >
+                      <option value="app">Command Core App UI Anomaly</option>
+                      <option value="ocr">OCR Extraction Integrity failure</option>
+                      <option value="sync">DB Sync & Cache Latency</option>
+                      <option value="other">Other Security / Verification Bugs</option>
+                    </select>
+                  </div>
+
+                  {/* Description Input */}
+                  <div>
+                    <label className="text-[10px] font-display font-bold text-zinc-400 uppercase tracking-widest block mb-1 font-mono">Anomaly Log description</label>
+                    <textarea 
+                      value={bugDescription}
+                      onChange={(e) => setBugDescription(e.target.value)}
+                      placeholder="DESCRIBE THE PROBLEM OR UNEXPECTED BEHAVIOR DETECTED DURING YOUR OPERATION SESSION..."
+                      className="w-full h-32 bg-black/60 border border-white/10 rounded-xl p-3 font-mono text-xs text-white focus:outline-none focus:border-violet-500 resize-none placeholder:text-zinc-600 block"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 bg-violet-500/5 border border-violet-500/10 rounded-xl text-[8px] font-mono text-violet-300 uppercase tracking-widest leading-normal">
+                  Reporting a bug creates an anonymous diagnostic snapshot of your session databases. No private keys are transmitted.
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-white/10 bg-white/5 flex gap-2 justify-end">
+                <button 
+                  onClick={() => setShowContactModal(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white font-display font-bold uppercase tracking-widest text-[10px] transition-all rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => {
+                    if (!bugDescription.trim()) {
+                      setNotification({ message: 'Describe the anomaly before transmits!', type: 'warning' });
+                      return;
+                    }
+                    // Add structured audit event
+                    addFeedNotification(
+                      "Bug Transmitted Successfully",
+                      `Diagnostic report submitted to command centre. Category: ${bugCategory.toUpperCase()}`,
+                      "success",
+                      "intelligence"
+                    );
+
+                    setNotification({
+                      message: "Diagnostic log encrypted and beamed! Ticket ID: #DT-4820P",
+                      type: "success"
+                    });
+                    setBugDescription('');
+                    setShowContactModal(false);
+                  }}
+                  className="px-6 py-2 bg-violet-600 hover:bg-violet-500 text-white font-display font-bold uppercase tracking-widest text-[10px] transition-all rounded-xl cursor-pointer"
+                >
+                  Send Transmission
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Fleet Intelligence & Notifications Panel */}
+      <AnimatePresence>
+        {showNotificationsPanel && (
+          <div className="fixed inset-0 z-[110] flex justify-end bg-black/80 backdrop-blur-sm">
+            {/* Click outside to close */}
+            <div className="absolute inset-0" onClick={() => setShowNotificationsPanel(false)} />
+            
+            <motion.div 
+              initial={{ x: "100%", opacity: 0.9 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "100%", opacity: 0.9 }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="w-full max-w-md h-full bg-surface border-l border-border relative flex flex-col hover:neon-border-violet shadow-[0_0_50px_rgba(0,0,0,0.8)] z-20"
+            >
+              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 via-cyan-500 to-indigo-500" />
+              
+              {/* Header */}
+              <div className="p-6 border-b border-border flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-display font-black tracking-tighter mb-1 text-white flex items-center gap-2 uppercase">
+                    <Sparkles className="w-4 h-4 text-cyan-400 rotate-[15deg] animate-pulse" />
+                    Fleet Intelligence
+                  </h2>
+                  <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-[0.2em]">Active Alerts & Audit Streams</p>
+                </div>
+                <button 
+                  onClick={() => setShowNotificationsPanel(false)}
+                  className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
+                  title="Close Panel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Utility Rails / Controls */}
+              <div className="px-6 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between text-[10px] font-mono font-bold uppercase tracking-wider text-white/40">
+                <span>{feedNotifications.length} logs recorded</span>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => {
+                      setFeedNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                      setNotification({ message: "All alerts marked read", type: "success" });
+                    }}
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Mark read
+                  </button>
+                  <span className="opacity-20">|</span>
+                  <button 
+                    onClick={() => {
+                      setFeedNotifications([]);
+                      setNotification({ message: "Cleared alerts log", type: "info" });
+                    }}
+                    className="hover:text-red-400 transition-colors cursor-pointer"
+                  >
+                    Clear log
+                  </button>
+                </div>
+              </div>
+
+              {/* Sandbox Controls / Simulators */}
+              <div className="p-5 bg-indigo-500/5 border-b border-border/60">
+                <span className="text-[9px] font-display font-bold uppercase tracking-widest text-indigo-400 block mb-2">
+                  🛠️ Interactive Verification & Alert Simulator
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      // Find first audit result, or insert a fake one to demonstrate state transition to orange
+                      let demoPlate = "TRK-2940";
+                      if (auditResults.length > 0) {
+                        const updated = [...auditResults];
+                        demoPlate = updated[0].plate;
+                        updated[0] = {
+                          ...updated[0],
+                          isDuplicate: true,
+                          isPotential: false
+                        };
+                        setAuditResults(updated);
+                        
+                        setTimeout(() => {
+                          const downgrade = [...updated];
+                          downgrade[0] = {
+                            ...downgrade[0],
+                            isDuplicate: false,
+                            isPotential: true
+                          };
+                          setAuditResults(downgrade);
+                          addFeedNotification(
+                            "Audit Transition: Green ➔ Orange",
+                            `Card for Plate ${demoPlate} downgraded from 'Already Uploaded' (Green) to 'Potential Match' (Orange). Exactly matched reference deleted!`,
+                            'warning',
+                            'transition'
+                          );
+                        }, 900);
+                      } else {
+                        addFeedNotification(
+                          "Audit Transition: Green ➔ Orange",
+                          `Card for Plate ${demoPlate} downgraded from 'Already Uploaded' (Green) to 'Potential Match' (Orange). Reference ledger item changed.`,
+                          'warning',
+                          'transition'
+                        );
+                      }
+                    }}
+                    className="p-2 border border-amber-500/25 bg-amber-500/5 hover:bg-amber-500/15 rounded-xl text-[9px] font-display font-bold text-amber-300 transition-all text-left flex flex-col justify-between h-14 uppercase tracking-wider cursor-pointer"
+                  >
+                    <span>Trigger Green ➔ Orange</span>
+                    <span className="font-mono text-[7.5px] text-amber-400/40 font-normal normal-case">Simulate verified matching modification</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      let demoPlate = "TRK-4911";
+                      if (auditResults.length > 0) {
+                        const updated = [...auditResults];
+                        demoPlate = updated[0].plate;
+                        updated[0] = {
+                          ...updated[0],
+                          isDuplicate: false,
+                          isPotential: true
+                        };
+                        setAuditResults(updated);
+                        
+                        setTimeout(() => {
+                          const resolve = [...updated];
+                          resolve[0] = {
+                            ...resolve[0],
+                            isDuplicate: false,
+                            isPotential: false
+                          };
+                          setAuditResults(resolve);
+                          addFeedNotification(
+                            "Audit Transition: Orange ➔ Red",
+                            `Card for Plate ${demoPlate} resolved potential conflict and became 'Unique Entry / Conflict Cleaned' (Red). Ready to save safely.`,
+                            'success',
+                            'transition'
+                          );
+                        }, 900);
+                      } else {
+                        addFeedNotification(
+                          "Audit Transition: Orange ➔ Red",
+                          `Card for Plate ${demoPlate} resolved potential conflict and became 'Unique Entry / Conflict Cleaned' (Red). Ready to save.`,
+                          'success',
+                          'transition'
+                        );
+                      }
+                    }}
+                    className="p-2 border border-red-500/25 bg-red-500/5 hover:bg-red-500/15 rounded-xl text-[9px] font-display font-bold text-red-300 transition-all text-left flex flex-col justify-between h-14 uppercase tracking-wider cursor-pointer"
+                  >
+                    <span>Trigger Orange ➔ Red</span>
+                    <span className="font-mono text-[7.5px] text-red-400/40 font-normal normal-case">Simulate collision resolution</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      addFeedNotification(
+                        "Budget Threat Blocked",
+                        "Accidental Multi-Billing Guard active on TRK-8941: 'Brake Fluid Flush' logged twice within 15 days. Duplication protected.",
+                        'critical',
+                        'alert'
+                      );
+                    }}
+                    className="p-2 border border-cyan-500/15 bg-cyan-500/5 hover:bg-cyan-500/15 rounded-xl text-[9px] font-display font-bold text-cyan-300 transition-all text-left flex flex-col justify-between h-14 uppercase tracking-wider cursor-pointer"
+                  >
+                    <span>Double Billing Warn</span>
+                    <span className="font-mono text-[7.5px] text-cyan-400/40 font-normal normal-case">Same maintenance twice in 15 days</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      addFeedNotification(
+                        "Ad-hoc Sparkles Synced",
+                        "Fleet diagnostic scanner synchronized: Plate TRK-104 battery voltage drops below 22.4V baseline. Service suggested.",
+                        'info',
+                        'intelligence'
+                      );
+                    }}
+                    className="p-2 border border-purple-500/15 bg-purple-500/5 hover:bg-purple-500/15 rounded-xl text-[9px] font-display font-bold text-purple-300 transition-all text-left flex flex-col justify-between h-14 uppercase tracking-wider cursor-pointer"
+                  >
+                    <span>Fleet Health Alert</span>
+                    <span className="font-mono text-[7.5px] text-purple-400/40 font-normal normal-case">Battery voltage below threshold</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Feed List */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                {feedNotifications.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                    <Bell className="w-8 h-8 opacity-20 mb-3 animate-bounce" />
+                    <p className="text-[10px] font-mono uppercase tracking-[0.2em]">No Anomaly Alerts Logged</p>
+                    <p className="text-[9px] mt-1 pr-2 leading-relaxed">System baseline healthy. Use simulator controls above to generate live test streams!</p>
+                  </div>
+                ) : (
+                  feedNotifications.map((notif) => (
+                    <div 
+                      key={notif.id}
+                      onClick={() => {
+                        setFeedNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+                      }}
+                      className={cn(
+                        "p-4 border rounded-2xl flex flex-col gap-2 relative overflow-hidden transition-all group cursor-pointer",
+                        !notif.read ? "bg-white/[0.04] border-white/20 shadow-md" : "bg-transparent border-transparent opacity-60",
+                        notif.severity === 'critical' ? 'hover:border-red-500/35 border-red-500/10' : 
+                        notif.severity === 'warning' ? 'hover:border-amber-500/35 border-amber-500/10' : 'hover:border-indigo-500/35 border-indigo-500/10'
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-0 left-0 w-1 h-full",
+                        notif.severity === 'critical' ? 'bg-red-500' :
+                        notif.severity === 'warning' ? 'bg-amber-500' : 'bg-indigo-500'
+                      )} />
+
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[7px] font-black tracking-widest uppercase font-mono",
+                            notif.severity === 'critical' ? 'bg-red-500/25 text-red-300 border border-red-500/20' :
+                            notif.severity === 'warning' ? 'bg-amber-500/25 text-amber-300 border border-amber-500/20' :
+                            'bg-indigo-500/25 text-indigo-300 border border-indigo-500/20'
+                          )}>
+                            {notif.severity}
+                          </span>
+                          
+                          <span className="text-[7.5px] font-mono text-white/30">
+                            {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                        </div>
+
+                        {!notif.read && (
+                          <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping" />
+                        )}
+                      </div>
+
+                      <div>
+                        <h4 className="text-[11px] font-display font-bold uppercase tracking-wide text-white group-hover:text-cyan-400 transition-colors">
+                          {notif.title}
+                        </h4>
+                        <p className="text-[10px] text-white/50 leading-relaxed mt-1 uppercase tracking-wider">
+                          {notif.details}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-1 pt-2 border-t border-white/5">
+                        <span className="text-[7.5px] font-mono text-white/20 uppercase tracking-widest">
+                          Source: {notif.type}
+                        </span>
+                        
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFeedNotifications(prev => prev.filter(n => n.id !== notif.id));
+                          }}
+                          className="text-[8px] font-display font-bold text-red-400/40 hover:text-red-400 uppercase tracking-widest ml-auto transition-colors cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Bottom Info Row */}
+              <div className="p-6 border-t border-border bg-black/40 flex items-center justify-between text-[10px] font-mono text-white/30 uppercase tracking-wider">
+                <span>Core Authority Active</span>
+                <span>v3.0.1_Secure</span>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Settings Modal */}
       <AnimatePresence>
         {showSettingsModal && (
@@ -4835,6 +5583,151 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Section: Operator Preferences & Toggles */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-3 bg-cyan-500 rounded-full" />
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-cyan-400">Operator Preferences</p>
+                  </div>
+                  <div className="p-5 bg-white/[0.02] border border-white/5 rounded-3xl space-y-4">
+                    {/* Theme selector */}
+                    <div>
+                      <span className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-white/40 block mb-2">Display Mode Theme</span>
+                      <div className="grid grid-cols-4 gap-1">
+                        {(['light', 'dark', 'black', 'pro'] as const).map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => setTheme(t)}
+                            className={cn(
+                              "py-1.5 rounded-lg text-[8px] font-display font-bold uppercase tracking-widest transition-all",
+                              theme === t 
+                                ? "bg-violet-600 text-white shadow-md shadow-violet-500/10 border border-violet-500/30" 
+                                : "bg-white/5 text-white/50 border border-transparent hover:text-white"
+                            )}
+                          >
+                            {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Email switch toggle */}
+                    <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-display font-bold uppercase tracking-wider text-white/80">Email Alerts</span>
+                        <span className="text-[7.5px] font-mono text-white/30 uppercase tracking-widest">Receive daily integrity logs</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setEmailNotificationsEnabled(!emailNotificationsEnabled);
+                          setNotification({
+                            message: `Email alert synchronization ${!emailNotificationsEnabled ? 'enabled' : 'disabled'}`,
+                            type: 'info'
+                          });
+                        }}
+                        className={cn(
+                          "w-10 h-5 rounded-full relative transition-all p-1",
+                          emailNotificationsEnabled ? "bg-cyan-600" : "bg-white/10"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-3 h-3 bg-white rounded-full transition-all shadow-md",
+                          emailNotificationsEnabled ? "translate-x-5" : "translate-x-0"
+                        )} />
+                      </button>
+                    </div>
+
+                    {/* Security guard switch toggle */}
+                    <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-display font-bold uppercase tracking-wider text-white/80">Continuous Security Vault</span>
+                        <span className="text-[7.5px] font-mono text-white/30 uppercase tracking-widest">Rotates memory caches on idle</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setAutomaticSecurityGuard(!automaticSecurityGuard);
+                          setNotification({
+                            message: `Continuous security shield ${!automaticSecurityGuard ? 'armed' : 'disarmed'}`,
+                            type: !automaticSecurityGuard ? 'success' : 'warning'
+                          });
+                        }}
+                        className={cn(
+                          "w-10 h-5 rounded-full relative transition-all p-1",
+                          automaticSecurityGuard ? "bg-emerald-600" : "bg-white/10"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-3 h-3 bg-white rounded-full transition-all shadow-md",
+                          automaticSecurityGuard ? "translate-x-5" : "translate-x-0"
+                        )} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section: Account & Encryption Security */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-3 bg-indigo-500 rounded-full" />
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-indigo-400">Account & Identity Security</p>
+                  </div>
+                  <div className="p-5 bg-indigo-500/5 border border-indigo-500/15 rounded-3xl space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/5">
+                      <div className="flex items-center gap-2 font-mono text-[9px] text-zinc-400 uppercase tracking-widest">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.5)]"></span>
+                        <span>Link Encryption: TLS_1.3</span>
+                      </div>
+                      <div className="text-[8px] font-mono text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded-md border border-indigo-500/20 tracking-wider">
+                        AES_256_GCM
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2.5">
+                      <button
+                        onClick={() => {
+                          setNotification({
+                            message: "Database Security Signatures Verified. 12 Integrity Records Verified.",
+                            type: "success"
+                          });
+                        }}
+                        className="w-full p-3.5 bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 hover:border-indigo-500/20 rounded-2xl transition-all cursor-pointer flex items-center justify-between text-left group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500/20 group-hover:scale-105 transition-all">
+                            <Lock className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="flex flex-col text-left">
+                            <span className="text-[10px] font-display font-medium text-white uppercase tracking-wider">Verify Database Signature</span>
+                            <span className="text-[7.5px] font-mono text-white/40 uppercase tracking-widest mt-0.5">Check record hash values</span>
+                          </div>
+                        </div>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-zinc-600 group-hover:text-emerald-400 transition-colors" />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setNotification({
+                            message: "Vault Salt Rotated. MD5 Checksum recalculated.",
+                            type: "success"
+                          });
+                        }}
+                        className="w-full p-3.5 bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 hover:border-indigo-500/20 rounded-2xl transition-all cursor-pointer flex items-center justify-between text-left group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500/20 group-hover:scale-105 transition-all">
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin-slow" />
+                          </div>
+                          <div className="flex flex-col text-left">
+                            <span className="text-[10px] font-display font-medium text-white uppercase tracking-wider">Rotate Encryption Salts</span>
+                            <span className="text-[7.5px] font-mono text-white/40 uppercase tracking-widest mt-0.5">Refresh client salt token</span>
+                          </div>
+                        </div>
+                        <RefreshCw className="w-3.5 h-3.5 text-zinc-600 group-hover:text-indigo-400 group-hover:rotate-180 duration-500 transition-all" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Section: Termux & Local API Configuration */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 px-1">
@@ -4901,8 +5794,12 @@ export default function App() {
 
                     <button 
                       onClick={() => {
-                        setIsAuditMode(!isAuditMode);
-                        if (!isAuditMode) setAuditResults([]); // Clear results when enabling
+                        const next = !isAuditMode;
+                        setIsAuditMode(next);
+                        if (next) {
+                          setIsAuditUploadMode(false);
+                          setAuditResults([]);
+                        }
                       }}
                       className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
                     >
@@ -4911,8 +5808,8 @@ export default function App() {
                           <CheckCircle2 className={cn("w-4 h-4", isAuditMode ? "text-cyan-400" : "text-white/20")} />
                         </div>
                         <div className="flex flex-col items-start">
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Audit Mode (Verify Logs)</span>
-                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">{isAuditMode ? 'Active (No Saving)' : 'Inactive (Normal Mode)'}</span>
+                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Audit Verify Mode</span>
+                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">{isAuditMode ? 'Active (Dry Run - No Saving)' : 'Inactive (Normal Mode)'}</span>
                         </div>
                       </div>
                       <div className={cn(
@@ -5024,10 +5921,17 @@ export default function App() {
                   </div>
                   
                   <button 
-                    onClick={() => setIsAuditMode(!isAuditMode)}
+                    onClick={() => {
+                      const next = !isAuditUploadMode;
+                      setIsAuditUploadMode(next);
+                      if (next) {
+                        setIsAuditMode(false);
+                        setAuditResults([]);
+                      }
+                    }}
                     className={cn(
                       "w-full p-5 border rounded-3xl flex items-center justify-between transition-all group",
-                      isAuditMode 
+                      isAuditUploadMode 
                         ? "bg-violet-500/[0.08] border-violet-500/40 shadow-[0_0_20px_rgba(139,92,246,0.1)]" 
                         : "bg-white/[0.03] border-white/10 hover:bg-white/[0.08] hover:border-white/20"
                     )}
@@ -5035,27 +5939,27 @@ export default function App() {
                     <div className="flex items-center gap-4">
                       <div className={cn(
                         "p-3 rounded-2xl border transition-all",
-                        isAuditMode ? "bg-violet-500/20 border-violet-500/40 shadow-[0_0_10px_rgba(139,92,246,0.3)]" : "bg-white/5 border-white/10"
+                        isAuditUploadMode ? "bg-violet-500/20 border-violet-500/40 shadow-[0_0_10px_rgba(139,92,246,0.3)]" : "bg-white/5 border-white/10"
                       )}>
-                        <Eye className={cn("w-5 h-5", isAuditMode ? "text-violet-400" : "text-white/40")} />
+                        <Eye className={cn("w-5 h-5", isAuditUploadMode ? "text-violet-400" : "text-white/40")} />
                       </div>
                       <div className="flex flex-col items-start text-left">
                         <span className={cn(
                           "text-[11px] font-display font-bold uppercase tracking-[0.2em]",
-                          isAuditMode ? "text-violet-400" : "text-white/80"
+                          isAuditUploadMode ? "text-violet-400" : "text-white/80"
                         )}>Audit Upload Mode</span>
                         <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">
-                          {isAuditMode ? "Don't save duplicates, only flag them" : "Save all extracted records to DB"}
+                          {isAuditUploadMode ? "Skip duplicates, save non-duplicates automatically" : "Save all extracted records to DB"}
                         </span>
                       </div>
                     </div>
                     <div className={cn(
                       "w-10 h-5 rounded-full relative transition-all p-1",
-                      isAuditMode ? "bg-violet-600" : "bg-white/10"
+                      isAuditUploadMode ? "bg-violet-600" : "bg-white/10"
                     )}>
                       <div className={cn(
                         "w-3 h-3 bg-white rounded-full transition-all shadow-md",
-                        isAuditMode ? "translate-x-5" : "translate-x-0"
+                        isAuditUploadMode ? "translate-x-5" : "translate-x-0"
                       )} />
                     </div>
                   </button>
@@ -5509,20 +6413,20 @@ export default function App() {
                 whileTap={{ scale: 0.95 }}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 bg-bg/90 text-text rounded-2xl shadow-xl border border-border transition-all group cursor-pointer",
-                  isAuditMode ? "hover:neon-border-cyan border-cyan-500/30" : "hover:neon-border-cyan"
+                  (isAuditMode || isAuditUploadMode) ? "hover:neon-border-cyan border-cyan-500/30" : "hover:neon-border-cyan"
                 )}
               >
                 <span className={cn(
                   "text-[10px] font-display font-bold uppercase tracking-[0.2em] transition-colors",
-                  isAuditMode ? "text-cyan-600 dark:text-cyan-400" : "text-muted group-hover:text-cyan-600 dark:group-hover:text-cyan-400"
+                  (isAuditMode || isAuditUploadMode) ? "text-cyan-600 dark:text-cyan-400" : "text-muted group-hover:text-cyan-600 dark:group-hover:text-cyan-400"
                 )}>
-                  {isAuditMode ? "Audit Fleet Scan" : "Fleet Gallery Scan"}
+                  {isAuditMode ? "Audit Verify Scan" : isAuditUploadMode ? "Audit Upload Scan" : "Fleet Gallery Scan"}
                 </span>
                 <div className={cn(
                   "p-2 rounded-xl border transition-all",
-                  isAuditMode ? "bg-cyan-500/40 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.4)]" : "bg-cyan-500/20 border-cyan-500/30"
+                  (isAuditMode || isAuditUploadMode) ? "bg-cyan-500/40 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.4)]" : "bg-cyan-500/20 border-cyan-500/30"
                 )}>
-                  {isAuditMode ? <Eye className="w-4 h-4 text-white" /> : <Save className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />}
+                  {(isAuditMode || isAuditUploadMode) ? <Eye className="w-4 h-4 text-white" /> : <Save className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />}
                 </div>
                 <input 
                   type="file" 

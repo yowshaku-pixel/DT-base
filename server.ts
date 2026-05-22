@@ -6,15 +6,32 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { extractMaintenanceData, extractMarketPrices, analyzeMaintenanceData } from "./src/services/aiService.ts";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Resolve the base directory safely supporting both ESM (tsx in development) and CJS (production bundling)
+const getBaseDir = () => {
+  try {
+    if (typeof import.meta !== 'undefined' && import.meta.url) {
+      return path.dirname(fileURLToPath(import.meta.url));
+    }
+  } catch (e) {
+    // ignore error in non-ESM environments
+  }
+  try {
+    // We use eval to safely access global __dirname without compilation block-scope conflicts
+    const cjsDir = eval("__dirname");
+    if (cjsDir) return cjsDir;
+  } catch (e) {
+    // ignore error in non-CJS environments
+  }
+  return process.cwd();
+};
+
+const baseDir = getBaseDir();
 
 // 1. Try default process.cwd() first
 dotenv.config();
 
 // 2. Fallback relative paths for absolute robustness in bundles and virtual drives (e.g., Termux)
 try {
-  const baseDir = typeof __dirname !== 'undefined' ? __dirname : path.dirname(__filename);
   // Try loading from project root folder if running from dist/ directory (production)
   dotenv.config({ path: path.resolve(baseDir, "../.env") });
   // Try loading from the same folder as the script (development)
