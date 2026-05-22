@@ -194,6 +194,7 @@ export default function AIChatAssistant({
     <>
       {/* Floating Toggle Button */}
       <motion.button
+        aria-label="Toggle AI assistant"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
@@ -371,6 +372,7 @@ export default function AIChatAssistant({
                 />
                 <button
                   type="submit"
+                  aria-label="Send message"
                   disabled={!input.trim() || isLoading || isLocked}
                   className="mb-1 p-2.5 bg-gradient-to-br from-violet-600 to-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-violet-500 hover:to-cyan-400 transition-all shadow-[0_0_15px_rgba(0,245,255,0.3)] shrink-0"
                 >
