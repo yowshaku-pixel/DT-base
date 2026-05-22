@@ -1,10 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
+let supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
+let supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
+
+// Fallback to localStorage for custom/exported builds (e.g., APK or StackBlitz)
+if (!supabaseUrl || supabaseUrl.includes("TODO_PROJECT_ID") || !supabaseUrl.startsWith("http")) {
+  const localUrl = localStorage.getItem("DTBASE_SUPABASE_URL");
+  if (localUrl && localUrl.startsWith("http")) {
+    supabaseUrl = localUrl;
+  }
+}
+
+if (!supabaseAnonKey || supabaseAnonKey.length < 10) {
+  const localKey = localStorage.getItem("DTBASE_SUPABASE_ANON_KEY");
+  if (localKey && localKey.length > 10) {
+    supabaseAnonKey = localKey;
+  }
+}
 
 if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes("TODO_PROJECT_ID")) {
-  console.error("Supabase configuration is missing or contains placeholders! Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your Secrets in AI Studio and restart the dev server.");
+  console.error("Supabase configuration is missing or contains placeholders! Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your Secrets in AI Studio, or configure them manually in the app settings.");
 }
 
 // Only initialize if we have a valid URL to avoid "Invalid supabaseUrl" error

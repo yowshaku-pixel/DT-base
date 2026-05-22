@@ -3091,10 +3091,10 @@ export default function App() {
           <div className="flex-1">
             <h3 className="text-xs font-display font-bold uppercase tracking-widest text-orange-200 mb-1 flex items-center gap-2">
               Database Disconnected
-              <span className="px-1.5 py-0.5 bg-orange-500 text-white text-[8px] rounded uppercase font-black">Missing Secrets</span>
+              <span className="px-1.5 py-0.5 bg-orange-500 text-white text-[8px] rounded uppercase font-black">Requires Setup</span>
             </h3>
-            <p className="text-[10px] text-orange-200/60 leading-relaxed uppercase tracking-wider">
-              Supabase configuration is missing. Add <span className="text-white font-bold">VITE_SUPABASE_URL</span> and <span className="text-white font-bold">VITE_SUPABASE_ANON_KEY</span> to AI Studio Secrets.
+            <p className="text-[10px] text-orange-200/70 leading-relaxed uppercase tracking-wider">
+              Supabase configuration is missing. Add <span className="text-white font-bold">VITE_SUPABASE_URL</span> to secrets, OR <span className="text-cyan-400 font-bold underline">tap API Config (Settings Gear Icon)</span> at the top of the screen to enter them manually for full offline/device persistence!
             </p>
           </div>
         </div>
