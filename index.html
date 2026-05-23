@@ -9,6 +9,130 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="manifest.json" />
     <title>DT.Base | Truck Maintenance Log</title>
+    <script id="apk-webview-camera-shim">
+      (function() {
+        if (typeof window !== 'undefined') {
+          // Ensure navigator is present
+          if (typeof navigator === 'undefined') {
+            window.navigator = {};
+          }
+          // Detect if navigator.mediaDevices is undefined (typical of non-secure or custom APK WebView configurations)
+          if (!navigator.mediaDevices) {
+            navigator.mediaDevices = {};
+          }
+          
+          if (!navigator.mediaDevices.enumerateDevices) {
+            navigator.mediaDevices.enumerateDevices = function() {
+              return Promise.resolve([
+                {
+                  deviceId: "apk-webview-mock-camera",
+                  kind: "videoinput",
+                  label: "DT.Base APK Mock Camera Feed (Shim)",
+                  groupId: "apk-mock-group"
+                }
+              ]);
+            };
+          }
+
+          if (!navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia = function(constraints) {
+              return new Promise(function(resolve, reject) {
+                console.warn("[DT.Base WebView Shim] getUserMedia was called in a restricted APK WebView environment. Activating Canvas Live Feed Mock...");
+                
+                // Create a dynamic offline canvas to provide a real visual stream to bypass permission prompt crashes
+                var canvas = document.createElement("canvas");
+                canvas.width = 640;
+                canvas.height = 480;
+                var ctx = canvas.getContext("2d");
+                
+                var frame = 0;
+                function drawMockFeed() {
+                  if (!ctx) return;
+                  // Dynamic background
+                  ctx.fillStyle = "#0a0a0c";
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  
+                  // Diagnostic grid
+                  ctx.strokeStyle = "rgba(6, 182, 212, 0.15)";
+                  ctx.lineWidth = 1;
+                  for (var i = 0; i < canvas.width; i += 40) {
+                    ctx.beginPath();
+                    ctx.moveTo(i, 0);
+                    ctx.lineTo(i, canvas.height);
+                    ctx.stroke();
+                  }
+                  for (var j = 0; j < canvas.height; j += 40) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, j);
+                    ctx.lineTo(canvas.width, j);
+                    ctx.stroke();
+                  }
+                  
+                  // Bounding frame
+                  ctx.strokeStyle = "rgba(6, 182, 212, 0.5)";
+                  ctx.lineWidth = 2;
+                  ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
+                  
+                  // Pulse/Scanner Laser line
+                  var laserY = 40 + (Math.sin(frame * 0.05) + 1) * 0.5 * (canvas.height - 80);
+                  ctx.strokeStyle = "#06b6d4";
+                  ctx.lineWidth = 3;
+                  ctx.shadowColor = "#06b6d4";
+                  ctx.shadowBlur = 15;
+                  ctx.beginPath();
+                  ctx.moveTo(40, laserY);
+                  ctx.lineTo(canvas.width - 40, laserY);
+                  ctx.stroke();
+                  ctx.shadowBlur = 0; // Reset
+                  
+                  // Calibration target circles
+                  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+                  ctx.beginPath();
+                  ctx.arc(canvas.width / 2, canvas.height / 2, 80 + Math.sin(frame * 0.1) * 5, 0, Math.PI * 2);
+                  ctx.stroke();
+                  
+                  // Text branding info
+                  ctx.fillStyle = "#ffffff";
+                  ctx.font = "bold 20px monospace";
+                  ctx.textAlign = "center";
+                  ctx.fillText("DT.BASE LIVE CAM SHIM", canvas.width / 2, canvas.height / 2 - 20);
+                  
+                  ctx.fillStyle = "#06b6d4";
+                  ctx.font = "12px monospace";
+                  ctx.fillText("APK WEBVIEW COMPATIBILITY STATUS: ACTIVE", canvas.width / 2, canvas.height / 2 + 10);
+                  ctx.fillText("LATENCY: LOCAL_SHIM_0MS", canvas.width / 2, canvas.height / 2 + 30);
+                  
+                  ctx.fillStyle = "rgba(255,255,255,0.4)";
+                  ctx.fillText("FRAME ID: " + frame, canvas.width / 2, canvas.height / 2 + 50);
+                  
+                  frame++;
+                  requestAnimationFrame(drawMockFeed);
+                }
+                
+                // Start drawing loop
+                drawMockFeed();
+                
+                try {
+                  var stream;
+                  if (typeof canvas.captureStream === "function") {
+                    stream = canvas.captureStream(30);
+                  } else if (typeof canvas.mozCaptureStream === "function") {
+                    stream = canvas.mozCaptureStream(30);
+                  } else {
+                    reject(new DOMException("captureStream is not supported on this WebView canvas engine.", "NotSupportedError"));
+                    return;
+                  }
+                  
+                  resolve(stream);
+                } catch (err) {
+                  reject(err);
+                }
+              });
+            };
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

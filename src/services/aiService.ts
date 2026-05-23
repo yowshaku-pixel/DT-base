@@ -2,6 +2,32 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ExtractionResult, MaintenanceRecord, ChatMessage, MarketPrice } from "../types";
 import { arePlatesSimilar, normalizePlate, deduplicateRecords } from "../lib/utils";
 
+// Helper to resolve absolute or relative API URLs for multi-environment support (Web, APK WebView, local Termux)
+export function getApiUrl(path: string): string {
+  // 1. Check if there is an explicit saved backend host URL configured in localStorage
+  if (typeof window !== 'undefined') {
+    const savedHost = localStorage.getItem("DT_BASE_BACKEND_HOST") || localStorage.getItem("DT_BASE_BACKEND_URL");
+    if (savedHost) {
+      const base = savedHost.replace(/\/$/, "");
+      return `${base}${path}`;
+    }
+  }
+
+  // 2. Fallback check: if we are inside a packaged APK / offline WebView context
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol;
+    const isPackaged = protocol === 'file:' || protocol.startsWith('chrome-extension') || protocol.startsWith('app') || !window.location.origin || window.location.origin === 'null';
+    
+    if (isPackaged) {
+      // Direct connection fallback back to standard localhost port (usually shared with Termux on Android device)
+      return `http://localhost:3000${path}`;
+    }
+  }
+
+  // 3. Keep relative path for standard browser environments
+  return path;
+}
+
 // Initialize AI client lazily to handle cases where the API key might change or be loaded later
 let aiInstance: GoogleGenAI | null = null;
 
@@ -239,7 +265,7 @@ export async function extractMaintenanceData(
       if (customKey) {
         headers["x-gemini-api-key"] = customKey;
       }
-      const response = await fetch("/api/ai/extract-maintenance", {
+      const response = await fetch(getApiUrl("/api/ai/extract-maintenance"), {
         method: "POST",
         headers,
         body: JSON.stringify({ base64Image, mimeType, fleetRegistry, historySummary }),
@@ -353,7 +379,7 @@ export async function extractMarketPrices(base64Image: string, mimeType: string,
       if (customKey) {
         headers["x-gemini-api-key"] = customKey;
       }
-      const response = await fetch("/api/ai/extract-market", {
+      const response = await fetch(getApiUrl("/api/ai/extract-market"), {
         method: "POST",
         headers,
         body: JSON.stringify({ base64Image, mimeType }),
@@ -455,7 +481,7 @@ export async function analyzeMaintenanceData(
       if (customKey) {
         headers["x-gemini-api-key"] = customKey;
       }
-      const response = await fetch("/api/ai/analyze", {
+      const response = await fetch(getApiUrl("/api/ai/analyze"), {
         method: "POST",
         headers,
         body: JSON.stringify({ query, records, chatHistory, marketPrices, viewMode }),

@@ -44,6 +44,20 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Manual robust CORS middleware to allow packaged APK WebViews, local browsers, and Termux clients
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE");
+    res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, x-gemini-api-key");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    
+    if (req.method === "OPTIONS") {
+      res.sendStatus(200);
+      return;
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '50mb' }));
 
   // Request logger for debugging

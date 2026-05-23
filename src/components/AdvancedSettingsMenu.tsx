@@ -1,5 +1,5 @@
 import React from 'react';
-import { Key, Truck, Eye, EyeOff, Lock, Send, Key as KeyIcon, Trash, Trash2, AlertTriangle } from 'lucide-react';
+import { Key, Truck, Eye, EyeOff, Lock, Send, Key as KeyIcon, Trash, Trash2, AlertTriangle, Globe } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface AdvancedSettingsMenuProps {
@@ -47,6 +47,21 @@ export const AdvancedSettingsMenu: React.FC<AdvancedSettingsMenuProps> = ({
   passwordError,
   handleClearDuplicates,
 }) => {
+  const [backendHostInput, setBackendHostInput] = React.useState(() => {
+    return typeof window !== 'undefined' ? (localStorage.getItem("DT_BASE_BACKEND_HOST") || "") : "";
+  });
+
+  const handleBackendHostChange = (newVal: string) => {
+    setBackendHostInput(newVal);
+    if (typeof window !== 'undefined') {
+      if (newVal.trim()) {
+        localStorage.setItem("DT_BASE_BACKEND_HOST", newVal.trim());
+      } else {
+        localStorage.removeItem("DT_BASE_BACKEND_HOST");
+      }
+    }
+  };
+
   return (
     <div className="space-y-10">
       {/* Section: Restricted */}
@@ -217,6 +232,52 @@ export const AdvancedSettingsMenu: React.FC<AdvancedSettingsMenuProps> = ({
               <Send className="w-3 h-3" />
               Submit Bug Report
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Section: APK & Local Connectivity */}
+      <div className="space-y-4 pt-4 border-t border-white/5">
+        <div className="flex items-center gap-2 px-1">
+          <Globe className="w-3 h-3 text-cyan-400" />
+          <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-cyan-400">APK & Local Connectivity</p>
+        </div>
+        <div className="p-5 bg-cyan-500/[0.02] border border-cyan-500/10 rounded-3xl space-y-4">
+          <p className="text-[9px] text-zinc-400 uppercase tracking-widest leading-relaxed">
+            When wrapped inside an APK (via html2app), web requests default to relative file paths which fail. Enter an absolute host address (e.g. your local Termux IP or hosted Cloud Run URL) to route AI assistant (Anni) requests successfully.
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">AI Backend Host URL</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="E.G. http://localhost:3000"
+                  value={backendHostInput}
+                  onChange={(e) => handleBackendHostChange(e.target.value)}
+                  className="flex-1 bg-black/60 border border-white/10 rounded-xl p-3 font-mono text-xs text-cyan-400 focus:outline-none focus:border-cyan-500/50 transition-all placeholder:text-white/10"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleBackendHostChange("http://localhost:3000")}
+                  className="px-3 bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-xl font-mono text-[9px] uppercase tracking-widest transition-all cursor-pointer"
+                >
+                  Local Termux
+                </button>
+              </div>
+              <p className="text-[7.5px] font-mono text-zinc-500 uppercase tracking-widest block ml-1 mt-1">
+                Active Routing: <span className="text-cyan-400 font-bold">{backendHostInput || "Auto-Detect / default to http://localhost:3000 inside APK"}</span>
+              </p>
+            </div>
+            {backendHostInput && (
+              <button
+                type="button"
+                onClick={() => handleBackendHostChange("")}
+                className="w-full py-2 bg-red-950/20 hover:bg-red-950/40 border border-red-500/20 text-red-400 font-display font-medium uppercase tracking-widest text-[8px] rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                Clear Custom Base URL (Restore Auto-detect)
+              </button>
+            )}
           </div>
         </div>
       </div>
