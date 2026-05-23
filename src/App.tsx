@@ -1018,6 +1018,9 @@ export default function App() {
   const [showMarketPricesModal, setShowMarketPricesModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [customGeminiKey, setCustomGeminiKey] = useState(() => typeof window !== 'undefined' ? localStorage.getItem("DT_BASE_CUSTOM_GEMINI_API_KEY") || "" : "");
+  const [localSupabaseUrl, setLocalSupabaseUrl] = useState(() => typeof window !== 'undefined' ? localStorage.getItem("DTBASE_SUPABASE_URL") || "" : "");
+  const [localSupabaseAnonKey, setLocalSupabaseAnonKey] = useState(() => typeof window !== 'undefined' ? localStorage.getItem("DTBASE_SUPABASE_ANON_KEY") || "" : "");
+  const [isSupaSaved, setIsSupaSaved] = useState(false);
   const [showFleetRegistryList, setShowFleetRegistryList] = useState(false);
   const [showFaqModal, setShowFaqModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
@@ -1613,8 +1616,8 @@ export default function App() {
           const historySummary = records.slice(0, 30).map(r => `${r.plate_number}:${r.service_description}`).join(' | ');
 
           const extractionPromise = mode === 'market' 
-            ? extractMarketPrices(base64, 'image/jpeg')
-            : extractMaintenanceData(base64, 'image/jpeg', fleetRegistry, historySummary);
+            ? extractMarketPrices(base64, 'image/jpeg', customGeminiKey || undefined)
+            : extractMaintenanceData(base64, 'image/jpeg', fleetRegistry, historySummary, customGeminiKey || undefined);
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error("AI extraction timed out.")), 120000)
           );
@@ -2619,7 +2622,7 @@ export default function App() {
       const context = `The user is having trouble finding maintenance history for truck ${searchQuery.toUpperCase()}. 
       Analyze the entire fleet history to find relevant records or patterns related to this truck.`;
       
-      const answer = await analyzeMaintenanceData(context, records, [], marketPrices);
+      const answer = await analyzeMaintenanceData(context, records, [], marketPrices, viewMode, customGeminiKey || undefined);
       setUsageStats(prev => ({ ...prev, searches: prev.searches + 1 }));
       setTroubleFindingAnswer(answer);
     } catch (err: any) {
@@ -2676,7 +2679,7 @@ export default function App() {
       
       If no related records are found, respond with "NO_RECORDS_FOUND".`;
       
-      const answer = await analyzeMaintenanceData(prompt, records, [], []);
+      const answer = await analyzeMaintenanceData(prompt, records, [], [], viewMode, customGeminiKey || undefined);
       
       if (answer.trim() === 'NO_RECORDS_FOUND') {
         setServiceHintAnswer(`No related ${serviceHintQuery} records found for truck ${searchQuery.toUpperCase()}.`);
@@ -3094,7 +3097,7 @@ export default function App() {
               <span className="px-1.5 py-0.5 bg-orange-500 text-white text-[8px] rounded uppercase font-black">Requires Setup</span>
             </h3>
             <p className="text-[10px] text-orange-200/70 leading-relaxed uppercase tracking-wider">
-              Supabase configuration is missing. Add <span className="text-white font-bold">VITE_SUPABASE_URL</span> to secrets, OR <span className="text-cyan-400 font-bold underline">tap API Config (Settings Gear Icon)</span> at the top of the screen to enter them manually for full offline/device persistence!
+              Supabase configuration is missing. Add <span className="text-white font-bold">VITE_SUPABASE_URL</span> to secrets, OR <button onClick={() => setShowSettingsModal(true)} type="button" className="text-cyan-400 font-bold underline cursor-pointer hover:text-cyan-300 bg-transparent border-none p-0 inline font-display uppercase text-[10px] tracking-wider outline-none">tap here to enter them manually</button> for full offline/device persistence!
             </p>
           </div>
         </div>
@@ -3604,6 +3607,18 @@ export default function App() {
                 className="text-[10px] font-display font-bold uppercase tracking-widest text-purple-400 hover:text-purple-300 transition-colors"
               >
                 {authMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+              </button>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-white/5 flex flex-col items-center gap-2.5">
+              <span className="text-[8.5px] font-mono text-white/30 uppercase tracking-widest">Running offline or on an exported device?</span>
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(true)}
+                className="w-full py-3 px-4 bg-cyan-950/20 border border-cyan-500/25 hover:border-cyan-500/50 rounded-2xl text-[9px] font-display font-medium text-cyan-400 uppercase tracking-widest hover:bg-cyan-950/45 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-[0.98]"
+              >
+                <Database className="w-3.5 h-3.5" />
+                Configure Local Database Setup
               </button>
             </div>
           </div>
@@ -5761,6 +5776,97 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Section: Supabase Local Connectivity */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-3 bg-cyan-500 rounded-full animate-pulse" />
+                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-white/40">SUPABASE DATABASE SETUP</p>
+                  </div>
+                  <div className="p-5 bg-cyan-500/[0.03] border border-cyan-500/20 rounded-3xl space-y-4 shadow-md">
+                    <p className="text-[9px] text-cyan-300/60 uppercase tracking-widest leading-relaxed">
+                      Provide your own Supabase credentials to persist your fleet maintenance data directly into your personal database when running on an exported app or device.
+                    </p>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Supabase Project URL</label>
+                        <div className="relative">
+                          <input 
+                            type="text"
+                            placeholder="https://your-project-id.supabase.co"
+                            className="w-full bg-black/60 border border-white/10 p-3.5 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-cyan-500/30 text-cyan-200"
+                            value={localSupabaseUrl}
+                            onChange={(e) => {
+                              const val = e.target.value.trim();
+                              setLocalSupabaseUrl(val);
+                            }}
+                          />
+                          <Database className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Supabase Anon Key</label>
+                        <div className="relative">
+                          <input 
+                            type="password"
+                            placeholder="PASTE ANON KEY..."
+                            className="w-full bg-black/60 border border-white/10 p-3.5 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-cyan-500/30 text-cyan-200"
+                            value={localSupabaseAnonKey}
+                            onChange={(e) => {
+                              const val = e.target.value.trim();
+                              setLocalSupabaseAnonKey(val);
+                            }}
+                          />
+                          <Key className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const oldUrl = localStorage.getItem('DTBASE_SUPABASE_URL') || '';
+                        const oldKey = localStorage.getItem('DTBASE_SUPABASE_ANON_KEY') || '';
+                        const isSupaConfigChanged = (oldUrl !== localSupabaseUrl.trim()) || (oldKey !== localSupabaseAnonKey.trim());
+
+                        if (localSupabaseUrl) {
+                          localStorage.setItem("DTBASE_SUPABASE_URL", localSupabaseUrl);
+                        } else {
+                          localStorage.removeItem("DTBASE_SUPABASE_URL");
+                        }
+                        if (localSupabaseAnonKey) {
+                          localStorage.setItem("DTBASE_SUPABASE_ANON_KEY", localSupabaseAnonKey);
+                        } else {
+                          localStorage.removeItem("DTBASE_SUPABASE_ANON_KEY");
+                        }
+                        setIsSupaSaved(true);
+                        setNotification({
+                          message: "Supabase parameters saved locally! Reloading application...",
+                          type: "success"
+                        });
+                        setTimeout(() => {
+                          setIsSupaSaved(false);
+                          setShowSettingsModal(false);
+                          if (isSupaConfigChanged) {
+                            window.location.reload();
+                          }
+                        }, 1200);
+                      }}
+                      className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-display font-bold uppercase tracking-widest text-[10px] rounded-xl transition-all shadow-lg shadow-cyan-900/20 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      Save & Reload Application
+                    </button>
+
+                    {isSupaSaved && (
+                      <div className="flex items-center gap-1.5 text-[8px] font-mono text-green-400 uppercase tracking-widest">
+                        <CheckCircle2 className="w-3 h-3 animate-pulse" />
+                        Parameters updated. Reloading module...
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Section: Tools */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 px-1">
@@ -6350,6 +6456,7 @@ export default function App() {
           onUnlockRequest={() => setShowServicePasswordPrompt(true)}
           viewMode={viewMode}
           theme={theme}
+          customGeminiKey={customGeminiKey || undefined}
         />
       )}
       

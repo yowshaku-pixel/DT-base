@@ -27,6 +27,7 @@ interface AIChatAssistantProps {
   onUnlockRequest?: () => void;
   viewMode?: 'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' | 'advanced-search';
   theme?: 'light' | 'dark' | 'black' | 'pro';
+  customGeminiKey?: string;
 }
 
 export default function AIChatAssistant({ 
@@ -39,7 +40,8 @@ export default function AIChatAssistant({
   isLocked = false,
   onUnlockRequest,
   viewMode = 'log',
-  theme = 'black'
+  theme = 'black',
+  customGeminiKey
 }: AIChatAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -86,7 +88,8 @@ export default function AIChatAssistant({
         records, 
         updatedMessages, 
         marketPrices,
-        viewMode
+        viewMode,
+        customGeminiKey || undefined
       );
       if (stopRef.current) return;
       
