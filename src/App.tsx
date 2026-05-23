@@ -1152,6 +1152,7 @@ export default function App() {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [recentServiceFilters, setRecentServiceFilters] = useState<string[]>([]);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+  const [showManualForm, setShowManualForm] = useState(false);
   const wakeLockRef = React.useRef<any>(null);
 
   const [startDate, setStartDate] = useState('');
@@ -1189,6 +1190,13 @@ export default function App() {
   // API Key Selection Check
   useEffect(() => {
     const checkApiKey = async () => {
+      // First check if a custom manual API key was saved in localStorage
+      const customKey = typeof window !== 'undefined' ? localStorage.getItem("DT_BASE_CUSTOM_GEMINI_API_KEY") : null;
+      if (customKey && customKey.trim().length > 0) {
+        setHasApiKey(true);
+        return;
+      }
+
       // Check if a key already exists in environment (free or paid)
       if (isApiKeyAvailable()) {
         setHasApiKey(true);
@@ -3088,35 +3096,195 @@ export default function App() {
   if (hasApiKey === false) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center shadow-xl">
-          <div className="w-16 h-16 bg-purple-600/20 border border-purple-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Zap className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-          </div>
-          <h1 className="text-2xl font-display font-bold text-text mb-4 tracking-tight uppercase">Paid Tier API Key Required</h1>
-          <p className="text-sm text-muted mb-8 leading-relaxed uppercase tracking-widest">
-            To use the AI features of DT.Base, you need to select a Gemini API key from a paid Google Cloud project.
-          </p>
-          <div className="space-y-4">
-            <button
-              onClick={handleSelectKey}
-              className="w-full py-4 px-6 bg-purple-600 hover:bg-purple-500 text-white font-display font-bold uppercase tracking-widest text-xs rounded-xl transition-all shadow-lg shadow-purple-900/20 active:scale-[0.98]"
-              title="Select a Gemini API key from your Google Cloud project"
-            >
-              Select API Key
-            </button>
-            <p className="text-[10px] text-white/20 font-display font-medium uppercase tracking-widest">
-              Note: You must have billing enabled on your Google Cloud project.
-              <br />
-              <a 
-                href="https://ai.google.dev/gemini-api/docs/billing" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-purple-400 hover:underline mt-2 inline-block"
-              >
-                Learn more about billing
-              </a>
-            </p>
-          </div>
+        <div className="max-w-lg w-full bg-surface border border-border rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+          {/* Accent Glow Background Effects */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 blur-[50px] rounded-full pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-cyan-500/10 blur-[50px] rounded-full pointer-events-none" />
+
+          {!showManualForm ? (
+            <div className="text-center relative z-10">
+              <div className="w-16 h-16 bg-purple-600/20 border border-purple-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Zap className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+              </div>
+              <h1 className="text-2xl font-display font-bold text-text mb-4 tracking-tight uppercase">Paid Tier API Key Required</h1>
+              <p className="text-sm text-muted mb-8 leading-relaxed uppercase tracking-widest">
+                To use the AI features of DT.Base, you need to select a Gemini API key from a paid Google Cloud project.
+              </p>
+              <div className="space-y-4">
+                <button
+                  onClick={handleSelectKey}
+                  className="w-full py-4 px-6 bg-purple-600 hover:bg-purple-500 text-white font-display font-bold uppercase tracking-widest text-xs rounded-xl transition-all shadow-lg shadow-purple-900/20 active:scale-[0.98] cursor-pointer"
+                  title="Select a Gemini API key from your Google Cloud project"
+                >
+                  Select API Key (Cloud Platform)
+                </button>
+                
+                <div className="py-2 flex items-center justify-center gap-3">
+                  <div className="h-px bg-white/5 flex-1" />
+                  <span className="text-[9px] font-mono text-white/20 uppercase tracking-[0.2em]">or bypass configuration</span>
+                  <div className="h-px bg-white/5 flex-1" />
+                </div>
+
+                <button
+                  onClick={() => setShowManualForm(true)}
+                  className="w-full py-3.5 px-6 bg-white/[0.02] hover:bg-white/[0.08] border border-white/10 hover:border-cyan-500/40 text-cyan-400 font-display font-bold uppercase tracking-widest text-[10px] rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  Configure My Own API Keys Manually
+                </button>
+
+                <p className="text-[10px] text-white/20 font-display font-medium uppercase tracking-widest pt-2">
+                  Note: You must have billing enabled on your Google Cloud project.
+                  <br />
+                  <a 
+                    href="https://ai.google.dev/gemini-api/docs/billing" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-purple-400 hover:underline mt-2 inline-block"
+                  >
+                    Learn more about billing
+                  </a>
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="relative z-10 text-left space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400">
+                    <Database className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-display font-bold uppercase tracking-wider text-white">Manual Key Provisioning</h2>
+                    <p className="text-[8px] font-mono text-white/40 uppercase tracking-widest">Local-only secure context</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowManualForm(false)}
+                  className="px-3 py-1.5 bg-white/5 border border-white/10 hover:bg-white/[0.08] text-[9px] font-display font-bold uppercase tracking-widest text-white/60 rounded-lg hover:text-white transition-all cursor-pointer"
+                >
+                  Go Back
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Custom Gemini Key Info Block */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <label className="text-[10px] font-display font-bold uppercase tracking-wider text-white/40 block">Gemini API Key</label>
+                    <span className="text-[7.5px] font-mono text-violet-400 uppercase tracking-widest bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/20">Required</span>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="password"
+                      placeholder="PASTE YOUR GEMINI API KEY..."
+                      className="w-full bg-black/60 border border-white/10 p-4 pl-11 font-mono text-xs focus:outline-none focus:border-violet-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-violet-500/30 text-violet-200"
+                      value={customGeminiKey}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        setCustomGeminiKey(val);
+                      }}
+                    />
+                    <Key className="w-4 h-4 text-violet-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                  </div>
+                  <p className="text-[8.5px] text-white/30 uppercase tracking-widest leading-relaxed ml-1">
+                    Used for OCR document classification & AI maintenance intelligence reports.
+                  </p>
+                </div>
+
+                {/* Custom Supabase URL Block */}
+                <div className="space-y-2 pt-2 border-t border-white/5">
+                  <div className="flex items-center justify-between px-1">
+                    <label className="text-[10px] font-display font-bold uppercase tracking-wider text-white/40 block">Supabase Project URL</label>
+                    <span className="text-[7.5px] font-mono text-cyan-400 uppercase tracking-widest bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">Optional</span>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="text"
+                      placeholder="https://your-project.supabase.co"
+                      className="w-full bg-black/60 border border-white/10 p-4 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-cyan-500/30 text-cyan-200"
+                      value={localSupabaseUrl}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        setLocalSupabaseUrl(val);
+                      }}
+                    />
+                    <Database className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                {/* Custom Supabase Anon Key Block */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <label className="text-[10px] font-display font-bold uppercase tracking-wider text-white/40 block">Supabase Anon Key</label>
+                    <span className="text-[7.5px] font-mono text-cyan-400 uppercase tracking-widest bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">Optional</span>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="password"
+                      placeholder="PASTE YOUR SUPABASE ANON KEY..."
+                      className="w-full bg-black/60 border border-white/10 p-4 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-cyan-500/30 text-cyan-200"
+                      value={localSupabaseAnonKey}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        setLocalSupabaseAnonKey(val);
+                      }}
+                    />
+                    <Key className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                  </div>
+                  <p className="text-[8.5px] text-white/30 uppercase tracking-widest leading-relaxed ml-1">
+                    Saves data directly to your personal database instead of local browser cache.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 space-y-3">
+                <button
+                  onClick={() => {
+                    if (!customGeminiKey.trim()) {
+                      alert("Please paste a valid Gemini API Key first.");
+                      return;
+                    }
+
+                    // Save Gemini API key
+                    localStorage.setItem("DT_BASE_CUSTOM_GEMINI_API_KEY", customGeminiKey.trim());
+                    
+                    // Save Supabase configs
+                    if (localSupabaseUrl.trim()) {
+                      localStorage.setItem("DTBASE_SUPABASE_URL", localSupabaseUrl.trim());
+                    } else {
+                      localStorage.removeItem("DTBASE_SUPABASE_URL");
+                    }
+
+                    if (localSupabaseAnonKey.trim()) {
+                      localStorage.setItem("DTBASE_SUPABASE_ANON_KEY", localSupabaseAnonKey.trim());
+                    } else {
+                      localStorage.removeItem("DTBASE_SUPABASE_ANON_KEY");
+                    }
+
+                    setHasApiKey(true);
+                    setNotification({
+                      message: "Credentials successfully applied! Initializing safe workspace...",
+                      type: "success"
+                    });
+                    
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 1200);
+                  }}
+                  className="w-full py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-display font-bold uppercase tracking-widest text-[11px] rounded-2xl transition-all shadow-lg shadow-cyan-900/40 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  Apply Connection Parameters & Restart dt.base
+                </button>
+                <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex items-start gap-2">
+                  <HelpCircle className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" />
+                  <p className="text-[8px] font-mono text-white/30 uppercase tracking-[0.05em] leading-relaxed">
+                    Credentials are saved within local storage context. They will not be transmitted anywhere outside of standard direct requests.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -5563,6 +5731,8 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+        </>
+      )}
 
       {/* Settings Modal */}
       <AnimatePresence>
@@ -5921,6 +6091,9 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {user && (
+        <>
 
       {/* Usage Stats Modal */}
       {showUsageModal && (
