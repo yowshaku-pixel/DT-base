@@ -27,6 +27,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { BarChart3 as BarChartIcon } from 'lucide-react';
 
 import LandingPage from './components/LandingPage';
+import { SupabaseSetup } from './components/SupabaseSetup';
+import { FleetToolsMenu } from './components/FleetToolsMenu';
+import { AdvancedSettingsMenu } from './components/AdvancedSettingsMenu';
 
 interface UploadLogEntry {
   fileName: string;
@@ -1028,6 +1031,49 @@ export default function App() {
   const [automaticSecurityGuard, setAutomaticSecurityGuard] = useState(true);
   const [bugCategory, setBugCategory] = useState<'app' | 'ocr' | 'sync' | 'other'>('app');
   const [bugDescription, setBugDescription] = useState('');
+
+  const handleSubmitBugReport = () => {
+    if (!bugDescription.trim()) return;
+    addFeedNotification(
+      "Bug Transmitted Successfully",
+      `Diagnostic report submitted to command centre. Category: ${bugCategory.toUpperCase()}`,
+      "success",
+      "intelligence"
+    );
+    setNotification({
+      message: "Diagnostic log encrypted and beamed! Ticket ID: #DT-4820P",
+      type: "success"
+    });
+    setBugDescription('');
+  };
+
+  const onClearLocalCredentials = () => {
+    localStorage.removeItem("DT_BASE_CUSTOM_GEMINI_API_KEY");
+    localStorage.removeItem("DTBASE_SUPABASE_URL");
+    localStorage.removeItem("DTBASE_SUPABASE_ANON_KEY");
+    setCustomGeminiKey("");
+    setLocalSupabaseUrl("");
+    setLocalSupabaseAnonKey("");
+    setNotification({
+      message: "Credentials fully wiped from local storage context.",
+      type: "success"
+    });
+  };
+
+  const handleResetDatabase = async () => {
+    setRecords([]);
+    setAuditResults([]);
+    setMarketPrices([]);
+    setFleetRegistry([]);
+    localStorage.clear();
+    setNotification({
+      message: "Security wipe completed. Local caches and configurations cleared.",
+      type: "success"
+    });
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+  };
   
   // Fleet Notifications Center
   const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
@@ -4900,6 +4946,42 @@ export default function App() {
           )}
         </div>
       </footer>
+        </>
+      ) : viewMode === 'analytics' ? (
+        <Analytics 
+          records={filteredRecords} 
+          fleetRegistry={fleetRegistry} 
+          onRefresh={fetchRecords}
+          isRefreshing={isRefreshing}
+        />
+      ) : viewMode === 'battery' ? (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+          <BatteryIntelligence records={records} fleetRegistry={fleetRegistry} />
+        </div>
+      ) : viewMode === 'marketplace' ? (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+          <Marketplace 
+            marketPrices={marketPrices} 
+            payments={INITIAL_PAYMENTS}
+            isLocked={!isServiceUnlocked} 
+            onUnlockRequest={() => setShowServicePasswordPrompt(true)} 
+            user_id={user?.id}
+          />
+        </div>
+      ) : viewMode === 'advanced-search' ? (
+        <AdvancedSearch records={records} />
+      ) : (
+        <FleetAuditReport 
+          records={records} 
+          fleetRegistry={fleetRegistry}
+          onFocusTruck={(plate) => {
+            setSearchQuery(plate);
+            setViewMode('log');
+          }}
+          onRefresh={fetchRecords}
+          isRefreshing={isRefreshing}
+        />
+      )}
 
       {/* Market Prices Modal */}
       <AnimatePresence>
@@ -5777,478 +5859,59 @@ export default function App() {
                 </div>
 
                 {/* Section: Supabase Local Connectivity */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 px-1">
-                    <div className="w-1 h-3 bg-cyan-500 rounded-full animate-pulse" />
-                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-white/40">SUPABASE DATABASE SETUP</p>
-                  </div>
-                  <div className="p-5 bg-cyan-500/[0.03] border border-cyan-500/20 rounded-3xl space-y-4 shadow-md">
-                    <p className="text-[9px] text-cyan-300/60 uppercase tracking-widest leading-relaxed">
-                      Provide your own Supabase credentials to persist your fleet maintenance data directly into your personal database when running on an exported app or device.
-                    </p>
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Supabase Project URL</label>
-                        <div className="relative">
-                          <input 
-                            type="text"
-                            placeholder="https://your-project-id.supabase.co"
-                            className="w-full bg-black/60 border border-white/10 p-3.5 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-cyan-500/30 text-cyan-200"
-                            value={localSupabaseUrl}
-                            onChange={(e) => {
-                              const val = e.target.value.trim();
-                              setLocalSupabaseUrl(val);
-                            }}
-                          />
-                          <Database className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                        </div>
-                      </div>
+                 <SupabaseSetup
+                  localSupabaseUrl={localSupabaseUrl}
+                  setLocalSupabaseUrl={setLocalSupabaseUrl}
+                  localSupabaseAnonKey={localSupabaseAnonKey}
+                  setLocalSupabaseAnonKey={setLocalSupabaseAnonKey}
+                  isSupaSaved={isSupaSaved}
+                  setIsSupaSaved={setIsSupaSaved}
+                  setShowSettingsModal={setShowSettingsModal}
+                  setNotification={setNotification}
+                />
 
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Supabase Anon Key</label>
-                        <div className="relative">
-                          <input 
-                            type="password"
-                            placeholder="PASTE ANON KEY..."
-                            className="w-full bg-black/60 border border-white/10 p-3.5 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-cyan-500/30 text-cyan-200"
-                            value={localSupabaseAnonKey}
-                            onChange={(e) => {
-                              const val = e.target.value.trim();
-                              setLocalSupabaseAnonKey(val);
-                            }}
-                          />
-                          <Key className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                        </div>
-                      </div>
-                    </div>
+                {/* Section: Tools & Processing Modes */}
+                <FleetToolsMenu
+                  showHistory={showHistory}
+                  setShowHistory={setShowHistory}
+                  isAuditMode={isAuditMode}
+                  setIsAuditMode={setIsAuditMode}
+                  isAuditUploadMode={isAuditUploadMode}
+                  setIsAuditUploadMode={setIsAuditUploadMode}
+                  setAuditResults={setAuditResults}
+                  setShowUsageModal={setShowUsageModal}
+                  setShowSettingsModal={setShowSettingsModal}
+                  setShowMarketPricesModal={setShowMarketPricesModal}
+                  handleExportData={handleExportData}
+                  handleExportPDF={handleExportPDF}
+                  fetchRecords={fetchRecords}
+                  records={records}
+                  isRefreshing={isRefreshing}
+                />
 
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        const oldUrl = localStorage.getItem('DTBASE_SUPABASE_URL') || '';
-                        const oldKey = localStorage.getItem('DTBASE_SUPABASE_ANON_KEY') || '';
-                        const isSupaConfigChanged = (oldUrl !== localSupabaseUrl.trim()) || (oldKey !== localSupabaseAnonKey.trim());
-
-                        if (localSupabaseUrl) {
-                          localStorage.setItem("DTBASE_SUPABASE_URL", localSupabaseUrl);
-                        } else {
-                          localStorage.removeItem("DTBASE_SUPABASE_URL");
-                        }
-                        if (localSupabaseAnonKey) {
-                          localStorage.setItem("DTBASE_SUPABASE_ANON_KEY", localSupabaseAnonKey);
-                        } else {
-                          localStorage.removeItem("DTBASE_SUPABASE_ANON_KEY");
-                        }
-                        setIsSupaSaved(true);
-                        setNotification({
-                          message: "Supabase parameters saved locally! Reloading application...",
-                          type: "success"
-                        });
-                        setTimeout(() => {
-                          setIsSupaSaved(false);
-                          setShowSettingsModal(false);
-                          if (isSupaConfigChanged) {
-                            window.location.reload();
-                          }
-                        }, 1200);
-                      }}
-                      className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-display font-bold uppercase tracking-widest text-[10px] rounded-xl transition-all shadow-lg shadow-cyan-900/20 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      Save & Reload Application
-                    </button>
-
-                    {isSupaSaved && (
-                      <div className="flex items-center gap-1.5 text-[8px] font-mono text-green-400 uppercase tracking-widest">
-                        <CheckCircle2 className="w-3 h-3 animate-pulse" />
-                        Parameters updated. Reloading module...
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Section: Tools */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 px-1">
-                    <div className="w-1 h-3 bg-emerald-500 rounded-full" />
-                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-white/40">Fleet Tools</p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    <button 
-                      onClick={() => setShowHistory(!showHistory)}
-                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2.5 bg-violet-500/10 rounded-xl border border-violet-500/20 group-hover:bg-violet-500/20 transition-all">
-                          <Eye className={cn("w-4 h-4", showHistory ? "text-violet-400" : "text-white/20")} />
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Maintenance Log</span>
-                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">{showHistory ? 'Visible' : 'Hidden'}</span>
-                        </div>
-                      </div>
-                      <div className={cn(
-                        "w-8 h-4 rounded-full transition-all relative border",
-                        showHistory ? "bg-violet-500/20 border-violet-500/40" : "bg-white/5 border-white/10"
-                      )}>
-                        <div className={cn(
-                          "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
-                          showHistory ? "right-0.5 bg-violet-400" : "left-0.5 bg-white/20"
-                        )} />
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => {
-                        const next = !isAuditMode;
-                        setIsAuditMode(next);
-                        if (next) {
-                          setIsAuditUploadMode(false);
-                          setAuditResults([]);
-                        }
-                      }}
-                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
-                          <CheckCircle2 className={cn("w-4 h-4", isAuditMode ? "text-cyan-400" : "text-white/20")} />
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Audit Verify Mode</span>
-                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">{isAuditMode ? 'Active (Dry Run - No Saving)' : 'Inactive (Normal Mode)'}</span>
-                        </div>
-                      </div>
-                      <div className={cn(
-                        "w-8 h-4 rounded-full transition-all relative border",
-                        isAuditMode ? "bg-cyan-500/20 border-cyan-500/40" : "bg-white/5 border-white/10"
-                      )}>
-                        <div className={cn(
-                          "absolute top-0.5 w-2.5 h-2.5 rounded-full transition-all",
-                          isAuditMode ? "right-0.5 bg-cyan-400" : "left-0.5 bg-white/20"
-                        )} />
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => {
-                        setShowUsageModal(true);
-                        setShowSettingsModal(false);
-                      }}
-                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2.5 bg-green-500/10 rounded-xl border border-green-500/20 group-hover:bg-green-500/20 transition-all">
-                          <Zap className="w-4 h-4 text-green-500" />
-                        </div>
-                      <div className="flex flex-col items-start">
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Usage Statistics</span>
-                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Quota & Performance</span>
-                        </div>
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => {
-                        setShowMarketPricesModal(true);
-                        setShowSettingsModal(false);
-                      }}
-                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 group-hover:bg-amber-500/20 transition-all">
-                          <Tag className="w-4 h-4 text-amber-500" />
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Market Database</span>
-                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Price Reference Logs</span>
-                        </div>
-                      </div>
-                    </button>
-
-                    <div className="space-y-2">
-                       <button 
-                        onClick={handleExportData}
-                        disabled={records.length === 0}
-                        className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="p-2.5 bg-purple-500/10 rounded-xl border border-purple-500/20 group-hover:bg-purple-500/20 transition-all">
-                            <Download className="w-4 h-4 text-purple-400" />
-                          </div>
-                          <div className="flex flex-col items-start">
-                            <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Export Fleet Data</span>
-                            <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Download CSV Report</span>
-                          </div>
-                        </div>
-                      </button>
-
-                      <button 
-                        onClick={handleExportPDF}
-                        disabled={records.length === 0}
-                        className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
-                            <FileText className="w-4 h-4 text-cyan-400" />
-                          </div>
-                          <div className="flex flex-col items-start">
-                            <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Save as PDF</span>
-                            <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Generate PDF Document</span>
-                          </div>
-                        </div>
-                      </button>
-                    </div>
-
-                    <button 
-                      onClick={() => {
-                        fetchRecords();
-                        setShowSettingsModal(false);
-                      }}
-                      disabled={isRefreshing}
-                      className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/20 group-hover:bg-blue-500/20 transition-all">
-                          <RefreshCw className={cn("w-4 h-4 text-blue-400", isRefreshing && "animate-spin")} />
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/80">Force Cloud Sync</span>
-                          <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">Manual Data Refresh</span>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 px-1">
-                    <div className="w-1 h-3 bg-violet-500 rounded-full" />
-                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-violet-400/40">Processing Modes</p>
-                  </div>
-                  
-                  <button 
-                    onClick={() => {
-                      const next = !isAuditUploadMode;
-                      setIsAuditUploadMode(next);
-                      if (next) {
-                        setIsAuditMode(false);
-                        setAuditResults([]);
-                      }
-                    }}
-                    className={cn(
-                      "w-full p-5 border rounded-3xl flex items-center justify-between transition-all group",
-                      isAuditUploadMode 
-                        ? "bg-violet-500/[0.08] border-violet-500/40 shadow-[0_0_20px_rgba(139,92,246,0.1)]" 
-                        : "bg-white/[0.03] border-white/10 hover:bg-white/[0.08] hover:border-white/20"
-                    )}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={cn(
-                        "p-3 rounded-2xl border transition-all",
-                        isAuditUploadMode ? "bg-violet-500/20 border-violet-500/40 shadow-[0_0_10px_rgba(139,92,246,0.3)]" : "bg-white/5 border-white/10"
-                      )}>
-                        <Eye className={cn("w-5 h-5", isAuditUploadMode ? "text-violet-400" : "text-white/40")} />
-                      </div>
-                      <div className="flex flex-col items-start text-left">
-                        <span className={cn(
-                          "text-[11px] font-display font-bold uppercase tracking-[0.2em]",
-                          isAuditUploadMode ? "text-violet-400" : "text-white/80"
-                        )}>Audit Upload Mode</span>
-                        <span className="text-[8px] font-mono text-white/20 uppercase tracking-widest">
-                          {isAuditUploadMode ? "Skip duplicates, save non-duplicates automatically" : "Save all extracted records to DB"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className={cn(
-                      "w-10 h-5 rounded-full relative transition-all p-1",
-                      isAuditUploadMode ? "bg-violet-600" : "bg-white/10"
-                    )}>
-                      <div className={cn(
-                        "w-3 h-3 bg-white rounded-full transition-all shadow-md",
-                        isAuditUploadMode ? "translate-x-5" : "translate-x-0"
-                      )} />
-                    </div>
-                  </button>
-                </div>
-
-                {/* Section: Advanced */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 px-1">
-                    <div className="w-1 h-3 bg-amber-500 rounded-full" />
-                    <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-amber-500/40">Restricted</p>
-                  </div>
-                  {!isServiceUnlocked ? (
-                    <button 
-                      onClick={() => {
-                        setShowServicePasswordPrompt(true);
-                        setShowSettingsModal(false);
-                      }}
-                      className="w-full p-5 bg-amber-500/[0.03] border border-amber-500/20 rounded-3xl flex items-center justify-between hover:bg-amber-500/[0.08] hover:border-amber-500/40 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                          <Key className="w-5 h-5 text-amber-500" />
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-[11px] font-display font-bold uppercase tracking-[0.2em] text-amber-500/90">Unlock Advanced Services</span>
-                          <span className="text-[8px] font-mono text-amber-500/40 uppercase tracking-widest">Master Access Required</span>
-                        </div>
-                      </div>
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => setIsServiceUnlocked(false)}
-                      className="w-full p-5 bg-green-500/[0.03] border border-green-500/20 rounded-3xl flex items-center justify-between hover:bg-green-500/[0.08] hover:border-green-500/40 transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-green-500/10 rounded-2xl border border-green-500/20">
-                          <Key className="w-5 h-5 text-green-500" />
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-[11px] font-display font-bold uppercase tracking-[0.2em] text-green-500/90">Advanced Services Active</span>
-                          <span className="text-[8px] font-mono text-green-500/40 uppercase tracking-widest">Tap to Relock System</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-[10px] font-mono text-green-500/60 font-bold uppercase tracking-widest">UNLOCKED</span>
-                      </div>
-                    </button>
-                  )}
-                </div>
-
-                {/* Section: Fleet Registry */}
-                <div className="space-y-4 pt-4 border-t border-white/5">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2">
-                      <Truck className="w-3 h-3 text-cyan-400" />
-                      <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-cyan-400">Fleet Registry</p>
-                    </div>
-                    {isServiceUnlocked && (
-                      <button 
-                        onClick={() => setShowFleetRegistryList(!showFleetRegistryList)}
-                        className="text-[9px] font-display font-bold uppercase tracking-widest text-white/40 hover:text-cyan-400 transition-colors flex items-center gap-1.5"
-                      >
-                        {showFleetRegistryList ? (
-                          <><EyeOff className="w-3 h-3" /> Hide</>
-                        ) : (
-                          <><Eye className="w-3 h-3" /> Show</>
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  {isServiceUnlocked ? (
-                    showFleetRegistryList ? (
-                      <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
-                        <p className="text-[9px] text-white/40 uppercase tracking-widest leading-relaxed">
-                          Enter your known truck plates (one per line). Records matching these will be grouped normally. Others go to "Needs Review".
-                        </p>
-                        <textarea 
-                          value={fleetRegistry.join('\n')}
-                          onChange={(e) => setFleetRegistry(e.target.value.split('\n').map(p => p.toUpperCase()))}
-                          className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-3 font-mono text-xs text-cyan-400 focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
-                          placeholder="E.G.&#10;KCL 054&#10;KCY 901B&#10;UAY 469L..."
-                        />
-                        <div className="flex justify-between items-center text-[8px] font-mono text-white/20 uppercase tracking-[0.2em]">
-                          <span>{fleetRegistry.length} Plate(s) Registered</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <button 
-                        onClick={() => setShowFleetRegistryList(true)}
-                        className="w-full p-6 bg-white/[0.02] border border-white/5 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-white/[0.05] transition-all group"
-                      >
-                        <div className="p-2 bg-white/5 rounded-full group-hover:bg-cyan-500/10 transition-all">
-                           <Eye className="w-3 h-3 text-white/20 group-hover:text-cyan-400" />
-                        </div>
-                        <p className="text-[8px] font-mono text-white/20 uppercase tracking-[0.2em]">List is Currently Hidden</p>
-                        <span className="text-[9px] font-display font-bold uppercase tracking-widest text-cyan-400/60 group-hover:text-cyan-400 transition-colors">Tap to View Registry</span>
-                      </button>
-                    )
-                  ) : (
-                    <button 
-                      onClick={() => {
-                        setShowServicePasswordPrompt(true);
-                        setShowSettingsModal(false);
-                      }}
-                      className="w-full p-6 bg-amber-500/[0.02] border border-amber-500/10 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 group hover:bg-amber-500/[0.05] hover:border-amber-500/30 transition-all"
-                    >
-                      <Lock className="w-4 h-4 text-amber-500/40 group-hover:text-amber-500 transition-all" />
-                      <div className="text-center">
-                        <p className="text-[9px] font-display font-bold uppercase tracking-[0.2em] text-amber-500/60 group-hover:text-amber-500 transition-colors">Registry Locked</p>
-                        <p className="text-[7px] font-mono text-white/20 uppercase tracking-widest mt-1">Unlock Advanced Services to Access</p>
-                      </div>
-                    </button>
-                  )}
-                </div>
-
-                {/* Section: Danger Zone */}
-                {records.length > 0 && (
-                  <div className="space-y-4 pt-6 border-t border-white/5">
-                    <div className="flex items-center gap-2 px-1">
-                      <AlertTriangle className="w-3 h-3 text-red-500" />
-                      <p className="text-[10px] font-display font-bold uppercase tracking-[0.3em] text-red-500/60">Danger Zone</p>
-                    </div>
-                    
-                    {!showPasswordPrompt ? (
-                      <button 
-                        onClick={() => {
-                          setShowPasswordPrompt(true);
-                          setDangerAction('clearDuplicates');
-                        }}
-                        className="w-full p-4 bg-red-500/[0.02] border border-red-500/10 rounded-2xl flex items-center justify-between hover:bg-red-500/[0.06] hover:border-red-500/30 transition-all group"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="p-2.5 bg-red-500/10 rounded-xl border border-red-500/20">
-                            <ListFilter className="w-4 h-4 text-red-500" />
-                          </div>
-                          <div className="flex flex-col items-start">
-                            <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-red-400/80">Clear Duplicates</span>
-                            <span className="text-[8px] font-mono text-red-500/30 uppercase tracking-widest">Permanent Data Cleanup</span>
-                          </div>
-                        </div>
-                      </button>
-                    ) : (
-                      <div className="p-5 bg-red-500/[0.03] border border-red-500/20 rounded-3xl space-y-5 shadow-2xl shadow-red-900/10">
-                        <div className="relative">
-                          <input 
-                            type="password"
-                            placeholder="ENTER MASTER PASSWORD..."
-                            className={cn(
-                              "w-full bg-black/60 border p-4 font-mono text-xs focus:outline-none text-white rounded-2xl placeholder:text-white/10 transition-all",
-                              passwordError ? "border-red-500" : "border-white/10 focus:border-red-500/50"
-                            )}
-                            value={passwordInput}
-                            onChange={(e) => {
-                              setPasswordInput(e.target.value);
-                              setPasswordError(false);
-                            }}
-                            onKeyDown={(e) => e.key === 'Enter' && handleClearDuplicates()}
-                            autoFocus
-                          />
-                          <button 
-                            onClick={() => {
-                              setShowPasswordPrompt(false);
-                              setPasswordInput('');
-                              setPasswordError(false);
-                            }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white p-1.5 bg-white/5 rounded-full transition-all"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                        {passwordError && <p className="text-[8px] text-red-400 font-display font-bold uppercase tracking-widest text-center">Incorrect Password</p>}
-                        <button 
-                          onClick={handleClearDuplicates}
-                          className="w-full bg-red-600 hover:bg-red-500 text-white py-4 text-[11px] font-display font-black uppercase tracking-[0.3em] transition-all rounded-2xl shadow-xl shadow-red-900/40 active:scale-[0.98]"
-                        >
-                          {dangerAction === 'clearDuplicates' ? 'Confirm Duplicate Cleanup' : 'Confirm Total Data Wipe'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Section: Advanced Settings & Diagnostics */}
+                <AdvancedSettingsMenu
+                  isServiceUnlocked={isServiceUnlocked}
+                  setIsServiceUnlocked={setIsServiceUnlocked}
+                  setShowServicePasswordPrompt={setShowServicePasswordPrompt}
+                  setShowSettingsModal={setShowSettingsModal}
+                  showFleetRegistryList={showFleetRegistryList}
+                  setShowFleetRegistryList={setShowFleetRegistryList}
+                  fleetRegistry={fleetRegistry}
+                  setFleetRegistry={setFleetRegistry}
+                  bugCategory={bugCategory}
+                  setBugCategory={setBugCategory}
+                  bugDescription={bugDescription}
+                  setBugDescription={setBugDescription}
+                  handleSubmitBugReport={handleSubmitBugReport}
+                  onClearLocalCredentials={onClearLocalCredentials}
+                  handleResetDatabase={handleResetDatabase}
+                  dangerAction={dangerAction}
+                  passwordConfirm={passwordInput}
+                  setPasswordConfirm={setPasswordInput}
+                  passwordError={passwordError}
+                  handleClearDuplicates={handleClearDuplicates}
+                />
               </div>
 
               <div className="mt-8 pt-6 border-t border-white/5 flex justify-center">
@@ -6376,42 +6039,6 @@ export default function App() {
             </div>
           </div>
         </div>
-      )}
-        </>
-      ) : viewMode === 'analytics' ? (
-        <Analytics 
-          records={filteredRecords} 
-          fleetRegistry={fleetRegistry} 
-          onRefresh={fetchRecords}
-          isRefreshing={isRefreshing}
-        />
-      ) : viewMode === 'battery' ? (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
-          <BatteryIntelligence records={records} fleetRegistry={fleetRegistry} />
-        </div>
-      ) : viewMode === 'marketplace' ? (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
-          <Marketplace 
-            marketPrices={marketPrices} 
-            payments={INITIAL_PAYMENTS}
-            isLocked={!isServiceUnlocked} 
-            onUnlockRequest={() => setShowServicePasswordPrompt(true)} 
-            user_id={user?.id}
-          />
-        </div>
-      ) : viewMode === 'advanced-search' ? (
-        <AdvancedSearch records={records} />
-      ) : (
-        <FleetAuditReport 
-          records={records} 
-          fleetRegistry={fleetRegistry}
-          onFocusTruck={(plate) => {
-            setSearchQuery(plate);
-            setViewMode('log');
-          }}
-          onRefresh={fetchRecords}
-          isRefreshing={isRefreshing}
-        />
       )}
 
       {/* Edit Record Modal */}
@@ -6677,6 +6304,8 @@ export default function App() {
           )}
         </motion.button>
       </div>
+        </>
+      )}
 
       {/* Service Password Modal */}
       <AnimatePresence>
@@ -6763,8 +6392,6 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-        </>
-      )}
       </div>
     </div>
   );
