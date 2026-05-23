@@ -1,22 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-let supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
-let supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
+// Retrieve local values to enable manual overrides via "Configure Local Database Setup"
+const localUrl = typeof window !== 'undefined' ? localStorage.getItem("DTBASE_SUPABASE_URL") : null;
+const localKey = typeof window !== 'undefined' ? localStorage.getItem("DTBASE_SUPABASE_ANON_KEY") : null;
 
-// Fallback to localStorage for custom/exported builds (e.g., APK or StackBlitz)
-if (!supabaseUrl || supabaseUrl.includes("TODO_PROJECT_ID") || !supabaseUrl.startsWith("http")) {
-  const localUrl = localStorage.getItem("DTBASE_SUPABASE_URL");
-  if (localUrl && localUrl.startsWith("http")) {
-    supabaseUrl = localUrl;
-  }
-}
-
-if (!supabaseAnonKey || supabaseAnonKey.length < 10) {
-  const localKey = localStorage.getItem("DTBASE_SUPABASE_ANON_KEY");
-  if (localKey && localKey.length > 10) {
-    supabaseAnonKey = localKey;
-  }
-}
+let supabaseUrl = (localUrl && localUrl.startsWith("http")) ? localUrl : ((import.meta as any).env.VITE_SUPABASE_URL || '');
+let supabaseAnonKey = (localKey && localKey.length > 10) ? localKey : ((import.meta as any).env.VITE_SUPABASE_ANON_KEY || '');
 
 if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes("TODO_PROJECT_ID")) {
   console.error("Supabase configuration is missing or contains placeholders! Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your Secrets in AI Studio, or configure them manually in the app settings.");

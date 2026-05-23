@@ -3728,17 +3728,44 @@ export default function App() {
                     You can still add records manually using the "Add Manually" button on failed items in the log below.
                   </p>
                 )}
-                {typeof error === 'string' && (error.includes("Failed to fetch") || error.includes("DATABASE OFFLINE")) && (
-                  <div className="mt-2 flex items-center gap-3">
+                {typeof error === 'string' && (error.includes("Failed to fetch") || error.includes("DATABASE OFFLINE") || error.includes("connection failed") || error.includes("Connection failed")) && (
+                  <div className="mt-3 flex flex-col gap-2.5">
                     <p className="text-[9px] font-display font-medium opacity-60 uppercase tracking-widest leading-relaxed">
-                      This is often caused by unstable internet or server interruption. Retrying may fix it.
+                      This is often due to incorrect Credentials, a paused Supabase project, or a local network firewall issue.
                     </p>
-                    <button 
-                      onClick={fetchRecords}
-                      className="whitespace-nowrap px-3 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-[8px] font-display font-black uppercase tracking-[0.2em] transition-all"
-                    >
-                      Retry Connection
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button 
+                        onClick={fetchRecords}
+                        className="whitespace-nowrap px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-[8px] font-display font-black uppercase tracking-[0.2em] transition-all cursor-pointer"
+                      >
+                        Retry Connection
+                      </button>
+                      <button 
+                        onClick={() => setShowSettingsModal(true)}
+                        className="whitespace-nowrap px-3 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/35 border border-cyan-500/30 rounded-lg text-[8px] font-display font-black uppercase tracking-[0.2em] text-cyan-400 transition-all cursor-pointer"
+                      >
+                        Adjust Database Parameters
+                      </button>
+                      {(typeof window !== 'undefined' && (localStorage.getItem("DTBASE_SUPABASE_URL") || localStorage.getItem("DTBASE_SUPABASE_ANON_KEY"))) && (
+                        <button 
+                          onClick={() => {
+                            localStorage.removeItem("DTBASE_SUPABASE_URL");
+                            localStorage.removeItem("DTBASE_SUPABASE_ANON_KEY");
+                            setNotification({
+                              message: "Custom local configuration reset. Falling back to default context...",
+                              type: "info"
+                            });
+                            setError(null);
+                            setTimeout(() => {
+                              window.location.reload();
+                            }, 1200);
+                          }}
+                          className="whitespace-nowrap px-3 py-1.5 bg-red-600/20 hover:bg-red-600/35 border border-red-500/30 rounded-lg text-[8px] font-display font-black uppercase tracking-[0.2em] text-red-300 transition-all cursor-pointer"
+                        >
+                          Reset to App Defaults
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
