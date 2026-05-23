@@ -392,7 +392,7 @@ const SearchFilters = React.memo(({
 
   return (
     <div className="relative group">
-      <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
+      <label htmlFor="plate-search" className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
       <div className="flex flex-col gap-2">
         <div className="relative">
           {isSearching ? (
@@ -401,6 +401,7 @@ const SearchFilters = React.memo(({
             <Search className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-60")} />
           )}
           <input 
+            id="plate-search"
             type="text"
             placeholder={!isServiceUnlocked && usageStats.searches >= 15 ? "Search limit reached..." : "Plate number..."}
             className={cn(
@@ -428,6 +429,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Search"
+              aria-label="Clear search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -435,8 +437,10 @@ const SearchFilters = React.memo(({
         </div>
 
         <div className="relative">
+           <label htmlFor="description-search" className="sr-only">Description keyword</label>
            <Smartphone className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-40")} />
            <input 
+            id="description-search"
             type="text"
             placeholder="Description keyword..."
             className={cn(
@@ -459,6 +463,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Description Filter"
+              aria-label="Clear description filter"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -3157,6 +3162,7 @@ export default function App() {
           <button 
             onClick={() => setIsQuotaExceeded(false)}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            aria-label="Close notification"
           >
             <X className="w-4 h-4 text-blue-400" />
           </button>
@@ -3172,6 +3178,7 @@ export default function App() {
               onClick={() => setShowSettingsModal(true)}
               className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet flex items-center justify-center cursor-pointer"
               title="Open Settings"
+              aria-label="Open settings"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -3533,6 +3540,7 @@ export default function App() {
               }}
               className="p-2 hover:bg-white/10 rounded-full transition-all hover:scale-110"
               title="Dismiss"
+              aria-label="Dismiss error"
             >
               <X className="w-5 h-5" />
             </button>
@@ -6363,6 +6371,7 @@ export default function App() {
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             className="fixed bottom-24 md:bottom-8 right-6 z-40 p-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl shadow-xl shadow-purple-900/40 border border-purple-400/30 transition-all active:scale-95 group"
             title="Scroll to top"
+            aria-label="Scroll to top"
           >
             <ChevronUp className="w-6 h-6 group-hover:-translate-y-0.5 transition-transform" />
             <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-bg border border-border px-2 py-1 rounded text-[8px] font-display font-bold uppercase tracking-widest text-text opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
