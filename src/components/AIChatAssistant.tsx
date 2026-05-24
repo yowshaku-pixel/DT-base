@@ -235,6 +235,7 @@ export default function AIChatAssistant({
                   onClick={clearChat}
                   className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500"
                   title="Clear Chat"
+                  aria-label="Clear chat"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
