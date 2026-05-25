@@ -169,6 +169,8 @@ const PlateFolder = React.memo(({
         onClick={() => onToggle(plate)}
         className="w-full flex items-center justify-between p-3.5 px-5 text-text transition-all"
         title={`Click to ${isExpanded ? 'collapse' : 'expand'} records for ${plate}`}
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} records for truck ${plate}`}
       >
         <div className="flex items-center gap-4">
           <div className={cn(
@@ -395,7 +397,7 @@ const SearchFilters = React.memo(({
 
   return (
     <div className="relative group">
-      <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
+      <label htmlFor="truck-search-input" className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
       <div className="flex flex-col gap-2">
         <div className="relative">
           {isSearching ? (
@@ -404,6 +406,7 @@ const SearchFilters = React.memo(({
             <Search className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-60")} />
           )}
           <input 
+            id="truck-search-input"
             type="text"
             placeholder={!isServiceUnlocked && usageStats.searches >= 15 ? "Search limit reached..." : "Plate number..."}
             className={cn(
@@ -431,6 +434,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Search"
+              aria-label="Clear truck plate search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -438,8 +442,10 @@ const SearchFilters = React.memo(({
         </div>
 
         <div className="relative">
+           <label htmlFor="description-search-input" className="sr-only">Search by Description</label>
            <Smartphone className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-40")} />
            <input 
+            id="description-search-input"
             type="text"
             placeholder="Description keyword..."
             className={cn(
@@ -462,6 +468,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Description Filter"
+              aria-label="Clear description search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -4401,7 +4408,7 @@ export default function App() {
             />
         
         <div className="relative group">
-          <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Find Maintenance</label>
+          <label htmlFor="primary-service-filter" className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Find Maintenance</label>
           <div className="flex flex-col gap-2">
             <div className="relative">
               {isFiltering ? (
@@ -4410,6 +4417,7 @@ export default function App() {
                 <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
               )}
               <input 
+                id="primary-service-filter"
                 type="text"
                 placeholder="Primary filter..."
                 className="w-full bg-black/40 border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
@@ -4422,14 +4430,17 @@ export default function App() {
                   onClick={() => setServiceFilter('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
                   title="Clear Filter"
+                  aria-label="Clear primary service filter"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
             <div className="relative">
+              <label htmlFor="secondary-service-filter" className="sr-only">Secondary Service Filter</label>
               <ListFilter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
               <input 
+                id="secondary-service-filter"
                 type="text"
                 placeholder="Secondary filter..."
                 className="w-full bg-black/40 border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
@@ -4442,6 +4453,7 @@ export default function App() {
                   onClick={() => setSecondaryServiceFilter('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
                   title="Clear Secondary Filter"
+                  aria-label="Clear secondary service filter"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
