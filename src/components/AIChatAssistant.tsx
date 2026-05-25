@@ -206,6 +206,8 @@ export default function AIChatAssistant({
             ? "bg-bg text-text border-border" 
             : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
         )}
+        aria-label={isOpen ? "Close AI Chat Assistant" : "Open AI Chat Assistant"}
+        aria-expanded={isOpen}
       >
         {isOpen ? <X className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
       </motion.button>
@@ -218,6 +220,8 @@ export default function AIChatAssistant({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             className="fixed bottom-24 right-4 sm:right-[6rem] z-50 w-[92vw] sm:w-[500px] h-[600px] max-h-[80vh] bg-surface border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden border-violet-500/30"
+            role="dialog"
+            aria-label="AI Chat Assistant"
           >
             {/* Header */}
             <div className="p-4 border-b border-border bg-gradient-to-r from-violet-900/20 to-surface flex items-center justify-between">
