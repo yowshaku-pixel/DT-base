@@ -431,6 +431,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Search"
+                aria-label="Clear Search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -462,6 +463,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Description Filter"
+              aria-label="Clear Description Filter"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -523,6 +525,7 @@ const EditRecordModal = React.memo(({
             onClick={onClose}
             className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
             title="Close Edit"
+            aria-label="Close Edit"
           >
             <X className="w-5 h-5" />
           </button>
@@ -644,6 +647,7 @@ const ManualEntryModal = React.memo(({
             onClick={onClose}
             className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
             title="Close Manual Entry"
+            aria-label="Close Manual Entry"
           >
             <X className="w-5 h-5" />
           </button>
@@ -3241,7 +3245,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     if (!customGeminiKey.trim()) {
-                      alert("Please paste a valid Gemini API Key first.");
+                      setNotification({ message: "Please paste a valid Gemini API Key first.", type: 'warning' });
                       return;
                     }
 
@@ -3460,6 +3464,8 @@ export default function App() {
           <AnimatePresence>
             {notification && (
               <motion.div
+                role="status"
+                aria-live="polite"
                 initial={{ opacity: 0, y: -20, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
@@ -3477,6 +3483,7 @@ export default function App() {
                 <button 
                   onClick={() => setNotification(null)}
                   className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                  aria-label="Dismiss notification"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -4797,7 +4804,7 @@ export default function App() {
                       navigator.share({ title: 'DT.Base Record', text });
                     } else {
                       navigator.clipboard.writeText(text);
-                      alert("Copied to clipboard!");
+                      setNotification({ message: "Copied to clipboard!", type: 'success' });
                     }
                   }}
                   className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-violet-600 text-white hover:from-cyan-400 hover:to-violet-500 transition-all active:scale-95 rounded-full shadow-[0_0_20px_rgba(0,245,255,0.3)]"
@@ -5033,7 +5040,7 @@ export default function App() {
                     navigator.share({ title: 'DT.Base Summary Report', text: fullText });
                   } else {
                     navigator.clipboard.writeText(fullText);
-                    alert("Report copied to clipboard!");
+                    setNotification({ message: "Report copied to clipboard!", type: 'success' });
                   }
                 }}
                 className="flex items-center gap-2 px-6 py-3 bg-text text-bg hover:opacity-90 transition-all active:scale-95 rounded-xl font-display font-black uppercase tracking-widest text-[10px]"
@@ -5203,6 +5210,7 @@ export default function App() {
                   onClick={() => setShowMarketPricesModal(false)}
                   className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
                   title="Close Market Database"
+                  aria-label="Close Market Database"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -5326,6 +5334,7 @@ export default function App() {
                   onClick={() => setShowFaqModal(false)}
                   className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
                   title="Close Help"
+                aria-label="Close Help"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -5409,6 +5418,7 @@ export default function App() {
                   onClick={() => setShowContactModal(false)}
                   className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
                   title="Close Bug Form"
+                  aria-label="Close Bug Form"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -5515,6 +5525,7 @@ export default function App() {
                   onClick={() => setShowNotificationsPanel(false)}
                   className="p-1.5 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
                   title="Close Panel"
+                  aria-label="Close Panel"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -5782,6 +5793,7 @@ export default function App() {
                   onClick={() => setShowSettingsModal(false)}
                   className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
                   title="Close Settings"
+                  aria-label="Close Settings"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -6137,6 +6149,7 @@ export default function App() {
                 onClick={() => setShowUsageModal(false)}
                 className="p-2 bg-white/5 border border-white/10 hover:bg-white/20 rounded-full transition-all text-white/60 hover:text-white"
                 title="Close Dashboard"
+                aria-label="Close Dashboard"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -6451,6 +6464,7 @@ export default function App() {
 
         {/* Main Toggle Button */}
         <motion.button
+          aria-label="Open action menu"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => {
@@ -6525,6 +6539,7 @@ export default function App() {
                 }}
                 className="absolute top-4 right-4 p-2 bg-surface border border-border hover:bg-surface/80 rounded-full transition-all text-muted hover:text-text z-10"
                 title="Close Unlock Modal"
+                aria-label="Close Unlock Modal"
               >
                 <X className="w-5 h-5" />
               </button>

@@ -197,6 +197,7 @@ export default function AIChatAssistant({
     <>
       {/* Floating Toggle Button */}
       <motion.button
+        aria-label="Toggle AI Assistant"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
@@ -235,6 +236,7 @@ export default function AIChatAssistant({
                   onClick={clearChat}
                   className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500"
                   title="Clear Chat"
+                  aria-label="Clear Chat"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
