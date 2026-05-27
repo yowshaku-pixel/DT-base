@@ -3241,7 +3241,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     if (!customGeminiKey.trim()) {
-                      alert("Please paste a valid Gemini API Key first.");
+                      setNotification({ message: "Please paste a valid Gemini API Key first.", type: 'warning' });
                       return;
                     }
 
@@ -4797,7 +4797,7 @@ export default function App() {
                       navigator.share({ title: 'DT.Base Record', text });
                     } else {
                       navigator.clipboard.writeText(text);
-                      alert("Copied to clipboard!");
+                      setNotification({ message: "Copied to clipboard!", type: 'success' });
                     }
                   }}
                   className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-violet-600 text-white hover:from-cyan-400 hover:to-violet-500 transition-all active:scale-95 rounded-full shadow-[0_0_20px_rgba(0,245,255,0.3)]"
@@ -5033,7 +5033,7 @@ export default function App() {
                     navigator.share({ title: 'DT.Base Summary Report', text: fullText });
                   } else {
                     navigator.clipboard.writeText(fullText);
-                    alert("Report copied to clipboard!");
+                    setNotification({ message: "Report copied to clipboard!", type: 'success' });
                   }
                 }}
                 className="flex items-center gap-2 px-6 py-3 bg-text text-bg hover:opacity-90 transition-all active:scale-95 rounded-xl font-display font-black uppercase tracking-widest text-[10px]"
