@@ -234,6 +234,7 @@ const PlateFolder = React.memo(({
                           : "bg-surface border border-border text-muted hover:text-text hover:bg-bg/20"
                       )}
                       title={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
+                      aria-label={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
                     >
                       <CheckCircle2 className={cn("w-3 h-3", record.verified && "animate-pulse")} />
                     </button>
@@ -241,6 +242,7 @@ const PlateFolder = React.memo(({
                       onClick={() => onEdit(record)}
                       className="p-2 bg-surface border border-border text-muted hover:text-text hover:bg-bg/20 transition-all rounded-full"
                       title="Edit this record"
+                      aria-label="Edit this record"
                     >
                       <Settings className="w-3 h-3" />
                     </button>
@@ -3460,14 +3462,16 @@ export default function App() {
           <AnimatePresence>
             {notification && (
               <motion.div
+                role="status"
+                aria-live="polite"
                 initial={{ opacity: 0, y: -20, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
                 className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
-                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
-                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
-                  "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                  "fixed top-6 right-6 p-4 rounded-2xl border flex items-center gap-3 shadow-2xl z-[150] max-w-md",
+                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200 backdrop-blur-md" :
+                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200 backdrop-blur-md" :
+                  "bg-amber-500/10 border-amber-500/30 text-amber-200 backdrop-blur-md"
                 )}
               >
                 {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
@@ -3477,6 +3481,7 @@ export default function App() {
                 <button 
                   onClick={() => setNotification(null)}
                   className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                  aria-label="Dismiss notification"
                 >
                   <X className="w-3 h-3" />
                 </button>
