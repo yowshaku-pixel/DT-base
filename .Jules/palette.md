@@ -1,0 +1,3 @@
+## 2025-05-15 - Notification Visibility & Accessibility
+**Learning:** In applications with deep z-index stacks (modals at z-[100], panels at z-[110]), notifications placed in the standard flow (e.g., z-50) can be obscured, leading to a "ghost feedback" loop where users trigger actions but see no result.
+**Action:** Always elevate global notifications to the highest z-index (e.g., z-[150]+) and use `fixed` positioning with `backdrop-blur` to ensure they are visible and distinct regardless of the application's current state or scroll position. Include standard `role="status"` and `aria-live="polite"` for non-blocking feedback components.
