@@ -169,6 +169,7 @@ const PlateFolder = React.memo(({
         onClick={() => onToggle(plate)}
         className="w-full flex items-center justify-between p-3.5 px-5 text-text transition-all"
         title={`Click to ${isExpanded ? 'collapse' : 'expand'} records for ${plate}`}
+        aria-label={isExpanded ? `Collapse records for ${plate}` : `Expand records for ${plate}`}
       >
         <div className="flex items-center gap-4">
           <div className={cn(
@@ -234,6 +235,7 @@ const PlateFolder = React.memo(({
                           : "bg-surface border border-border text-muted hover:text-text hover:bg-bg/20"
                       )}
                       title={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
+                      aria-label={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
                     >
                       <CheckCircle2 className={cn("w-3 h-3", record.verified && "animate-pulse")} />
                     </button>
@@ -241,6 +243,7 @@ const PlateFolder = React.memo(({
                       onClick={() => onEdit(record)}
                       className="p-2 bg-surface border border-border text-muted hover:text-text hover:bg-bg/20 transition-all rounded-full"
                       title="Edit this record"
+                      aria-label="Edit this record"
                     >
                       <Settings className="w-3 h-3" />
                     </button>
@@ -431,6 +434,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Search"
+              aria-label="Clear Search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -462,6 +466,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Description Filter"
+              aria-label="Clear Description Filter"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -3463,8 +3468,10 @@ export default function App() {
                 initial={{ opacity: 0, y: -20, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                role="status"
+                aria-live="polite"
                 className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
+                  "fixed top-6 right-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-[150]",
                   notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
                   notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
                   "bg-amber-500/10 border-amber-500/30 text-amber-200"
@@ -3477,6 +3484,7 @@ export default function App() {
                 <button 
                   onClick={() => setNotification(null)}
                   className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                  aria-label="Dismiss notification"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -6460,6 +6468,7 @@ export default function App() {
               setIsFabOpen(!isFabOpen);
             }
           }}
+          aria-label={isFabOpen ? "Close menu" : "Add to Fleet"}
           className={cn(
             "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.4)] transition-all border relative overflow-hidden group",
             isFabOpen ? "bg-bg text-text border-border" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50",
