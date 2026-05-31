@@ -200,6 +200,7 @@ export default function AIChatAssistant({
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? "Close AI Chat" : "Open AI Chat"}
         className={cn(
           "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
           isOpen 
@@ -235,6 +236,7 @@ export default function AIChatAssistant({
                   onClick={clearChat}
                   className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500"
                   title="Clear Chat"
+                  aria-label="Clear Chat"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -376,6 +378,7 @@ export default function AIChatAssistant({
                   type="submit"
                   disabled={!input.trim() || isLoading || isLocked}
                   className="mb-1 p-2.5 bg-gradient-to-br from-violet-600 to-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-violet-500 hover:to-cyan-400 transition-all shadow-[0_0_15px_rgba(0,245,255,0.3)] shrink-0"
+                  aria-label="Send message"
                 >
                   <Send className="w-4 h-4" />
                 </button>

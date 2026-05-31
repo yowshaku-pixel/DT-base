@@ -1,0 +1,3 @@
+## 2025-05-15 - [Notification Visibility & Icon Accessibility]
+**Learning:** Notifications in `src/App.tsx` were using `mt-6` which placed them in the flow of the document or relatively positioned, potentially being obscured by high z-index modals (z-100+). Interactive icon-only buttons lacked explicit ARIA labels, making them inaccessible to screen readers despite having visual tooltips or descriptive icons.
+**Action:** Always use `fixed` positioning with a very high z-index (`z-[150]`) for top-level notifications to ensure visibility over all overlays. Ensure all icon-only buttons have `aria-label` attributes even if a `title` attribute is present.
