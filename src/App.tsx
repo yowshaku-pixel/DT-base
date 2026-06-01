@@ -234,6 +234,7 @@ const PlateFolder = React.memo(({
                           : "bg-surface border border-border text-muted hover:text-text hover:bg-bg/20"
                       )}
                       title={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
+                      aria-label={record.verified ? "Mark as unverified" : "Mark as verified"}
                     >
                       <CheckCircle2 className={cn("w-3 h-3", record.verified && "animate-pulse")} />
                     </button>
@@ -241,6 +242,7 @@ const PlateFolder = React.memo(({
                       onClick={() => onEdit(record)}
                       className="p-2 bg-surface border border-border text-muted hover:text-text hover:bg-bg/20 transition-all rounded-full"
                       title="Edit this record"
+                      aria-label="Edit record"
                     >
                       <Settings className="w-3 h-3" />
                     </button>
@@ -431,6 +433,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Search"
+              aria-label="Clear Search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -462,6 +465,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Description Filter"
+              aria-label="Clear Description Filter"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -3241,7 +3245,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     if (!customGeminiKey.trim()) {
-                      alert("Please paste a valid Gemini API Key first.");
+                      setNotification({ message: "Please paste a valid Gemini API Key first.", type: "warning" });
                       return;
                     }
 
@@ -3389,6 +3393,7 @@ export default function App() {
               onClick={() => setShowSettingsModal(true)}
               className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet flex items-center justify-center cursor-pointer"
               title="Open Settings"
+              aria-label="Open Settings"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -3397,7 +3402,7 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.button
                   className={cn(
                     "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
                     theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
@@ -3406,6 +3411,7 @@ export default function App() {
                   whileTap={{ scale: 0.95 }}
                   onClick={toggleTheme}
                   title={`Switch Theme (Current: ${theme})`}
+                  aria-label={`Switch Theme (Current: ${theme})`}
                 >
                   <motion.div 
                     className="absolute inset-0 opacity-10 bg-gradient-to-tr from-purple-500 to-indigo-500"
@@ -3438,7 +3444,7 @@ export default function App() {
 
                     <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
                   </div>
-                </motion.div>
+                </motion.button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={cn(
@@ -3463,8 +3469,10 @@ export default function App() {
                 initial={{ opacity: 0, y: -20, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                role="status"
+                aria-live="polite"
                 className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
+                  "fixed top-6 right-6 p-4 rounded-2xl border flex items-center gap-3 shadow-2xl z-[150] w-auto max-w-[calc(100vw-3rem)]",
                   notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
                   notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
                   "bg-amber-500/10 border-amber-500/30 text-amber-200"
@@ -3477,6 +3485,7 @@ export default function App() {
                 <button 
                   onClick={() => setNotification(null)}
                   className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                  aria-label="Dismiss notification"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -3541,6 +3550,7 @@ export default function App() {
                     onClick={() => setShowNotificationsPanel(true)}
                     className="p-2.5 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text relative flex items-center justify-center cursor-pointer hover:neon-glow-violet h-[38px] w-[38px] shrink-0"
                     title="Open Notifications Center"
+                    aria-label="Open Notifications Center"
                   >
                     <Bell className="w-4 h-4" />
                     {unreadNotificationsCount > 0 && (
@@ -4797,7 +4807,7 @@ export default function App() {
                       navigator.share({ title: 'DT.Base Record', text });
                     } else {
                       navigator.clipboard.writeText(text);
-                      alert("Copied to clipboard!");
+                      setNotification({ message: "Copied to clipboard!", type: "success" });
                     }
                   }}
                   className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-violet-600 text-white hover:from-cyan-400 hover:to-violet-500 transition-all active:scale-95 rounded-full shadow-[0_0_20px_rgba(0,245,255,0.3)]"
@@ -5033,7 +5043,7 @@ export default function App() {
                     navigator.share({ title: 'DT.Base Summary Report', text: fullText });
                   } else {
                     navigator.clipboard.writeText(fullText);
-                    alert("Report copied to clipboard!");
+                    setNotification({ message: "Report copied to clipboard!", type: "success" });
                   }
                 }}
                 className="flex items-center gap-2 px-6 py-3 bg-text text-bg hover:opacity-90 transition-all active:scale-95 rounded-xl font-display font-black uppercase tracking-widest text-[10px]"
@@ -5828,6 +5838,7 @@ export default function App() {
                           }}
                           className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 hover:border-red-500/40 transition-all rounded-xl shadow-lg shadow-red-900/20"
                           title="Logout"
+                          aria-label="Logout"
                         >
                           <LogOut className="w-4 h-4" />
                         </button>
