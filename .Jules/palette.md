@@ -1,0 +1,3 @@
+## 2025-05-15 - [ARIA Labels & Non-blocking Notifications]
+**Learning:** This application uses a custom notification system (`setNotification`) which is much more integrated with the "Mechanical History Log" aesthetic than native `alert()` calls. Additionally, prominent icon-only buttons (Settings, Notifications, Theme Toggle) lacked `aria-label` attributes, relying only on `title` which is insufficient for screen readers.
+**Action:** Always prefer `setNotification` over `alert()` for user feedback and ensure all `motion.button` or icon-only `button` elements have explicit `aria-label` descriptions.
