@@ -3241,7 +3241,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     if (!customGeminiKey.trim()) {
-                      alert("Please paste a valid Gemini API Key first.");
+                      setNotification({ message: "Please paste a valid Gemini API Key first.", type: "error" });
                       return;
                     }
 
@@ -3389,6 +3389,7 @@ export default function App() {
               onClick={() => setShowSettingsModal(true)}
               className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet flex items-center justify-center cursor-pointer"
               title="Open Settings"
+              aria-label="Open Settings"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -3397,7 +3398,7 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.button
                   className={cn(
                     "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
                     theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
@@ -3406,6 +3407,7 @@ export default function App() {
                   whileTap={{ scale: 0.95 }}
                   onClick={toggleTheme}
                   title={`Switch Theme (Current: ${theme})`}
+                  aria-label="Switch theme"
                 >
                   <motion.div 
                     className="absolute inset-0 opacity-10 bg-gradient-to-tr from-purple-500 to-indigo-500"
@@ -3438,7 +3440,7 @@ export default function App() {
 
                     <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
                   </div>
-                </motion.div>
+                </motion.button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={cn(
@@ -3541,6 +3543,7 @@ export default function App() {
                     onClick={() => setShowNotificationsPanel(true)}
                     className="p-2.5 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text relative flex items-center justify-center cursor-pointer hover:neon-glow-violet h-[38px] w-[38px] shrink-0"
                     title="Open Notifications Center"
+                  aria-label="Open Notifications Center"
                   >
                     <Bell className="w-4 h-4" />
                     {unreadNotificationsCount > 0 && (
@@ -4797,7 +4800,7 @@ export default function App() {
                       navigator.share({ title: 'DT.Base Record', text });
                     } else {
                       navigator.clipboard.writeText(text);
-                      alert("Copied to clipboard!");
+                      setNotification({ message: "Copied to clipboard!", type: "success" });
                     }
                   }}
                   className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-violet-600 text-white hover:from-cyan-400 hover:to-violet-500 transition-all active:scale-95 rounded-full shadow-[0_0_20px_rgba(0,245,255,0.3)]"
@@ -5033,7 +5036,7 @@ export default function App() {
                     navigator.share({ title: 'DT.Base Summary Report', text: fullText });
                   } else {
                     navigator.clipboard.writeText(fullText);
-                    alert("Report copied to clipboard!");
+                    setNotification({ message: "Report copied to clipboard!", type: "success" });
                   }
                 }}
                 className="flex items-center gap-2 px-6 py-3 bg-text text-bg hover:opacity-90 transition-all active:scale-95 rounded-xl font-display font-black uppercase tracking-widest text-[10px]"
@@ -6297,6 +6300,7 @@ export default function App() {
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             className="fixed bottom-24 md:bottom-8 right-6 z-40 p-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl shadow-xl shadow-purple-900/40 border border-purple-400/30 transition-all active:scale-95 group"
             title="Scroll to top"
+            aria-label="Scroll to top"
           >
             <ChevronUp className="w-6 h-6 group-hover:-translate-y-0.5 transition-transform" />
             <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-bg border border-border px-2 py-1 rounded text-[8px] font-display font-bold uppercase tracking-widest text-text opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
@@ -6465,6 +6469,7 @@ export default function App() {
             isFabOpen ? "bg-bg text-text border-border" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50",
             isAuditMode && !isFabOpen && "shadow-[0_0_40px_rgba(6,182,212,0.6)] border-cyan-400 ring-2 ring-cyan-400/20"
           )}
+          aria-label={isFabOpen ? "Close menu" : "Open menu"}
         >
           <AnimatePresence mode="wait">
             {isFabOpen ? (
