@@ -1,0 +1,3 @@
+## 2025-05-15 - [Global Accessibility & Focus States]
+**Learning:** Found a recurring pattern where global icon-only controls (Settings, Notifications, Theme Toggle, FAB) lacked semantic `button` tags, `aria-label` attributes, and clear `focus-visible` indicators. This made keyboard navigation difficult as there was no visual feedback on which element was focused.
+**Action:** Always ensure icon-only buttons use semantic `button` tags with `type="button"`, provide explicit `aria-label` even if `title` exists, and implement theme-consistent `focus-visible` ring styles for better interactive feedback.
