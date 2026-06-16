@@ -1,0 +1,3 @@
+## 2025-05-22 - [Accessibility & Feedback Consolidation]
+**Learning:** Browser-native `alert()` calls disrupt the immersive "fleet terminal" UX and aren't styled. Replacing them with the internal `setNotification` system creates a more cohesive experience. Additionally, icon-only buttons like the theme toggle must be semantic `button` elements with `aria-label` even if they have a `title`, and should include `focus-visible` ring styles for keyboard navigation.
+**Action:** Always favor non-blocking, theme-aware notifications over `alert()` and ensure all interactive controls use correct semantic HTML and ARIA attributes.
