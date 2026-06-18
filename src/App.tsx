@@ -3397,10 +3397,14 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.button
+                  type="button"
+                  aria-label="Switch theme"
                   className={cn(
-                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
-                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer focus-visible:ring-2 outline-none transition-all",
+                    theme === 'pro'
+                      ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] focus-visible:ring-indigo-500"
+                      : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)] focus-visible:ring-purple-500"
                   )}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.95 }}
@@ -3438,7 +3442,7 @@ export default function App() {
 
                     <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
                   </div>
-                </motion.div>
+                </motion.button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={cn(
@@ -3463,20 +3467,25 @@ export default function App() {
                 initial={{ opacity: 0, y: -20, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                role="status"
+                aria-live="polite"
                 className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
-                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
-                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
-                  "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                  "fixed top-6 right-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-[150] min-w-[300px]",
+                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-200" :
+                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-200" :
+                  notification.type === 'error' ? "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-200" :
+                  "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-200"
                 )}
               >
                 {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
                  notification.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : 
+                 notification.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
                  <AlertTriangle className="w-4 h-4" />}
                 <span className="text-xs font-display font-bold uppercase tracking-widest">{notification.message}</span>
                 <button 
                   onClick={() => setNotification(null)}
                   className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                  aria-label="Close notification"
                 >
                   <X className="w-3 h-3" />
                 </button>
