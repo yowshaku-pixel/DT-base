@@ -3389,6 +3389,7 @@ export default function App() {
               onClick={() => setShowSettingsModal(true)}
               className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet flex items-center justify-center cursor-pointer"
               title="Open Settings"
+              aria-label="Open Settings"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -3397,10 +3398,12 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.button
+                  type="button"
+                  aria-label="Switch theme"
                   className={cn(
-                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
-                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer outline-none focus-visible:ring-2",
+                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] focus-visible:ring-indigo-500" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)] focus-visible:ring-purple-500"
                   )}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.95 }}
@@ -3438,7 +3441,7 @@ export default function App() {
 
                     <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
                   </div>
-                </motion.div>
+                </motion.button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={cn(
@@ -3463,11 +3466,13 @@ export default function App() {
                 initial={{ opacity: 0, y: -20, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                role="status"
+                aria-live="polite"
                 className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
-                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
-                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
-                  "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                  "fixed top-6 right-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-[150]",
+                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-200" :
+                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-200" :
+                  "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-200"
                 )}
               >
                 {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
@@ -3477,6 +3482,7 @@ export default function App() {
                 <button 
                   onClick={() => setNotification(null)}
                   className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                  aria-label="Dismiss notification"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -3541,6 +3547,7 @@ export default function App() {
                     onClick={() => setShowNotificationsPanel(true)}
                     className="p-2.5 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text relative flex items-center justify-center cursor-pointer hover:neon-glow-violet h-[38px] w-[38px] shrink-0"
                     title="Open Notifications Center"
+                    aria-label="Open Notifications Center"
                   >
                     <Bell className="w-4 h-4" />
                     {unreadNotificationsCount > 0 && (
@@ -6297,6 +6304,7 @@ export default function App() {
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             className="fixed bottom-24 md:bottom-8 right-6 z-40 p-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl shadow-xl shadow-purple-900/40 border border-purple-400/30 transition-all active:scale-95 group"
             title="Scroll to top"
+            aria-label="Scroll to top"
           >
             <ChevronUp className="w-6 h-6 group-hover:-translate-y-0.5 transition-transform" />
             <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-bg border border-border px-2 py-1 rounded text-[8px] font-display font-bold uppercase tracking-widest text-text opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
