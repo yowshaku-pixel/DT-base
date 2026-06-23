@@ -3241,7 +3241,7 @@ export default function App() {
                 <button
                   onClick={() => {
                     if (!customGeminiKey.trim()) {
-                      alert("Please paste a valid Gemini API Key first.");
+                      setNotification({ message: "Please paste a valid Gemini API Key first.", type: 'warning' });
                       return;
                     }
 
@@ -3397,10 +3397,12 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.button
+                  type="button"
+                  aria-label="Switch theme"
                   className={cn(
-                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
-                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer focus-visible:ring-2 outline-none",
+                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] ring-indigo-500" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)] ring-purple-500"
                   )}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.95 }}
@@ -3438,7 +3440,7 @@ export default function App() {
 
                     <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
                   </div>
-                </motion.div>
+                </motion.button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={cn(
@@ -3460,23 +3462,28 @@ export default function App() {
           <AnimatePresence>
             {notification && (
               <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                role="status"
+                aria-live="polite"
                 className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
-                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
-                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
-                  "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                  "fixed top-6 right-6 z-[150] p-4 rounded-2xl border flex items-center gap-3 shadow-2xl min-w-[300px]",
+                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-200" :
+                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-200" :
+                  notification.type === 'error' ? "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-200" :
+                  "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-200"
                 )}
               >
                 {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
                  notification.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : 
+                 notification.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
                  <AlertTriangle className="w-4 h-4" />}
-                <span className="text-xs font-display font-bold uppercase tracking-widest">{notification.message}</span>
+                <span className="text-xs font-display font-bold uppercase tracking-widest flex-1">{notification.message}</span>
                 <button 
                   onClick={() => setNotification(null)}
-                  className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                  className="p-1 hover:bg-white/10 rounded-full transition-colors shrink-0"
+                  aria-label="Dismiss notification"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -4797,7 +4804,7 @@ export default function App() {
                       navigator.share({ title: 'DT.Base Record', text });
                     } else {
                       navigator.clipboard.writeText(text);
-                      alert("Copied to clipboard!");
+                      setNotification({ message: "Copied to clipboard!", type: 'success' });
                     }
                   }}
                   className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-cyan-500 to-violet-600 text-white hover:from-cyan-400 hover:to-violet-500 transition-all active:scale-95 rounded-full shadow-[0_0_20px_rgba(0,245,255,0.3)]"
@@ -5033,7 +5040,7 @@ export default function App() {
                     navigator.share({ title: 'DT.Base Summary Report', text: fullText });
                   } else {
                     navigator.clipboard.writeText(fullText);
-                    alert("Report copied to clipboard!");
+                    setNotification({ message: "Report copied to clipboard!", type: 'success' });
                   }
                 }}
                 className="flex items-center gap-2 px-6 py-3 bg-text text-bg hover:opacity-90 transition-all active:scale-95 rounded-xl font-display font-black uppercase tracking-widest text-[10px]"
