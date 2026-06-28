@@ -3387,7 +3387,8 @@ export default function App() {
           {viewMode === 'log' && (
             <button 
               onClick={() => setShowSettingsModal(true)}
-              className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet flex items-center justify-center cursor-pointer"
+              className="p-2 bg-surface border border-border hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet flex items-center justify-center cursor-pointer"
+              aria-label="Open Settings"
               title="Open Settings"
             >
               <Settings className="w-4 h-4" />
@@ -3397,14 +3398,16 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.button
+                  type="button"
                   className={cn(
-                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
-                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer focus-visible:ring-2 outline-none transition-all",
+                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] focus-visible:ring-indigo-500" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)] focus-visible:ring-purple-500"
                   )}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={toggleTheme}
+                  aria-label="Switch theme"
                   title={`Switch Theme (Current: ${theme})`}
                 >
                   <motion.div 
@@ -3438,7 +3441,7 @@ export default function App() {
 
                     <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
                   </div>
-                </motion.div>
+                </motion.button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={cn(
@@ -3460,23 +3463,28 @@ export default function App() {
           <AnimatePresence>
             {notification && (
               <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                role="status"
+                aria-live="polite"
                 className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
-                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
-                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
-                  "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                  "fixed top-6 right-6 p-4 rounded-2xl border flex items-center gap-3 shadow-2xl z-[150] min-w-[300px]",
+                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-200" :
+                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-200" :
+                  notification.type === 'error' ? "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-200" :
+                  "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-200"
                 )}
               >
                 {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
                  notification.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : 
+                 notification.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
                  <AlertTriangle className="w-4 h-4" />}
                 <span className="text-xs font-display font-bold uppercase tracking-widest">{notification.message}</span>
                 <button 
                   onClick={() => setNotification(null)}
-                  className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                  aria-label="Dismiss notification"
+                  className="ml-auto p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -3539,7 +3547,8 @@ export default function App() {
                 {(viewMode === 'log' || viewMode === 'advanced-search') && (
                   <button 
                     onClick={() => setShowNotificationsPanel(true)}
-                    className="p-2.5 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text relative flex items-center justify-center cursor-pointer hover:neon-glow-violet h-[38px] w-[38px] shrink-0"
+                    className="p-2.5 bg-surface border border-border hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-purple-500 outline-none transition-all rounded-full text-muted hover:text-text relative flex items-center justify-center cursor-pointer hover:neon-glow-violet h-[38px] w-[38px] shrink-0"
+                    aria-label="Open Notifications Center"
                     title="Open Notifications Center"
                   >
                     <Bell className="w-4 h-4" />
@@ -6460,8 +6469,9 @@ export default function App() {
               setIsFabOpen(!isFabOpen);
             }
           }}
+          aria-label={isFabOpen ? "Close menu" : "Open menu"}
           className={cn(
-            "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.4)] transition-all border relative overflow-hidden group",
+            "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.4)] focus-visible:ring-2 focus-visible:ring-cyan-400 outline-none transition-all border relative overflow-hidden group",
             isFabOpen ? "bg-bg text-text border-border" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50",
             isAuditMode && !isFabOpen && "shadow-[0_0_40px_rgba(6,182,212,0.6)] border-cyan-400 ring-2 ring-cyan-400/20"
           )}
