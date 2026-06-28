@@ -200,8 +200,9 @@ export default function AIChatAssistant({
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? "Close AI Chat" : "Open AI Chat"}
         className={cn(
-          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
+          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] focus-visible:ring-2 focus-visible:ring-violet-500 outline-none transition-all border",
           isOpen 
             ? "bg-bg text-text border-border" 
             : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
