@@ -3456,33 +3456,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Notifications */}
-          <AnimatePresence>
-            {notification && (
-              <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
-                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
-                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
-                  "bg-amber-500/10 border-amber-500/30 text-amber-200"
-                )}
-              >
-                {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
-                 notification.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : 
-                 <AlertTriangle className="w-4 h-4" />}
-                <span className="text-xs font-display font-bold uppercase tracking-widest">{notification.message}</span>
-                <button 
-                  onClick={() => setNotification(null)}
-                  className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
           
           <div className="flex flex-wrap items-center gap-2">
             {/* View Switcher Tabs */}
@@ -6592,6 +6565,43 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+      </div>
+
+      {/* Global Notifications Toast */}
+      <div className="fixed top-6 right-6 z-[150] flex flex-col gap-3 pointer-events-none w-full max-w-sm">
+        <AnimatePresence>
+          {notification && (
+            <motion.div
+              initial={{ opacity: 0, x: 20, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.95 }}
+              role="status"
+              aria-live="polite"
+              className={cn(
+                "p-4 rounded-2xl border flex items-center gap-3 shadow-2xl pointer-events-auto backdrop-blur-md",
+                notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-200" :
+                notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-200" :
+                notification.type === 'error' ? "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-200" :
+                "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-200"
+              )}
+            >
+              <div className="flex-shrink-0">
+                {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                 notification.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> :
+                 notification.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
+                 <AlertTriangle className="w-4 h-4" />}
+              </div>
+              <span className="text-xs font-display font-bold uppercase tracking-widest leading-tight">{notification.message}</span>
+              <button
+                onClick={() => setNotification(null)}
+                className="ml-auto p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0"
+                aria-label="Dismiss notification"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
