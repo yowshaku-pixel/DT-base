@@ -201,11 +201,12 @@ export default function AIChatAssistant({
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
+          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
           isOpen 
             ? "bg-bg text-text border-border" 
             : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
         )}
+        aria-label={isOpen ? "Close AI Chat" : "Open AI Chat"}
       >
         {isOpen ? <X className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
       </motion.button>
@@ -233,8 +234,9 @@ export default function AIChatAssistant({
               <div className="flex items-center gap-1">
                 <button 
                   onClick={clearChat}
-                  className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500"
+                  className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500 outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                   title="Clear Chat"
+                  aria-label="Clear Chat"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -375,7 +377,8 @@ export default function AIChatAssistant({
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading || isLocked}
-                  className="mb-1 p-2.5 bg-gradient-to-br from-violet-600 to-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-violet-500 hover:to-cyan-400 transition-all shadow-[0_0_15px_rgba(0,245,255,0.3)] shrink-0"
+                  className="mb-1 p-2.5 bg-gradient-to-br from-violet-600 to-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-violet-500 hover:to-cyan-400 transition-all shadow-[0_0_15px_rgba(0,245,255,0.3)] shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
+                  aria-label="Send message"
                 >
                   <Send className="w-4 h-4" />
                 </button>
