@@ -199,12 +199,14 @@ export default function AIChatAssistant({
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
+        aria-label={isOpen ? "Close AI Chat" : "Open AI Chat"}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
+          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border focus-visible:ring-2 outline-none",
           isOpen 
             ? "bg-bg text-text border-border" 
-            : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
+            : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50",
+          theme === 'pro' ? "focus-visible:ring-indigo-500" : "focus-visible:ring-purple-500"
         )}
       >
         {isOpen ? <X className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
