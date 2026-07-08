@@ -1,0 +1,3 @@
+## 2025-05-15 - [Accessibility & Notification Refinement]
+**Learning:** Fixed position notifications with `pointer-events-none` on the container and `pointer-events-auto` on the toast provide a non-blocking yet interactive UI. Accessibility is significantly improved by using semantic ARIA roles (`role="status"`, `aria-live="polite"`) and ensuring icon-only buttons have descriptive `aria-label` and `focus-visible` states.
+**Action:** Always wrap fixed notification containers in `pointer-events-none` and apply `pointer-events-auto` to the toasts. Use `focus-visible` for consistent keyboard navigation feedback.
