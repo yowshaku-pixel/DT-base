@@ -167,8 +167,10 @@ const PlateFolder = React.memo(({
     <div className="glassmorphism rounded-3xl overflow-hidden transition-all hover:bg-surface/10 neon-border-violet/30">
       <button 
         onClick={() => onToggle(plate)}
-        className="w-full flex items-center justify-between p-3.5 px-5 text-text transition-all"
+        className="w-full flex items-center justify-between p-3.5 px-5 text-text transition-all focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
         title={`Click to ${isExpanded ? 'collapse' : 'expand'} records for ${plate}`}
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} records for ${plate}`}
+        aria-expanded={isExpanded}
       >
         <div className="flex items-center gap-4">
           <div className={cn(
@@ -228,26 +230,29 @@ const PlateFolder = React.memo(({
                     <button 
                       onClick={() => onToggleVerify(record)}
                       className={cn(
-                        "p-2 border transition-all rounded-full flex items-center justify-center",
+                        "p-2 border transition-all rounded-full flex items-center justify-center focus-visible:ring-2 focus-visible:ring-cyan-500 outline-none",
                         record.verified 
                           ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 shadow-[0_0_10px_rgba(0,245,255,0.2)]" 
                           : "bg-surface border border-border text-muted hover:text-text hover:bg-bg/20"
                       )}
                       title={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
+                      aria-label={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
                     >
                       <CheckCircle2 className={cn("w-3 h-3", record.verified && "animate-pulse")} />
                     </button>
                     <button 
                       onClick={() => onEdit(record)}
-                      className="p-2 bg-surface border border-border text-muted hover:text-text hover:bg-bg/20 transition-all rounded-full"
+                      className="p-2 bg-surface border border-border text-muted hover:text-text hover:bg-bg/20 transition-all rounded-full focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
                       title="Edit this record"
+                      aria-label="Edit this record"
                     >
                       <Settings className="w-3 h-3" />
                     </button>
                     <button 
                       onClick={() => onViewImage(record)}
-                      className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full"
+                      className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
                       title="View the original image for this record"
+                      aria-label="View the original image for this record"
                     >
                       View
                     </button>
@@ -3389,6 +3394,7 @@ export default function App() {
               onClick={() => setShowSettingsModal(true)}
               className="p-2 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text hover:neon-glow-violet flex items-center justify-center cursor-pointer"
               title="Open Settings"
+              aria-label="Open Settings"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -3397,15 +3403,17 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.button
+                  type="button"
                   className={cn(
-                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
-                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer focus-visible:ring-2 outline-none",
+                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] focus-visible:ring-indigo-500" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)] focus-visible:ring-purple-500"
                   )}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={toggleTheme}
                   title={`Switch Theme (Current: ${theme})`}
+                  aria-label="Switch theme"
                 >
                   <motion.div 
                     className="absolute inset-0 opacity-10 bg-gradient-to-tr from-purple-500 to-indigo-500"
@@ -3438,7 +3446,7 @@ export default function App() {
 
                     <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
                   </div>
-                </motion.div>
+                </motion.button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={cn(
@@ -3464,10 +3472,10 @@ export default function App() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
                 className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
-                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
-                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
-                  "bg-amber-500/10 border-amber-500/30 text-amber-200"
+                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-[150]",
+                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-200" :
+                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-200" :
+                  "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-200"
                 )}
               >
                 {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
@@ -3477,6 +3485,7 @@ export default function App() {
                 <button 
                   onClick={() => setNotification(null)}
                   className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                  aria-label="Dismiss notification"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -3541,6 +3550,7 @@ export default function App() {
                     onClick={() => setShowNotificationsPanel(true)}
                     className="p-2.5 bg-surface border border-border hover:bg-white/10 transition-all rounded-full text-muted hover:text-text relative flex items-center justify-center cursor-pointer hover:neon-glow-violet h-[38px] w-[38px] shrink-0"
                     title="Open Notifications Center"
+                    aria-label="Open Notifications Center"
                   >
                     <Bell className="w-4 h-4" />
                     {unreadNotificationsCount > 0 && (
@@ -6460,6 +6470,7 @@ export default function App() {
               setIsFabOpen(!isFabOpen);
             }
           }}
+          aria-label={isFabOpen ? "Close menu" : "Open menu"}
           className={cn(
             "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.4)] transition-all border relative overflow-hidden group",
             isFabOpen ? "bg-bg text-text border-border" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50",
