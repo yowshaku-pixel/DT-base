@@ -1,0 +1,3 @@
+## 2025-05-15 - Notification System Overhaul
+**Learning:** For non-blocking interactive overlays like toast notifications, using a `fixed pointer-events-none` container with `pointer-events-auto` on the children ensures the notifications appear on top of other elements (via high z-index) without blocking interactions with the underlying UI. Additionally, theme-aware text colors (e.g., `text-green-700 dark:text-green-200`) are essential for maintaining accessibility across light and dark themes.
+**Action:** Always wrap non-blocking overlays in a transparent, click-through container and use semantic, theme-sensitive coloring for better contrast.

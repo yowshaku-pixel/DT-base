@@ -1128,7 +1128,7 @@ export default function App() {
     setFeedNotifications(prev => [newNotif, ...prev]);
     setNotification({
       message: `${severity === 'critical' ? '🔴' : severity === 'warning' ? '🟠' : 'ℹ️'} ${title}`,
-      type: severity === 'critical' || severity === 'warning' ? 'warning' : 'success'
+      type: severity === 'critical' ? 'error' : severity === 'warning' ? 'warning' : 'success'
     });
   }, [setNotification]);
   const [isAuditMode, setIsAuditMode] = useState(false); // Used as "Confirm Duplicates Mode" (Dry Run Verify Mode)
@@ -3457,32 +3457,39 @@ export default function App() {
           </div>
 
           {/* Notifications */}
-          <AnimatePresence>
-            {notification && (
-              <motion.div
-                initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                className={cn(
-                  "mt-6 p-4 rounded-2xl border flex items-center gap-3 shadow-xl z-50",
-                  notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-200" :
-                  notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-200" :
-                  "bg-amber-500/10 border-amber-500/30 text-amber-200"
-                )}
-              >
+          <div className="fixed top-6 right-6 z-[200] pointer-events-none">
+            <AnimatePresence>
+              {notification && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  role="status"
+                  aria-live="polite"
+                  className={cn(
+                    "p-4 rounded-2xl border flex items-center gap-3 shadow-xl pointer-events-auto",
+                    notification.type === 'info' ? "bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-200" :
+                    notification.type === 'success' ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-200" :
+                    notification.type === 'error' ? "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-200" :
+                    "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-200"
+                  )}
+                >
                 {notification.type === 'info' ? <Loader2 className="w-4 h-4 animate-spin" /> : 
                  notification.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : 
+                 notification.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
                  <AlertTriangle className="w-4 h-4" />}
-                <span className="text-xs font-display font-bold uppercase tracking-widest">{notification.message}</span>
-                <button 
-                  onClick={() => setNotification(null)}
-                  className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  <span className="text-xs font-display font-bold uppercase tracking-widest">{notification.message}</span>
+                  <button
+                    onClick={() => setNotification(null)}
+                    className="ml-auto p-1 hover:bg-white/10 rounded-full transition-colors"
+                    aria-label="Dismiss notification"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           
           <div className="flex flex-wrap items-center gap-2">
             {/* View Switcher Tabs */}
