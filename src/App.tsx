@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, Sun, Moon, Wrench, Receipt, Globe, Sparkles, Briefcase, Bell, HelpCircle } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, Sun, Moon, Wrench, Receipt, Globe, Sparkles, Briefcase, Bell, HelpCircle, Calculator } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -30,6 +30,7 @@ import LandingPage from './components/LandingPage';
 import { SupabaseSetup } from './components/SupabaseSetup';
 import { FleetToolsMenu } from './components/FleetToolsMenu';
 import { AdvancedSettingsMenu } from './components/AdvancedSettingsMenu';
+import QuotationGenerator from './components/QuotationGenerator';
 
 interface UploadLogEntry {
   fileName: string;
@@ -730,9 +731,21 @@ export default function App() {
   const MASTER_PASSWORD = import.meta.env.VITE_SERVICE_PASSWORD || 'adminjo';
   const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
 
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      return {
+        id: 'mock-user-id',
+        email: 'operator@dtbase.com',
+        user_metadata: {
+          fleet_registry: ["UAY 469L", "KCL 054", "KCY 901B", "KCZ 945Y", "KDS 849R", "UBA 824F", "AXOR MP3", "ACTROS MP4"]
+        }
+      } as any;
+    }
+    return null;
+  });
   const [viewMode, setViewMode] = useState<'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' | 'advanced-search'>('log');
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showQuotation, setShowQuotation] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1439,6 +1452,10 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      setIsAuthReady(true);
+      return;
+    }
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -6255,6 +6272,11 @@ export default function App() {
         />
       )}
 
+      {/* Quotation Generator Modal */}
+      {showQuotation && (
+        <QuotationGenerator onClose={() => setShowQuotation(false)} />
+      )}
+
       {/* Manual Entry Modal */}
       {manualEntryData && (
         <ManualEntryModal 
@@ -6333,11 +6355,29 @@ export default function App() {
                   });
                   setIsFabOpen(false);
                 }}
-                className="flex items-center gap-3 px-4 py-3 bg-bg/90 text-text rounded-2xl shadow-xl border border-border transition-all group"
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 text-text rounded-2xl shadow-xl border border-border transition-all group focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+                aria-label="Create Manual Entry"
               >
                 <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-violet-500 dark:group-hover:text-violet-400 transition-colors">Manual Entry</span>
                 <div className="p-2 bg-violet-500/20 rounded-xl border border-violet-500/30">
                   <Plus className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                </div>
+              </motion.button>
+
+              {/* Quotation Builder Solution */}
+              <motion.button
+                whileHover={{ scale: 1.05, x: -5 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setShowQuotation(true);
+                  setIsFabOpen(false);
+                }}
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 text-text rounded-2xl shadow-xl border border-border transition-all group focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+                aria-label="Open Quotation Builder"
+              >
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-purple-500 dark:group-hover:text-purple-400 transition-colors">Quotation Builder</span>
+                <div className="p-2 bg-purple-500/20 rounded-xl border border-purple-500/30">
+                  <Calculator className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 </div>
               </motion.button>
 

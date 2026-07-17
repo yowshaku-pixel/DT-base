@@ -76,7 +76,11 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
               </div>
               <h2 className="font-display font-bold text-xl text-text uppercase tracking-wider">Quotation Builder</h2>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-surface rounded-full transition-colors text-muted hover:text-text">
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-surface rounded-full transition-colors text-muted hover:text-text focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+              aria-label="Close Quotation Builder"
+            >
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -166,7 +170,8 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
                       </span>
                       <button 
                         onClick={() => removeItem(item.id)}
-                        className="p-1 text-white/20 hover:text-red-400 transition-colors md:opacity-0 group-hover:opacity-100"
+                        className="p-1 text-white/20 hover:text-red-400 transition-colors md:opacity-0 group-hover:opacity-100 focus-visible:ring-2 focus-visible:ring-red-500 outline-none"
+                        aria-label="Delete line item"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
