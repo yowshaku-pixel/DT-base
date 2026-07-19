@@ -1,0 +1,3 @@
+## 2025-02-23 - AI Chat Keyboard Accessibility and Focus Optimization
+**Learning:** Interactive elements such as floating action widgets or side panels need dynamic, theme-aware keyboard focus indicators (e.g., using `ring-purple-500` or `ring-indigo-500` based on the selected theme) and global Escape key listeners to be fully keyboard accessible. Moreover, automatically focusing inputs inside a dynamic drawer/modal with a slight timeout prevents the user from needing extra clicks to start typing.
+**Action:** Always provide theme-dependent `focus-visible:ring-2` styles, bind a global `Escape` keydown handler when drawer/chat overlays are active, and auto-focus the principal interactive text inputs inside overlays using a 100ms `setTimeout` to match CSS transitions.
