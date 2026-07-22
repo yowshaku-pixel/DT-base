@@ -30,6 +30,7 @@ import LandingPage from './components/LandingPage';
 import { SupabaseSetup } from './components/SupabaseSetup';
 import { FleetToolsMenu } from './components/FleetToolsMenu';
 import { AdvancedSettingsMenu } from './components/AdvancedSettingsMenu';
+import QuotationGenerator from './components/QuotationGenerator';
 
 interface UploadLogEntry {
   fileName: string;
@@ -918,6 +919,7 @@ export default function App() {
   };
 
   const [isFabOpen, setIsFabOpen] = useState(false);
+  const [showQuotation, setShowQuotation] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark' | 'black' | 'pro'>(() => {
     const saved = localStorage.getItem('dtbase_theme');
     if (saved === 'professional') return 'pro';
@@ -6264,6 +6266,13 @@ export default function App() {
           isProcessing={isProcessing}
         />
       )}
+
+      {/* Quotation Builder Modal */}
+      {showQuotation && (
+        <QuotationGenerator
+          onClose={() => setShowQuotation(false)}
+        />
+      )}
       
       {/* AI Chat Assistant */}
       {user && records.length > 0 && (
@@ -6338,6 +6347,23 @@ export default function App() {
                 <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-violet-500 dark:group-hover:text-violet-400 transition-colors">Manual Entry</span>
                 <div className="p-2 bg-violet-500/20 rounded-xl border border-violet-500/30">
                   <Plus className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                </div>
+              </motion.button>
+
+              {/* Quotation Builder */}
+              <motion.button
+                whileHover={{ scale: 1.05, x: -5 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setShowQuotation(true);
+                  setIsFabOpen(false);
+                }}
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 text-text rounded-2xl shadow-xl border border-border transition-all group"
+                aria-label="Open Quotation Builder"
+              >
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-purple-500 dark:group-hover:text-purple-400 transition-colors">Quotation Builder</span>
+                <div className="p-2 bg-purple-500/20 rounded-xl border border-purple-500/30">
+                  <Receipt className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 </div>
               </motion.button>
 
