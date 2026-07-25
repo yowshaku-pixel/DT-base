@@ -1439,6 +1439,27 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      setUser({
+        id: 'mock-user-id',
+        email: 'mock@example.com',
+        user_metadata: {
+          fleet_registry: DEFAULT_REGISTRY
+        }
+      } as any);
+      setIsAuthReady(true);
+      setRecords([
+        {
+          id: 'mock-record-1',
+          plate_number: 'TRK-001',
+          service_date: new Date().toISOString(),
+          service_description: 'Oil Change',
+          verified: true
+        }
+      ]);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
