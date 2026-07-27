@@ -50,6 +50,7 @@ export default function AIChatAssistant({
   const [isShortMode, setIsShortMode] = useState(true);
   const [errorType, setErrorType] = useState<'quota' | 'rate' | 'other' | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const stopRef = useRef(false);
 
   const scrollToBottom = () => {
@@ -59,6 +60,26 @@ export default function AIChatAssistant({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    if (isOpen && !isLocked) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isLocked]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -200,11 +221,13 @@ export default function AIChatAssistant({
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? "Close AI Chat" : "Open AI Chat"}
         className={cn(
-          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
+          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border focus-visible:ring-2 focus-visible:ring-offset-2 outline-none",
           isOpen 
             ? "bg-bg text-text border-border" 
-            : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
+            : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50",
+          theme === 'pro' ? 'focus-visible:ring-indigo-500' : 'focus-visible:ring-purple-500'
         )}
       >
         {isOpen ? <X className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
@@ -233,8 +256,12 @@ export default function AIChatAssistant({
               <div className="flex items-center gap-1">
                 <button 
                   onClick={clearChat}
-                  className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500"
+                  className={cn(
+                    "p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500 focus-visible:ring-2 focus-visible:ring-offset-2 outline-none",
+                    theme === 'pro' ? 'focus-visible:ring-indigo-500' : 'focus-visible:ring-purple-500'
+                  )}
                   title="Clear Chat"
+                  aria-label="Clear Chat"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -255,10 +282,11 @@ export default function AIChatAssistant({
               <button 
                 onClick={() => setIsShortMode(!isShortMode)}
                 className={cn(
-                  "px-3 py-1 rounded-full text-[8px] font-display font-bold uppercase tracking-widest transition-all border",
+                  "px-3 py-1 rounded-full text-[8px] font-display font-bold uppercase tracking-widest transition-all border focus-visible:ring-2 focus-visible:ring-offset-2 outline-none",
                   isShortMode 
                     ? "bg-blue-500/10 border-blue-500/30 text-blue-400" 
-                    : "bg-purple-500/10 border-purple-500/30 text-purple-400"
+                    : "bg-purple-500/10 border-purple-500/30 text-purple-400",
+                  theme === 'pro' ? 'focus-visible:ring-indigo-500' : 'focus-visible:ring-purple-500'
                 )}
               >
                 Switch to {isShortMode ? "Detailed" : "Concise"}
@@ -355,6 +383,7 @@ export default function AIChatAssistant({
             <form onSubmit={handleSend} className="p-4 border-t border-border bg-surface/50">
               <div className="relative flex items-end gap-2">
                 <textarea
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -368,14 +397,19 @@ export default function AIChatAssistant({
                   rows={Math.min(5, input.split('\n').length || 1)}
                   disabled={isLocked}
                   className={cn(
-                    "w-full bg-bg/40 border neon-border-violet rounded-xl py-3 pl-4 pr-12 text-sm text-text placeholder:text-muted/40 focus:outline-none transition-all resize-none min-h-[44px] max-h-[200px]",
-                    isLocked && "opacity-50 cursor-not-allowed"
+                    "w-full bg-bg/40 border neon-border-violet rounded-xl py-3 pl-4 pr-12 text-sm text-text placeholder:text-muted/40 focus:outline-none transition-all resize-none min-h-[44px] max-h-[200px] focus-visible:ring-2 focus-visible:ring-offset-2",
+                    isLocked && "opacity-50 cursor-not-allowed",
+                    theme === 'pro' ? 'focus-visible:ring-indigo-500' : 'focus-visible:ring-purple-500'
                   )}
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading || isLocked}
-                  className="mb-1 p-2.5 bg-gradient-to-br from-violet-600 to-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-violet-500 hover:to-cyan-400 transition-all shadow-[0_0_15px_rgba(0,245,255,0.3)] shrink-0"
+                  aria-label="Send Message"
+                  className={cn(
+                    "mb-1 p-2.5 bg-gradient-to-br from-violet-600 to-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-violet-500 hover:to-cyan-400 transition-all shadow-[0_0_15px_rgba(0,245,255,0.3)] shrink-0 focus-visible:ring-2 focus-visible:ring-offset-2 outline-none",
+                    theme === 'pro' ? 'focus-visible:ring-indigo-500' : 'focus-visible:ring-purple-500'
+                  )}
                 >
                   <Send className="w-4 h-4" />
                 </button>

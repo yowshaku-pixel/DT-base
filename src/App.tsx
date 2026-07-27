@@ -1439,6 +1439,35 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      const mockUser = {
+        id: 'mock-user-123',
+        email: 'operator@dtbase.com',
+        user_metadata: {
+          fleet_registry: DEFAULT_REGISTRY
+        }
+      } as any;
+      setUser(mockUser);
+      setIsAuthReady(true);
+      setIsCloudConnected(true);
+
+      const mockRecords: MaintenanceRecord[] = [
+        {
+          id: 'rec-1',
+          plate_number: 'KCL 054',
+          service_date: '2025-05-15',
+          service_description: 'Engine Oil Change and Filters Renewed',
+          confidence: 1.0,
+          user_id: 'mock-user-123',
+          file_name: 'invoice_102.jpg',
+          created_at: new Date().toISOString(),
+          verified: true
+        }
+      ];
+      setRecords(mockRecords);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -1467,6 +1496,13 @@ export default function App() {
   }, []);
 
   const logout = async () => {
+    if (localStorage.getItem('dtbase_mock_user') === 'true') {
+      localStorage.removeItem('dtbase_mock_user');
+      setUser(null);
+      setRecords([]);
+      setTotalCount(0);
+      return;
+    }
     if (!supabase) return;
     await supabase.auth.signOut();
     setRecords([]);
