@@ -395,7 +395,7 @@ const SearchFilters = React.memo(({
 
   return (
     <div className="relative group">
-      <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
+      <label htmlFor="plate-search" className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
       <div className="flex flex-col gap-2">
         <div className="relative">
           {isSearching ? (
@@ -404,6 +404,7 @@ const SearchFilters = React.memo(({
             <Search className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-60")} />
           )}
           <input 
+            id="plate-search"
             type="text"
             placeholder={!isServiceUnlocked && usageStats.searches >= 15 ? "Search limit reached..." : "Plate number..."}
             className={cn(
@@ -438,8 +439,10 @@ const SearchFilters = React.memo(({
         </div>
 
         <div className="relative">
+           <label htmlFor="desc-search" className="sr-only">Description keyword search</label>
            <Smartphone className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-40")} />
            <input 
+            id="desc-search"
             type="text"
             placeholder="Description keyword..."
             className={cn(
@@ -1439,6 +1442,21 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    const isMock = typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true';
+    if (isMock) {
+      setUser({
+        id: 'mock-uid-123',
+        email: 'operator@dtbase.org',
+        user_metadata: { fleet_registry: DEFAULT_REGISTRY },
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString()
+      } as any);
+      setIsCloudConnected(true);
+      setIsAuthReady(true);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -1475,7 +1493,21 @@ export default function App() {
   };
 
   const fetchRecords = useCallback(async () => {
-    if (!user || !supabase) return;
+    if (!user) return;
+    if (!supabase) {
+      const cached = localStorage.getItem(`records_${user.id}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setRecords(parsed);
+          setError(null);
+          return parsed;
+        } catch (e) {
+          console.error("Failed to parse cached records", e);
+        }
+      }
+      return [];
+    }
     setIsRefreshing(true);
     // Automatic retry helper
     async function fetchWithRetry<T>(fn: () => PromiseLike<T>, retries = 3): Promise<T> {
@@ -4401,7 +4433,7 @@ export default function App() {
             />
         
         <div className="relative group">
-          <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Find Maintenance</label>
+          <label htmlFor="primary-filter" className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Find Maintenance</label>
           <div className="flex flex-col gap-2">
             <div className="relative">
               {isFiltering ? (
@@ -4410,6 +4442,7 @@ export default function App() {
                 <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
               )}
               <input 
+                id="primary-filter"
                 type="text"
                 placeholder="Primary filter..."
                 className="w-full bg-black/40 border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
@@ -4428,8 +4461,10 @@ export default function App() {
               )}
             </div>
             <div className="relative">
+              <label htmlFor="secondary-filter" className="sr-only">Secondary filter</label>
               <ListFilter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
               <input 
+                id="secondary-filter"
                 type="text"
                 placeholder="Secondary filter..."
                 className="w-full bg-black/40 border neon-border-violet p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30"
@@ -4464,9 +4499,10 @@ export default function App() {
         </div>
 
         <div className="relative group">
-          <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Date Range</label>
+          <label htmlFor="start-date" className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Date Range</label>
           <div className="flex items-center gap-2">
             <input 
+              id="start-date"
               type="date"
               className="flex-1 bg-white/5 border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
               value={startDate}
@@ -4474,7 +4510,9 @@ export default function App() {
               title="Start date for filtering records"
             />
             <span className="text-white/20 text-[10px]">to</span>
+            <label htmlFor="end-date" className="sr-only">to End date</label>
             <input 
+              id="end-date"
               type="date"
               className="flex-1 bg-white/5 border border-white/10 p-2.5 rounded-xl font-display font-medium text-[10px] focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
               value={endDate}
