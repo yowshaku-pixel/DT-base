@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Download, X, FileText, Calculator, User, Truck, Calendar, Hash } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -16,6 +16,16 @@ interface QuotationGeneratorProps {
 }
 
 export default function QuotationGenerator({ onClose, initialPlate = '' }: QuotationGeneratorProps) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const [plateNumber, setPlateNumber] = useState(initialPlate);
   const [clientName, setClientName] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -76,59 +86,67 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
               </div>
               <h2 className="font-display font-bold text-xl text-text uppercase tracking-wider">Quotation Builder</h2>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-surface rounded-full transition-colors text-muted hover:text-text">
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-surface rounded-full transition-colors text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+              aria-label="Close Quotation Builder"
+            >
               <X className="w-6 h-6" />
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Truck Plate</label>
+              <label htmlFor="quote-truck-plate" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Truck Plate</label>
               <div className="relative">
                 <Truck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
+                  id="quote-truck-plate"
                   type="text" 
                   value={plateNumber}
                   onChange={(e) => setPlateNumber(e.target.value)}
                   placeholder="E.G. KCN 851 S"
-                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Client Name</label>
+              <label htmlFor="quote-client-name" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Client Name</label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
+                  id="quote-client-name"
                   type="text" 
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="Customer name..."
-                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Date</label>
+              <label htmlFor="quote-date" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Date</label>
               <div className="relative">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
+                  id="quote-date"
                   type="date" 
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Quote #</label>
+              <label htmlFor="quote-number" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Quote #</label>
               <div className="relative">
                 <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
+                  id="quote-number"
                   type="text" 
                   value={quoteNumber}
                   onChange={(e) => setQuoteNumber(e.target.value)}
-                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all"
                 />
               </div>
             </div>
@@ -140,13 +158,13 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
               <div className="flex gap-2">
                 <button 
                   onClick={() => addItem('part')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 >
                   <Plus className="w-3 h-3" /> Add Part
                 </button>
                 <button 
                   onClick={() => addItem('labor')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 >
                   <Plus className="w-3 h-3" /> Add Labor
                 </button>
@@ -166,36 +184,41 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
                       </span>
                       <button 
                         onClick={() => removeItem(item.id)}
-                        className="p-1 text-white/20 hover:text-red-400 transition-colors md:opacity-0 group-hover:opacity-100"
+                        className="p-1 text-white/20 hover:text-red-400 transition-colors md:opacity-0 group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+                        aria-label={`Remove ${item.type} item: ${item.description || 'Untitled'}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
+                    <label htmlFor={`quote-item-desc-${item.id}`} className="sr-only">Item Description</label>
                     <input 
+                      id={`quote-item-desc-${item.id}`}
                       type="text"
                       placeholder={item.type === 'part' ? "Spare part name..." : "Service description..."}
                       value={item.description}
                       onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                      className="w-full bg-transparent border-none p-0 text-sm text-white placeholder:text-white/10 focus:ring-0"
+                      className="w-full bg-transparent border-none p-0 text-sm text-white placeholder:text-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded px-1"
                     />
                   </div>
                   <div className="flex gap-3 items-end">
                     <div className="w-20 space-y-1">
-                      <label className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Qty</label>
+                      <label htmlFor={`quote-item-qty-${item.id}`} className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Qty</label>
                       <input 
+                        id={`quote-item-qty-${item.id}`}
                         type="number"
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
-                        className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-white text-center focus:outline-none focus:ring-1 focus:ring-purple-500/50"
+                        className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-white text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                       />
                     </div>
                     <div className="w-32 space-y-1">
-                      <label className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Unit Price</label>
+                      <label htmlFor={`quote-item-price-${item.id}`} className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Unit Price</label>
                       <input 
+                        id={`quote-item-price-${item.id}`}
                         type="number"
                         value={item.unitPrice}
                         onChange={(e) => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                        className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-white text-right focus:outline-none focus:ring-1 focus:ring-purple-500/50"
+                        className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-white text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                       />
                     </div>
                   </div>
@@ -285,7 +308,7 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
           <div className="mt-8 space-y-3">
             <button 
               onClick={handlePrint}
-              className="w-full py-4 bg-white text-zinc-900 font-display font-bold uppercase tracking-[0.2em] text-xs rounded-xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 shadow-xl"
+              className="w-full py-4 bg-white text-zinc-900 font-display font-bold uppercase tracking-[0.2em] text-xs rounded-xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
               <Download className="w-4 h-4" />
               Download / Print
