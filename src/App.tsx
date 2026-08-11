@@ -431,6 +431,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Search"
+              aria-label="Clear Search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -462,6 +463,7 @@ const SearchFilters = React.memo(({
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
               title="Clear Description Filter"
+              aria-label="Clear Description Filter"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -4422,6 +4424,7 @@ export default function App() {
                   onClick={() => setServiceFilter('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
                   title="Clear Filter"
+                  aria-label="Clear Filter"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -4442,6 +4445,7 @@ export default function App() {
                   onClick={() => setSecondaryServiceFilter('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
                   title="Clear Secondary Filter"
+                  aria-label="Clear Secondary Filter"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
