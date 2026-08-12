@@ -3397,15 +3397,19 @@ export default function App() {
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-                <motion.div 
+                <motion.button
+                  type="button"
                   className={cn(
-                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer",
-                    theme === 'pro' ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)]" : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                    "p-3.5 rounded-2xl border relative overflow-hidden flex items-center justify-center cursor-pointer outline-none focus-visible:ring-2",
+                    theme === 'pro'
+                      ? "bg-indigo-500/10 border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] focus-visible:ring-indigo-500"
+                      : "bg-purple-600/20 border-purple-500/35 shadow-[0_0_20px_rgba(168,85,247,0.2)] focus-visible:ring-purple-500"
                   )}
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={toggleTheme}
                   title={`Switch Theme (Current: ${theme})`}
+                  aria-label="Switch theme"
                 >
                   <motion.div 
                     className="absolute inset-0 opacity-10 bg-gradient-to-tr from-purple-500 to-indigo-500"
@@ -3438,7 +3442,7 @@ export default function App() {
 
                     <span className="absolute w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_8px_white] animate-pulse" />
                   </div>
-                </motion.div>
+                </motion.button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className={cn(
