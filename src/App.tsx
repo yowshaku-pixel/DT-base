@@ -731,6 +731,22 @@ export default function App() {
   const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || 'dtbase_access';
 
   const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      setUser({
+        id: 'mock-user-id',
+        email: 'operator@dtbase.com',
+        user_metadata: {
+          fleet_registry: ["UAY 469L", "KCL 054", "KCY 901B", "KCZ 945Y"]
+        },
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: ''
+      } as any);
+    }
+  }, []);
+
   const [viewMode, setViewMode] = useState<'log' | 'analytics' | 'audit' | 'battery' | 'marketplace' | 'advanced-search'>('log');
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -1439,6 +1455,10 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      setIsAuthReady(true);
+      return;
+    }
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
