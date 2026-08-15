@@ -74,7 +74,7 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Plate Number */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Plate Number</label>
+          <label htmlFor="adv-search-plate" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Plate Number</label>
           <div className="group relative">
             <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
             <div className="relative">
@@ -82,11 +82,12 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
                 <Hash className="w-3.5 h-3.5 text-white/20 group-focus-within:text-purple-400 transition-colors" />
               </div>
               <input
+                id="adv-search-plate"
                 type="text"
                 value={plateQuery}
                 onChange={(e) => setPlateQuery(e.target.value)}
                 placeholder="Enter plate..."
-                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-6 text-xs font-medium text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all uppercase tracking-wider backdrop-blur-md"
+                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-6 text-xs font-medium text-white placeholder:text-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus:border-purple-500/50 transition-all uppercase tracking-wider backdrop-blur-md"
               />
             </div>
           </div>
@@ -94,7 +95,7 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
 
         {/* Maintenance Keyword */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Maintenance Keyword</label>
+          <label htmlFor="adv-search-keyword" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Maintenance Keyword</label>
           <div className="group relative">
             <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
             <div className="relative">
@@ -102,11 +103,12 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
                 <Tag className="w-3.5 h-3.5 text-white/20 group-focus-within:text-purple-400 transition-colors" />
               </div>
               <input
+                id="adv-search-keyword"
                 type="text"
                 value={keywordQuery}
                 onChange={(e) => setKeywordQuery(e.target.value)}
                 placeholder="Service type..."
-                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-6 text-xs font-medium text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all uppercase tracking-wider backdrop-blur-md"
+                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-6 text-xs font-medium text-white placeholder:text-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus:border-purple-500/50 transition-all uppercase tracking-wider backdrop-blur-md"
               />
             </div>
           </div>
@@ -114,7 +116,7 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
 
         {/* Full Text Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Full Text Search</label>
+          <label htmlFor="adv-search-fulltext" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Full Text Search</label>
           <div className="group relative">
             <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
             <div className="relative">
@@ -122,11 +124,12 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
                 <AlignLeft className="w-3.5 h-3.5 text-white/20 group-focus-within:text-purple-400 transition-colors" />
               </div>
               <input
+                id="adv-search-fulltext"
                 type="text"
                 value={fullTextQuery}
                 onChange={(e) => setFullTextQuery(e.target.value)}
                 placeholder="Search anything..."
-                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-6 text-xs font-medium text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all uppercase tracking-wider backdrop-blur-md"
+                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-6 text-xs font-medium text-white placeholder:text-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus:border-purple-500/50 transition-all uppercase tracking-wider backdrop-blur-md"
               />
             </div>
           </div>
@@ -134,7 +137,7 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
 
         {/* Position or Side */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Position or Side</label>
+          <label htmlFor="adv-search-position" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Position or Side</label>
           <div className="group relative">
             <div className="absolute -inset-0.5 bg-purple-500/10 rounded-2xl blur-sm opacity-0 group-focus-within:opacity-100 transition-all" />
             <div className="relative">
@@ -142,11 +145,12 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
                 <Layers className="w-3.5 h-3.5 text-white/20 group-focus-within:text-purple-400 transition-colors" />
               </div>
               <input
+                id="adv-search-position"
                 type="text"
                 value={positionQuery}
                 onChange={(e) => setPositionQuery(e.target.value)}
                 placeholder="Left/Right/Front..."
-                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-6 text-xs font-medium text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all uppercase tracking-wider backdrop-blur-md"
+                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-11 pr-6 text-xs font-medium text-white placeholder:text-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus:border-purple-500/50 transition-all uppercase tracking-wider backdrop-blur-md"
               />
             </div>
           </div>
@@ -165,13 +169,14 @@ export function AdvancedSearch({ records }: AdvancedSearchProps) {
         </div>
         {(plateQuery || keywordQuery || fullTextQuery || positionQuery) && (
           <button 
+            type="button"
             onClick={() => {
               setPlateQuery('');
               setKeywordQuery('');
               setFullTextQuery('');
               setPositionQuery('');
             }}
-            className="text-[9px] font-display font-black text-white/20 uppercase tracking-[0.2em] hover:text-red-400 transition-colors"
+            className="text-[9px] font-display font-black text-white/20 uppercase tracking-[0.2em] hover:text-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded px-1 transition-colors"
           >
             Reset Filters
           </button>
