@@ -145,13 +145,15 @@ export const BatteryIntelligence: React.FC<BatteryIntelligenceProps> = ({ record
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Model Selector and Search */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="inline-flex p-1 bg-surface border border-border rounded-2xl">
+        <div className="inline-flex p-1 bg-surface border border-border rounded-2xl" role="group" aria-label="Vehicle model filter">
           {(['Axor MP3', 'Actros MP4'] as const).map((model) => (
             <button
               key={model}
+              type="button"
+              aria-pressed={activeModel === model}
               onClick={() => setActiveModel(model)}
               className={cn(
-                "px-6 py-2 rounded-xl text-xs font-display font-bold uppercase tracking-widest transition-all",
+                "px-6 py-2 rounded-xl text-xs font-display font-bold uppercase tracking-widest transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                 activeModel === model 
                   ? "bg-purple-600 text-white shadow-lg shadow-purple-900/20" 
                   : "text-muted hover:text-text"
@@ -163,14 +165,16 @@ export const BatteryIntelligence: React.FC<BatteryIntelligenceProps> = ({ record
         </div>
 
         <div className="relative w-full md:w-72">
+          <label htmlFor="battery-search-plate" className="sr-only">Search vehicle plate</label>
           <input
+            id="battery-search-plate"
             type="text"
             placeholder="Search plate..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-surface border neon-border-violet rounded-2xl px-10 py-2.5 text-xs font-mono focus:outline-none focus:bg-surface transition-all placeholder:text-muted/40"
+            className="w-full bg-surface border neon-border-violet rounded-2xl px-10 py-2.5 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus:bg-surface transition-all placeholder:text-muted/40"
           />
-          <Activity className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
+          <Activity className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" aria-hidden="true" />
         </div>
       </div>
 
