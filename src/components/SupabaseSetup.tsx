@@ -34,36 +34,38 @@ export const SupabaseSetup: React.FC<SupabaseSetupProps> = ({
         </p>
         <div className="space-y-3">
           <div className="space-y-1">
-            <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Supabase Project URL</label>
+            <label htmlFor="supabase-project-url" className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Supabase Project URL</label>
             <div className="relative">
               <input 
+                id="supabase-project-url"
                 type="text"
                 placeholder="https://your-project-id.supabase.co"
-                className="w-full bg-black/60 border border-white/10 p-3.5 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-cyan-500/30 text-cyan-200"
+                className="w-full bg-black/60 border border-white/10 p-3.5 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus-visible:ring-2 focus-visible:ring-cyan-500 text-cyan-200"
                 value={localSupabaseUrl}
                 onChange={(e) => {
                   const val = e.target.value.trim();
                   setLocalSupabaseUrl(val);
                 }}
               />
-              <Database className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2" />
+              <Database className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Supabase Anon Key</label>
+            <label htmlFor="supabase-anon-key" className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Supabase Anon Key</label>
             <div className="relative">
               <input 
+                id="supabase-anon-key"
                 type="password"
                 placeholder="PASTE ANON KEY..."
-                className="w-full bg-black/60 border border-white/10 p-3.5 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus:ring-1 focus:ring-cyan-500/30 text-cyan-200"
+                className="w-full bg-black/60 border border-white/10 p-3.5 pl-11 font-mono text-xs focus:outline-none focus:border-cyan-500/60 text-white rounded-2xl placeholder:text-white/10 transition-all select-all focus-visible:ring-2 focus-visible:ring-cyan-500 text-cyan-200"
                 value={localSupabaseAnonKey}
                 onChange={(e) => {
                   const val = e.target.value.trim();
                   setLocalSupabaseAnonKey(val);
                 }}
               />
-              <Key className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2" />
+              <Key className="w-4 h-4 text-cyan-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             </div>
           </div>
         </div>
@@ -98,9 +100,9 @@ export const SupabaseSetup: React.FC<SupabaseSetupProps> = ({
               }
             }, 1200);
           }}
-          className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-display font-bold uppercase tracking-widest text-[10px] rounded-xl transition-all shadow-lg shadow-cyan-900/20 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-display font-bold uppercase tracking-widest text-[10px] rounded-xl transition-all shadow-lg shadow-cyan-900/20 active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
         >
-          <Save className="w-3.5 h-3.5" />
+          <Save className="w-3.5 h-3.5" aria-hidden="true" />
           Save & Reload Application
         </button>
 
