@@ -137,13 +137,14 @@ export const AdvancedSettingsMenu: React.FC<AdvancedSettingsMenuProps> = ({
         {isServiceUnlocked ? (
           showFleetRegistryList ? (
             <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
-              <p className="text-[9px] text-white/40 uppercase tracking-widest leading-relaxed">
+              <label htmlFor="fleet-registry-input" className="block text-[9px] text-white/40 uppercase tracking-widest leading-relaxed cursor-pointer">
                 Enter your known truck plates (one per line). Records matching these will be grouped normally. Others go to "Needs Review".
-              </p>
+              </label>
               <textarea 
+                id="fleet-registry-input"
                 value={fleetRegistry.join('\n')}
                 onChange={(e) => setFleetRegistry(e.target.value.split('\n').map(p => p.toUpperCase()))}
-                className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-3 font-mono text-xs text-cyan-400 focus:outline-none focus:border-cyan-500/50 transition-all resize-none"
+                className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-3 font-mono text-xs text-cyan-400 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none transition-all resize-none"
                 placeholder="E.G.&#10;KCL 054&#10;KCY 901B&#10;UAY 469L..."
               />
               <div className="flex justify-between items-center text-[8px] font-mono text-white/20 uppercase tracking-[0.2em]">
@@ -193,15 +194,16 @@ export const AdvancedSettingsMenu: React.FC<AdvancedSettingsMenuProps> = ({
           </p>
           <div className="space-y-3">
             <div className="space-y-1">
-              <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Report Category</label>
-              <div className="grid grid-cols-4 gap-1">
+              <span id="report-category-label" className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Report Category</span>
+              <div className="grid grid-cols-4 gap-1" role="group" aria-labelledby="report-category-label">
                 {(['app', 'ocr', 'sync', 'other'] as const).map((cat) => (
                   <button
                     key={cat}
                     type="button"
                     onClick={() => setBugCategory(cat)}
+                    aria-pressed={bugCategory === cat}
                     className={cn(
-                      "py-1.5 rounded-lg text-[8px] font-display font-bold uppercase tracking-widest transition-all cursor-pointer",
+                      "py-1.5 rounded-lg text-[8px] font-display font-bold uppercase tracking-widest transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none",
                       bugCategory === cat 
                         ? "bg-purple-600 text-white shadow-md shadow-purple-500/10 border border-purple-500/30" 
                         : "bg-white/5 text-white/50 border border-transparent hover:text-white"
@@ -214,12 +216,13 @@ export const AdvancedSettingsMenu: React.FC<AdvancedSettingsMenuProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Bug Description</label>
+              <label htmlFor="bug-description-input" className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Bug Description</label>
               <textarea
+                id="bug-description-input"
                 placeholder="What went wrong? Be as detailed as possible..."
                 value={bugDescription}
                 onChange={(e) => setBugDescription(e.target.value)}
-                className="w-full h-24 bg-black/60 border border-white/10 rounded-2xl p-3.5 font-sans text-xs focus:outline-none focus:border-purple-500/50 text-white placeholder:text-white/10 transition-all resize-none"
+                className="w-full h-24 bg-black/60 border border-white/10 rounded-2xl p-3.5 font-sans text-xs focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none text-white placeholder:text-white/10 transition-all resize-none"
               />
             </div>
 
@@ -248,14 +251,15 @@ export const AdvancedSettingsMenu: React.FC<AdvancedSettingsMenuProps> = ({
           </p>
           <div className="space-y-3">
             <div className="space-y-1">
-              <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">AI Backend Host URL</label>
+              <label htmlFor="backend-host-input" className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">AI Backend Host URL</label>
               <div className="flex gap-2">
                 <input
+                  id="backend-host-input"
                   type="text"
                   placeholder="E.G. http://localhost:3000"
                   value={backendHostInput}
                   onChange={(e) => handleBackendHostChange(e.target.value)}
-                  className="flex-1 bg-black/60 border border-white/10 rounded-xl p-3 font-mono text-xs text-cyan-400 focus:outline-none focus:border-cyan-500/50 transition-all placeholder:text-white/10"
+                  className="flex-1 bg-black/60 border border-white/10 rounded-xl p-3 font-mono text-xs text-cyan-400 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none transition-all placeholder:text-white/10"
                 />
                 <button
                   type="button"
@@ -340,10 +344,12 @@ export const AdvancedSettingsMenu: React.FC<AdvancedSettingsMenuProps> = ({
                   : "WARNING: This operation will completely wipe history and empty your entire database records. This is irreversible. Type MASTER PASSWORD to confirm:"}
               </p>
               <div className="space-y-2">
+                <label htmlFor="danger-password-confirm" className="sr-only">Confirm Password</label>
                 <input 
+                  id="danger-password-confirm"
                   type="password"
                   placeholder="ENTER PASSWORD FOR AUTH..."
-                  className="w-full bg-black/50 border border-red-500/20 p-3 rounded-xl font-mono text-xs text-red-200 uppercase tracking-wider focus:outline-none focus:border-red-500/50"
+                  className="w-full bg-black/50 border border-red-500/20 p-3 rounded-xl font-mono text-xs text-red-200 uppercase tracking-wider focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none"
                   value={passwordConfirm}
                   onChange={(e) => setPasswordConfirm(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleClearDuplicates()}
