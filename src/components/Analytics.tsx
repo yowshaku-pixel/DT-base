@@ -121,10 +121,12 @@ export const Analytics: React.FC<AnalyticsProps> = ({ records, fleetRegistry, on
         </div>
         {onRefresh && (
           <button 
+            type="button"
             onClick={onRefresh}
             disabled={isRefreshing}
+            aria-label="Sync fleet audit data"
             className={cn(
-              "flex items-center gap-2 px-4 py-2 bg-black/40 border border-white/5 rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-black/60 transition-all",
+              "flex items-center gap-2 px-4 py-2 bg-black/40 border border-white/5 rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-black/60 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
               isRefreshing && "opacity-50 cursor-not-allowed"
             )}
           >
