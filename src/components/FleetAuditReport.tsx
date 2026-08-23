@@ -117,26 +117,30 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
           {onRefresh && (
             <button 
+              type="button"
+              aria-label="Sync fleet audit data"
               onClick={onRefresh}
               disabled={isRefreshing}
               className={cn(
-                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg transition-all",
+                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                 isRefreshing && "opacity-50 cursor-not-allowed"
               )}
             >
-              <RefreshCw className={cn("w-3.5 h-3.5 text-purple-400", isRefreshing && "animate-spin")} />
+              <RefreshCw className={cn("w-3.5 h-3.5 text-purple-400", isRefreshing && "animate-spin")} aria-hidden="true" />
               {isRefreshing ? 'Syncing...' : 'Sync Data'}
             </button>
           )}
 
           <div className="relative group w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" />
+            <label htmlFor="fleet-audit-search" className="sr-only">Search fleet audit by plate number</label>
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all pointer-events-none" aria-hidden="true" />
             <input 
+              id="fleet-audit-search"
               type="text"
               placeholder="SEARCH PLATENUMBER..."
               value={reportSearch}
               onChange={(e) => setReportSearch(e.target.value)}
-              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
             />
           </div>
       </div>

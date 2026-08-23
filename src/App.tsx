@@ -1439,6 +1439,12 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      setUser({ id: 'mock-user', email: 'mock@example.com' } as any);
+      setIsAuthReady(true);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -1475,8 +1481,23 @@ export default function App() {
   };
 
   const fetchRecords = useCallback(async () => {
-    if (!user || !supabase) return;
+    if (!user) return;
     setIsRefreshing(true);
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      const cached = localStorage.getItem(`records_${user.id}`);
+      if (cached) {
+        setRecords(JSON.parse(cached));
+      } else {
+        const dummyRecords: MaintenanceRecord[] = [
+          { id: '1', plate_number: 'KCH 054T', service_date: '2025-05-10', service_description: 'Engine oil change', confidence: 0.99, user_id: 'mock-user', created_at: new Date().toISOString() },
+          { id: '2', plate_number: 'KCY 901B', service_date: '2025-06-15', service_description: 'Brake pad replacement', confidence: 0.95, user_id: 'mock-user', created_at: new Date().toISOString() }
+        ];
+        setRecords(dummyRecords);
+      }
+      setIsRefreshing(false);
+      return;
+    }
+    if (!supabase) return;
     // Automatic retry helper
     async function fetchWithRetry<T>(fn: () => PromiseLike<T>, retries = 3): Promise<T> {
       for (let i = 0; i < retries; i++) {
