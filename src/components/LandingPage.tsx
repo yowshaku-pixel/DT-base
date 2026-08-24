@@ -45,8 +45,9 @@ export default function LandingPage({ onLaunchApp, onToggleTheme, theme }: Landi
 
           <div className="flex items-center gap-4">
             <button 
+              type="button"
               onClick={onLaunchApp}
-              className="px-6 py-2 bg-violet-600 hover:bg-violet-500 text-white font-display font-bold uppercase tracking-widest text-[10px] rounded-full transition-all shadow-lg shadow-violet-900/20 active:scale-95"
+              className="px-6 py-2 bg-violet-600 hover:bg-violet-500 text-white font-display font-bold uppercase tracking-widest text-[10px] rounded-full transition-all shadow-lg shadow-violet-900/20 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             >
               Launch App
             </button>
@@ -80,14 +81,17 @@ export default function LandingPage({ onLaunchApp, onToggleTheme, theme }: Landi
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button 
+                type="button"
                 onClick={onLaunchApp}
-                className="w-full sm:w-auto px-10 py-5 bg-white text-black font-display font-black uppercase tracking-[0.3em] text-xs rounded-2xl hover:bg-violet-400 hover:text-white transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3"
+                className="w-full sm:w-auto px-10 py-5 bg-white text-black font-display font-black uppercase tracking-[0.3em] text-xs rounded-2xl hover:bg-violet-400 hover:text-white transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
               >
                 Go to Dashboard
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button 
-                className="w-full sm:w-auto px-10 py-5 bg-surface border border-border text-text font-display font-black uppercase tracking-[0.3em] text-xs rounded-2xl hover:bg-white/5 transition-all active:scale-95"
+                type="button"
+                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                className="w-full sm:w-auto px-10 py-5 bg-surface border border-border text-text font-display font-black uppercase tracking-[0.3em] text-xs rounded-2xl hover:bg-white/5 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
               >
                 Learn More
               </button>
@@ -250,8 +254,9 @@ export default function LandingPage({ onLaunchApp, onToggleTheme, theme }: Landi
               Join the next generation of logistics and maintenance tracking. Start your journey with DT.Base today.
             </p>
             <button 
+              type="button"
               onClick={onLaunchApp}
-              className="px-12 py-6 bg-white text-black font-display font-black uppercase tracking-[0.3em] text-sm rounded-2xl hover:scale-105 transition-all shadow-2xl active:scale-95"
+              className="px-12 py-6 bg-white text-black font-display font-black uppercase tracking-[0.3em] text-sm rounded-2xl hover:scale-105 transition-all shadow-2xl active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             >
               Get Started Now
             </button>
