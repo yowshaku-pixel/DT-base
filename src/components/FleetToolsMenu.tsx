@@ -48,8 +48,9 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
         <div className="grid grid-cols-1 gap-2">
           <button 
             type="button"
+            aria-pressed={showHistory}
             onClick={() => setShowHistory(!showHistory)}
-            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group cursor-pointer"
+            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all group cursor-pointer"
           >
             <div className="flex items-center gap-4">
               <div className="p-2.5 bg-violet-500/10 rounded-xl border border-violet-500/20 group-hover:bg-violet-500/20 transition-all">
@@ -73,6 +74,7 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
 
           <button 
             type="button"
+            aria-pressed={isAuditMode}
             onClick={() => {
               const next = !isAuditMode;
               setIsAuditMode(next);
@@ -81,7 +83,7 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
                 setAuditResults([]);
               }
             }}
-            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group cursor-pointer"
+            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all group cursor-pointer"
           >
             <div className="flex items-center gap-4">
               <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
@@ -109,7 +111,7 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
               setShowUsageModal(true);
               setShowSettingsModal(false);
             }}
-            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group text-left cursor-pointer"
+            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all group text-left cursor-pointer"
           >
             <div className="flex items-center gap-4">
               <div className="p-2.5 bg-green-500/10 rounded-xl border border-green-500/20 group-hover:bg-green-500/20 transition-all">
@@ -128,7 +130,7 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
               setShowMarketPricesModal(true);
               setShowSettingsModal(false);
             }}
-            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group text-left cursor-pointer"
+            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all group text-left cursor-pointer"
           >
             <div className="flex items-center gap-4">
               <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 group-hover:bg-amber-500/20 transition-all">
@@ -146,7 +148,7 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
               type="button"
               onClick={handleExportData}
               disabled={records.length === 0}
-              className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50 cursor-pointer"
+              className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all group disabled:opacity-50 cursor-pointer"
             >
               <div className="flex items-center gap-4">
                 <div className="p-2.5 bg-purple-500/10 rounded-xl border border-purple-500/20 group-hover:bg-purple-500/20 transition-all">
@@ -163,7 +165,7 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
               type="button"
               onClick={handleExportPDF}
               disabled={records.length === 0}
-              className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50 cursor-pointer"
+              className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all group disabled:opacity-50 cursor-pointer"
             >
               <div className="flex items-center gap-4">
                 <div className="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/20 group-hover:bg-cyan-500/20 transition-all">
@@ -184,7 +186,7 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
               setShowSettingsModal(false);
             }}
             disabled={isRefreshing}
-            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 transition-all group disabled:opacity-50 cursor-pointer"
+            className="w-full p-4 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between hover:bg-white/[0.08] hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all group disabled:opacity-50 cursor-pointer"
           >
             <div className="flex items-center gap-4">
               <div className="p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/20 group-hover:bg-blue-500/20 transition-all">
@@ -208,6 +210,7 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
         
         <button 
           type="button"
+          aria-pressed={isAuditUploadMode}
           onClick={() => {
             const next = !isAuditUploadMode;
             setIsAuditUploadMode(next);
@@ -217,7 +220,7 @@ export const FleetToolsMenu: React.FC<FleetToolsMenuProps> = ({
             }
           }}
           className={cn(
-            "w-full p-5 border rounded-3xl flex items-center justify-between transition-all group cursor-pointer",
+            "w-full p-5 border rounded-3xl flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all group cursor-pointer",
             isAuditUploadMode 
               ? "bg-violet-500/[0.08] border-violet-500/40 shadow-[0_0_20px_rgba(139,92,246,0.1)]" 
               : "bg-white/[0.03] border-white/10 hover:bg-white/[0.08] hover:border-white/20"
