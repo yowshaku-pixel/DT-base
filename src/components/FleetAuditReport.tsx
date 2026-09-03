@@ -117,26 +117,30 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
           {onRefresh && (
             <button 
+              type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
+              aria-label="Sync fleet audit data"
               className={cn(
-                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg transition-all",
+                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all",
                 isRefreshing && "opacity-50 cursor-not-allowed"
               )}
             >
-              <RefreshCw className={cn("w-3.5 h-3.5 text-purple-400", isRefreshing && "animate-spin")} />
+              <RefreshCw className={cn("w-3.5 h-3.5 text-purple-400", isRefreshing && "animate-spin")} aria-hidden="true" />
               {isRefreshing ? 'Syncing...' : 'Sync Data'}
             </button>
           )}
 
           <div className="relative group w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" />
+            <label htmlFor="fleet-audit-search" className="sr-only">Search plate number</label>
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" aria-hidden="true" />
             <input 
+              id="fleet-audit-search"
               type="text"
               placeholder="SEARCH PLATENUMBER..."
               value={reportSearch}
               onChange={(e) => setReportSearch(e.target.value)}
-              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
             />
           </div>
       </div>
@@ -147,7 +151,17 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
         {auditData.map((truck) => (
           <div 
             key={truck.plate}
-            className="group relative bg-surface border border-border rounded-3xl overflow-hidden hover:border-purple-500/30 transition-colors"
+            role="button"
+            tabIndex={0}
+            onClick={() => onFocusTruck(truck.plate)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onFocusTruck(truck.plate);
+              }
+            }}
+            aria-label={`View maintenance log for truck ${truck.plate}`}
+            className="group relative bg-surface border border-border rounded-3xl overflow-hidden cursor-pointer hover:border-purple-500/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all"
           >
             <div className="p-4 sm:p-5">
               {/* Truck Header */}
@@ -157,7 +171,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                     "w-10 h-10 rounded-xl border flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner",
                     truck.isRegistry ? "bg-purple-500/10 border-purple-500/20" : "bg-amber-500/10 border-amber-500/20"
                   )}>
-                    <Truck className={cn("w-5 h-5", truck.isRegistry ? "text-purple-600 dark:text-purple-400" : "text-amber-600 dark:text-amber-400")} />
+                    <Truck className={cn("w-5 h-5", truck.isRegistry ? "text-purple-600 dark:text-purple-400" : "text-amber-600 dark:text-amber-400")} aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="text-base font-display font-bold text-text tracking-tight leading-tight">{truck.plate}</h3>
@@ -171,6 +185,10 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                       </span>
                     </div>
                   </div>
+                </div>
+                <div className="flex items-center gap-1 text-purple-400 opacity-70 group-hover:opacity-100 transition-opacity">
+                  <span className="text-[9px] font-display font-bold uppercase tracking-wider hidden sm:inline">View Log</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
                 </div>
               </div>
 
