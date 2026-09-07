@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Download, X, FileText, Calculator, User, Truck, Calendar, Hash } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -63,6 +63,16 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
     window.print();
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-[100] bg-bg flex items-center justify-center p-4 md:p-8 overflow-y-auto">
       <div className="w-full max-w-5xl bg-bg border border-border rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden min-h-[80vh]">
@@ -76,17 +86,23 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
               </div>
               <h2 className="font-display font-bold text-xl text-text uppercase tracking-wider">Quotation Builder</h2>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-surface rounded-full transition-colors text-muted hover:text-text">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close Quotation Builder"
+              className="p-2 hover:bg-surface rounded-full transition-colors text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+            >
               <X className="w-6 h-6" />
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Truck Plate</label>
+              <label htmlFor="quote-plate" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Truck Plate</label>
               <div className="relative">
                 <Truck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
+                  id="quote-plate"
                   type="text" 
                   value={plateNumber}
                   onChange={(e) => setPlateNumber(e.target.value)}
@@ -96,10 +112,11 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Client Name</label>
+              <label htmlFor="quote-client" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Client Name</label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
+                  id="quote-client"
                   type="text" 
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
@@ -109,10 +126,11 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Date</label>
+              <label htmlFor="quote-date" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Date</label>
               <div className="relative">
                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
+                  id="quote-date"
                   type="date" 
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
@@ -121,10 +139,11 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Quote #</label>
+              <label htmlFor="quote-number" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Quote #</label>
               <div className="relative">
                 <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
                 <input 
+                  id="quote-number"
                   type="text" 
                   value={quoteNumber}
                   onChange={(e) => setQuoteNumber(e.target.value)}
@@ -139,14 +158,16 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
               <h3 className="text-xs font-display font-bold text-text uppercase tracking-[0.2em]">Line Items</h3>
               <div className="flex gap-2">
                 <button 
+                  type="button"
                   onClick={() => addItem('part')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 >
                   <Plus className="w-3 h-3" /> Add Part
                 </button>
                 <button 
+                  type="button"
                   onClick={() => addItem('labor')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 >
                   <Plus className="w-3 h-3" /> Add Labor
                 </button>
@@ -165,8 +186,10 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
                         {item.type}
                       </span>
                       <button 
+                        type="button"
                         onClick={() => removeItem(item.id)}
-                        className="p-1 text-white/20 hover:text-red-400 transition-colors md:opacity-0 group-hover:opacity-100"
+                        aria-label="Remove line item"
+                        className="p-1 text-white/20 hover:text-red-400 transition-colors md:opacity-0 group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -181,8 +204,9 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
                   </div>
                   <div className="flex gap-3 items-end">
                     <div className="w-20 space-y-1">
-                      <label className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Qty</label>
+                      <label htmlFor={`item-qty-${item.id}`} className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Qty</label>
                       <input 
+                        id={`item-qty-${item.id}`}
                         type="number"
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
@@ -190,8 +214,9 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
                       />
                     </div>
                     <div className="w-32 space-y-1">
-                      <label className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Unit Price</label>
+                      <label htmlFor={`item-price-${item.id}`} className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Unit Price</label>
                       <input 
+                        id={`item-price-${item.id}`}
                         type="number"
                         value={item.unitPrice}
                         onChange={(e) => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
@@ -284,8 +309,9 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
 
           <div className="mt-8 space-y-3">
             <button 
+              type="button"
               onClick={handlePrint}
-              className="w-full py-4 bg-white text-zinc-900 font-display font-bold uppercase tracking-[0.2em] text-xs rounded-xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 shadow-xl"
+              className="w-full py-4 bg-white text-zinc-900 font-display font-bold uppercase tracking-[0.2em] text-xs rounded-xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
               <Download className="w-4 h-4" />
               Download / Print
