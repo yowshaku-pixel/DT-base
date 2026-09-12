@@ -197,11 +197,13 @@ export default function AIChatAssistant({
     <>
       {/* Floating Toggle Button */}
       <motion.button
+        type="button"
+        aria-label={isOpen ? "Close AI Chat Assistant" : "Open AI Chat Assistant"}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border",
+          "fixed bottom-6 right-[6rem] z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(160,32,240,0.4)] transition-all border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
           isOpen 
             ? "bg-bg text-text border-border" 
             : "bg-gradient-to-br from-violet-600 to-cyan-500 text-white border-violet-400/50"
@@ -232,8 +234,10 @@ export default function AIChatAssistant({
               </div>
               <div className="flex items-center gap-1">
                 <button 
+                  type="button"
+                  aria-label="Clear chat history"
                   onClick={clearChat}
-                  className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500"
+                  className="p-2 hover:bg-surface rounded-lg transition-colors text-muted hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
                   title="Clear Chat"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -253,9 +257,11 @@ export default function AIChatAssistant({
                 </span>
               </div>
               <button 
+                type="button"
+                aria-label={`Switch response mode to ${isShortMode ? "Detailed" : "Concise"}`}
                 onClick={() => setIsShortMode(!isShortMode)}
                 className={cn(
-                  "px-3 py-1 rounded-full text-[8px] font-display font-bold uppercase tracking-widest transition-all border",
+                  "px-3 py-1 rounded-full text-[8px] font-display font-bold uppercase tracking-widest transition-all border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500",
                   isShortMode 
                     ? "bg-blue-500/10 border-blue-500/30 text-blue-400" 
                     : "bg-purple-500/10 border-purple-500/30 text-purple-400"
@@ -277,8 +283,9 @@ export default function AIChatAssistant({
                     A master password is required to access the AI Chat Assistant.
                   </p>
                   <button 
+                    type="button"
                     onClick={onUnlockRequest}
-                    className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-display font-bold uppercase tracking-widest text-[10px] rounded-xl transition-all active:scale-95"
+                    className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-display font-bold uppercase tracking-widest text-[10px] rounded-xl transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                   >
                     Enter Password
                   </button>
@@ -341,8 +348,10 @@ export default function AIChatAssistant({
                     AI IS ANALYZING...
                   </div>
                   <button 
+                    type="button"
+                    aria-label="Stop AI generation"
                     onClick={handleStop}
-                    className="px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 text-[9px] font-bold uppercase rounded transition-colors"
+                    className="px-2 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 text-[9px] font-bold uppercase rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                   >
                     Stop
                   </button>
@@ -356,6 +365,7 @@ export default function AIChatAssistant({
               <div className="relative flex items-end gap-2">
                 <textarea
                   value={input}
+                  aria-label="Ask Anni AI Assistant"
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
                     // Check if Cmd/Ctrl + Enter was pressed to still allow a keyboard shortcut for sending if desired
@@ -368,14 +378,15 @@ export default function AIChatAssistant({
                   rows={Math.min(5, input.split('\n').length || 1)}
                   disabled={isLocked}
                   className={cn(
-                    "w-full bg-bg/40 border neon-border-violet rounded-xl py-3 pl-4 pr-12 text-sm text-text placeholder:text-muted/40 focus:outline-none transition-all resize-none min-h-[44px] max-h-[200px]",
+                    "w-full bg-bg/40 border neon-border-violet rounded-xl py-3 pl-4 pr-12 text-sm text-text placeholder:text-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-all resize-none min-h-[44px] max-h-[200px]",
                     isLocked && "opacity-50 cursor-not-allowed"
                   )}
                 />
                 <button
                   type="submit"
+                  aria-label="Send message"
                   disabled={!input.trim() || isLoading || isLocked}
-                  className="mb-1 p-2.5 bg-gradient-to-br from-violet-600 to-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-violet-500 hover:to-cyan-400 transition-all shadow-[0_0_15px_rgba(0,245,255,0.3)] shrink-0"
+                  className="mb-1 p-2.5 bg-gradient-to-br from-violet-600 to-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-violet-500 hover:to-cyan-400 transition-all shadow-[0_0_15px_rgba(0,245,255,0.3)] shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
                 >
                   <Send className="w-4 h-4" />
                 </button>
