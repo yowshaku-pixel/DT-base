@@ -117,10 +117,12 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
           {onRefresh && (
             <button 
+              type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
+              aria-label="Sync fleet audit data"
               className={cn(
-                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg transition-all",
+                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                 isRefreshing && "opacity-50 cursor-not-allowed"
               )}
             >
@@ -130,13 +132,16 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
           )}
 
           <div className="relative group w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" />
+            <label htmlFor="fleet-audit-search" className="sr-only">Search plate number</label>
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" aria-hidden="true" />
             <input 
+              id="fleet-audit-search"
               type="text"
               placeholder="SEARCH PLATENUMBER..."
+              aria-label="Search plate number"
               value={reportSearch}
               onChange={(e) => setReportSearch(e.target.value)}
-              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
             />
           </div>
       </div>
@@ -147,7 +152,17 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
         {auditData.map((truck) => (
           <div 
             key={truck.plate}
-            className="group relative bg-surface border border-border rounded-3xl overflow-hidden hover:border-purple-500/30 transition-colors"
+            role="button"
+            tabIndex={0}
+            aria-label={`View maintenance log for ${truck.plate}`}
+            onClick={() => onFocusTruck(truck.plate)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onFocusTruck(truck.plate);
+              }
+            }}
+            className="group relative bg-surface border border-border rounded-3xl overflow-hidden hover:border-purple-500/30 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
           >
             <div className="p-4 sm:p-5">
               {/* Truck Header */}
@@ -172,6 +187,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                     </div>
                   </div>
                 </div>
+                <ArrowRight className="w-4 h-4 text-muted group-hover:text-purple-400 group-hover:translate-x-1 transition-all" aria-hidden="true" />
               </div>
 
               {/* Status Grid */}
