@@ -6451,6 +6451,9 @@ export default function App() {
 
         {/* Main Toggle Button */}
         <motion.button
+          type="button"
+          aria-label={isFabOpen ? "Close menu" : "Open menu"}
+          aria-expanded={isFabOpen}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => {
@@ -6461,7 +6464,7 @@ export default function App() {
             }
           }}
           className={cn(
-            "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.4)] transition-all border relative overflow-hidden group",
+            "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(0,245,255,0.4)] transition-all border relative overflow-hidden group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
             isFabOpen ? "bg-bg text-text border-border" : "bg-gradient-to-br from-cyan-500 to-violet-600 text-white border-cyan-400/50",
             isAuditMode && !isFabOpen && "shadow-[0_0_40px_rgba(6,182,212,0.6)] border-cyan-400 ring-2 ring-cyan-400/20"
           )}
@@ -6518,12 +6521,14 @@ export default function App() {
               className="w-full max-w-md glassmorphism neon-border-violet p-6 sm:p-8 rounded-3xl shadow-2xl relative my-auto"
             >
               <button 
+                type="button"
+                aria-label="Close unlock modal"
                 onClick={() => {
                   setShowServicePasswordPrompt(false);
                   setServicePasswordInput('');
                   setServicePasswordError(false);
                 }}
-                className="absolute top-4 right-4 p-2 bg-surface border border-border hover:bg-surface/80 rounded-full transition-all text-muted hover:text-text z-10"
+                className="absolute top-4 right-4 p-2 bg-surface border border-border hover:bg-surface/80 rounded-full transition-all text-muted hover:text-text z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 title="Close Unlock Modal"
               >
                 <X className="w-5 h-5" />
@@ -6565,8 +6570,9 @@ export default function App() {
                 </div>
 
                 <button 
+                  type="button"
                   onClick={handleUnlockService}
-                  className="w-full py-4 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 text-white font-display font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)] active:scale-[0.98]"
+                  className="w-full py-4 bg-gradient-to-r from-violet-600 to-cyan-500 hover:from-violet-500 hover:to-cyan-400 text-white font-display font-black uppercase tracking-[0.3em] rounded-2xl transition-all shadow-[0_0_20px_rgba(0,245,255,0.3)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 >
                   Unlock Now
                 </button>
