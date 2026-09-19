@@ -193,15 +193,16 @@ export const AdvancedSettingsMenu: React.FC<AdvancedSettingsMenuProps> = ({
           </p>
           <div className="space-y-3">
             <div className="space-y-1">
-              <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Report Category</label>
-              <div className="grid grid-cols-4 gap-1">
+              <label id="bug-category-label" className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Report Category</label>
+              <div role="group" aria-labelledby="bug-category-label" className="grid grid-cols-4 gap-1">
                 {(['app', 'ocr', 'sync', 'other'] as const).map((cat) => (
                   <button
                     key={cat}
                     type="button"
+                    aria-pressed={bugCategory === cat}
                     onClick={() => setBugCategory(cat)}
                     className={cn(
-                      "py-1.5 rounded-lg text-[8px] font-display font-bold uppercase tracking-widest transition-all cursor-pointer",
+                      "py-1.5 rounded-lg text-[8px] font-display font-bold uppercase tracking-widest transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                       bugCategory === cat 
                         ? "bg-purple-600 text-white shadow-md shadow-purple-500/10 border border-purple-500/30" 
                         : "bg-white/5 text-white/50 border border-transparent hover:text-white"
@@ -214,12 +215,13 @@ export const AdvancedSettingsMenu: React.FC<AdvancedSettingsMenuProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Bug Description</label>
+              <label htmlFor="bug-description" className="text-[8px] font-display font-bold uppercase tracking-wider text-white/40 block ml-1">Bug Description</label>
               <textarea
+                id="bug-description"
                 placeholder="What went wrong? Be as detailed as possible..."
                 value={bugDescription}
                 onChange={(e) => setBugDescription(e.target.value)}
-                className="w-full h-24 bg-black/60 border border-white/10 rounded-2xl p-3.5 font-sans text-xs focus:outline-none focus:border-purple-500/50 text-white placeholder:text-white/10 transition-all resize-none"
+                className="w-full h-24 bg-black/60 border border-white/10 rounded-2xl p-3.5 font-sans text-xs focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 text-white placeholder:text-white/10 transition-all resize-none"
               />
             </div>
 
