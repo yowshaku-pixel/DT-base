@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, Sun, Moon, Wrench, Receipt, Globe, Sparkles, Briefcase, Bell, HelpCircle } from 'lucide-react';
+import { Upload, Search, Filter, Trash2, Loader2, AlertCircle, Save, RefreshCw, X, ChevronDown, ChevronUp, ListFilter, Download, LogIn, LogOut, User as UserIcon, Clock, Truck, Plus, Database, Zap, Eye, EyeOff, Lock, Key, Tag, Coins, Settings, Smartphone, Cloud, AlertTriangle, CheckCircle2, Camera, FileText, ClipboardCheck, Sun, Moon, Wrench, Receipt, Globe, Sparkles, Briefcase, Bell, HelpCircle, Calculator } from 'lucide-react';
 import { MaintenanceRecord, MarketPrice } from './types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -28,6 +28,7 @@ import { BarChart3 as BarChartIcon } from 'lucide-react';
 
 import LandingPage from './components/LandingPage';
 import { SupabaseSetup } from './components/SupabaseSetup';
+import QuotationGenerator from './components/QuotationGenerator';
 import { FleetToolsMenu } from './components/FleetToolsMenu';
 import { AdvancedSettingsMenu } from './components/AdvancedSettingsMenu';
 
@@ -1020,6 +1021,7 @@ export default function App() {
   const [showUsageModal, setShowUsageModal] = useState(false);
   const [showMarketPricesModal, setShowMarketPricesModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showQuotation, setShowQuotation] = useState(false);
   const [customGeminiKey, setCustomGeminiKey] = useState(() => typeof window !== 'undefined' ? localStorage.getItem("DT_BASE_CUSTOM_GEMINI_API_KEY") || "" : "");
   const [localSupabaseUrl, setLocalSupabaseUrl] = useState(() => typeof window !== 'undefined' ? localStorage.getItem("DTBASE_SUPABASE_URL") || "" : "");
   const [localSupabaseAnonKey, setLocalSupabaseAnonKey] = useState(() => typeof window !== 'undefined' ? localStorage.getItem("DTBASE_SUPABASE_ANON_KEY") || "" : "");
@@ -1439,6 +1441,11 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (localStorage.getItem('dtbase_mock_user') === 'true') {
+      setUser({ id: 'mock-user-123', email: 'demo@dtbase.app', app_metadata: {}, user_metadata: {}, aud: 'authenticated', created_at: new Date().toISOString() });
+      setIsAuthReady(true);
+      return;
+    }
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -5761,6 +5768,13 @@ export default function App() {
         </>
       )}
 
+      {/* Quotation Generator Modal */}
+      <AnimatePresence>
+        {showQuotation && (
+          <QuotationGenerator onClose={() => setShowQuotation(false)} />
+        )}
+      </AnimatePresence>
+
       {/* Settings Modal */}
       <AnimatePresence>
         {showSettingsModal && (
@@ -6319,6 +6333,23 @@ export default function App() {
               exit={{ opacity: 0, y: 20, scale: 0.8 }}
               className="flex flex-col items-end gap-3 mb-2"
             >
+              {/* Quotation Builder */}
+              <motion.button
+                whileHover={{ scale: 1.05, x: -5 }}
+                whileTap={{ scale: 0.95 }}
+                type="button"
+                onClick={() => {
+                  setShowQuotation(true);
+                  setIsFabOpen(false);
+                }}
+                className="flex items-center gap-3 px-4 py-3 bg-bg/90 text-text rounded-2xl shadow-xl border border-border transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+              >
+                <span className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-muted group-hover:text-purple-500 dark:group-hover:text-purple-400 transition-colors">Quotation Builder</span>
+                <div className="p-2 bg-purple-500/20 rounded-xl border border-purple-500/30">
+                  <Calculator className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                </div>
+              </motion.button>
+
               {/* Manual Entry Solution */}
               <motion.button
                 whileHover={{ scale: 1.05, x: -5 }}
@@ -6451,6 +6482,8 @@ export default function App() {
 
         {/* Main Toggle Button */}
         <motion.button
+          type="button"
+          aria-label={isFabOpen ? "Close menu" : "Open menu"}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => {
