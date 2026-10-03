@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Download, X, FileText, Calculator, User, Truck, Calendar, Hash } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -17,6 +17,16 @@ interface QuotationGeneratorProps {
 
 export default function QuotationGenerator({ onClose, initialPlate = '' }: QuotationGeneratorProps) {
   const [plateNumber, setPlateNumber] = useState(initialPlate);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
   const [clientName, setClientName] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [quoteNumber, setQuoteNumber] = useState(`QT-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -64,71 +74,75 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-bg flex items-center justify-center p-4 md:p-8 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] bg-bg flex items-center justify-center p-4 md:p-8 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="quotation-builder-title">
       <div className="w-full max-w-5xl bg-bg border border-border rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden min-h-[80vh]">
         
         {/* Left Side: Editor */}
         <div className="flex-1 p-6 md:p-8 border-b md:border-b-0 md:border-r border-border overflow-y-auto custom-scrollbar">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center shadow-lg shadow-purple-900/20">
+              <div className="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center shadow-lg shadow-purple-900/20" aria-hidden="true">
                 <Calculator className="w-6 h-6 text-white" />
               </div>
-              <h2 className="font-display font-bold text-xl text-text uppercase tracking-wider">Quotation Builder</h2>
+              <h2 id="quotation-builder-title" className="font-display font-bold text-xl text-text uppercase tracking-wider">Quotation Builder</h2>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-surface rounded-full transition-colors text-muted hover:text-text">
+            <button type="button" onClick={onClose} aria-label="Close Quotation Builder" className="p-2 hover:bg-surface rounded-full transition-colors text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
               <X className="w-6 h-6" />
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Truck Plate</label>
+              <label htmlFor="quote-truck-plate" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Truck Plate</label>
               <div className="relative">
-                <Truck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
+                <Truck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" aria-hidden="true" />
                 <input 
+                  id="quote-truck-plate"
                   type="text" 
                   value={plateNumber}
                   onChange={(e) => setPlateNumber(e.target.value)}
                   placeholder="E.G. KCN 851 S"
-                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Client Name</label>
+              <label htmlFor="quote-client-name" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Client Name</label>
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" aria-hidden="true" />
                 <input 
+                  id="quote-client-name"
                   type="text" 
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="Customer name..."
-                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Date</label>
+              <label htmlFor="quote-date" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Date</label>
               <div className="relative">
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
+                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" aria-hidden="true" />
                 <input 
+                  id="quote-date"
                   type="date" 
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Quote #</label>
+              <label htmlFor="quote-number" className="text-[10px] font-display font-bold uppercase tracking-widest text-muted ml-2">Quote #</label>
               <div className="relative">
-                <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" />
+                <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted/40" aria-hidden="true" />
                 <input 
+                  id="quote-number"
                   type="text" 
                   value={quoteNumber}
                   onChange={(e) => setQuoteNumber(e.target.value)}
-                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus:outline-none focus:ring-1 focus:ring-purple-500/50 transition-all"
+                  className="w-full bg-surface border border-border p-3 pl-12 rounded-xl text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all"
                 />
               </div>
             </div>
@@ -139,22 +153,24 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
               <h3 className="text-xs font-display font-bold text-text uppercase tracking-[0.2em]">Line Items</h3>
               <div className="flex gap-2">
                 <button 
+                  type="button"
                   onClick={() => addItem('part')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 >
-                  <Plus className="w-3 h-3" /> Add Part
+                  <Plus className="w-3 h-3" aria-hidden="true" /> Add Part
                 </button>
                 <button 
+                  type="button"
                   onClick={() => addItem('labor')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-[10px] font-display font-bold uppercase tracking-widest rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 >
-                  <Plus className="w-3 h-3" /> Add Labor
+                  <Plus className="w-3 h-3" aria-hidden="true" /> Add Labor
                 </button>
               </div>
             </div>
 
             <div className="space-y-3">
-              {items.map((item) => (
+              {items.map((item, index) => (
                 <div key={item.id} className="flex flex-col md:flex-row gap-3 p-4 bg-white/5 border border-white/5 rounded-2xl group transition-all hover:border-white/10">
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between">
@@ -165,37 +181,43 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
                         {item.type}
                       </span>
                       <button 
+                        type="button"
                         onClick={() => removeItem(item.id)}
-                        className="p-1 text-white/20 hover:text-red-400 transition-colors md:opacity-0 group-hover:opacity-100"
+                        aria-label={`Remove item ${index + 1}`}
+                        className="p-1 text-white/20 hover:text-red-400 transition-colors md:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
+                    <label htmlFor={`item-desc-${item.id}`} className="sr-only">Item Description</label>
                     <input 
+                      id={`item-desc-${item.id}`}
                       type="text"
                       placeholder={item.type === 'part' ? "Spare part name..." : "Service description..."}
                       value={item.description}
                       onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                      className="w-full bg-transparent border-none p-0 text-sm text-white placeholder:text-white/10 focus:ring-0"
+                      className="w-full bg-transparent border-none p-0 text-sm text-white placeholder:text-white/10 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-purple-500"
                     />
                   </div>
                   <div className="flex gap-3 items-end">
                     <div className="w-20 space-y-1">
-                      <label className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Qty</label>
+                      <label htmlFor={`item-qty-${item.id}`} className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Qty</label>
                       <input 
+                        id={`item-qty-${item.id}`}
                         type="number"
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, { quantity: parseFloat(e.target.value) || 0 })}
-                        className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-white text-center focus:outline-none focus:ring-1 focus:ring-purple-500/50"
+                        className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-white text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                       />
                     </div>
                     <div className="w-32 space-y-1">
-                      <label className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Unit Price</label>
+                      <label htmlFor={`item-price-${item.id}`} className="text-[8px] font-display font-bold uppercase tracking-widest text-white/20">Unit Price</label>
                       <input 
+                        id={`item-price-${item.id}`}
                         type="number"
                         value={item.unitPrice}
                         onChange={(e) => updateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                        className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-white text-right focus:outline-none focus:ring-1 focus:ring-purple-500/50"
+                        className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-white text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                       />
                     </div>
                   </div>
@@ -284,10 +306,11 @@ export default function QuotationGenerator({ onClose, initialPlate = '' }: Quota
 
           <div className="mt-8 space-y-3">
             <button 
+              type="button"
               onClick={handlePrint}
-              className="w-full py-4 bg-white text-zinc-900 font-display font-bold uppercase tracking-[0.2em] text-xs rounded-xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 shadow-xl"
+              className="w-full py-4 bg-white text-zinc-900 font-display font-bold uppercase tracking-[0.2em] text-xs rounded-xl hover:bg-zinc-200 transition-all flex items-center justify-center gap-3 shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-4 h-4" aria-hidden="true" />
               Download / Print
             </button>
             <p className="text-[9px] text-center text-white/20 font-display font-medium uppercase tracking-widest">
