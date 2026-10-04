@@ -1439,6 +1439,13 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    const isMock = typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true';
+    if (isMock) {
+      setUser({ id: 'mock_user_id', email: 'operator@dtbase.com', user_metadata: {} } as User);
+      setIsAuthReady(true);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -1475,7 +1482,20 @@ export default function App() {
   };
 
   const fetchRecords = useCallback(async () => {
-    if (!user || !supabase) return;
+    if (!user) return;
+    if (!supabase || (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true')) {
+      const cached = localStorage.getItem(`records_${user.id}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setRecords(parsed);
+          return parsed;
+        } catch (e) {
+          console.error("Failed to parse cached mock records", e);
+        }
+      }
+      if (!supabase) return;
+    }
     setIsRefreshing(true);
     // Automatic retry helper
     async function fetchWithRetry<T>(fn: () => PromiseLike<T>, retries = 3): Promise<T> {
@@ -1875,7 +1895,7 @@ export default function App() {
     try {
       setIsProcessing(true);
       setError(null);
-      const fileArray = Array.from(files);
+      const fileArray = Array.from(files) as File[];
       
       setNotification({
         message: `Starting ${isAuditMode ? 'Audit ' : ''}${mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${fileArray.length} file(s)...`,
@@ -4954,7 +4974,8 @@ export default function App() {
                   <p className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/20">No records found for this range</p>
                 </div>
               ) : (
-                Object.entries(groupedRecords).map(([plate, plateRecords]) => {
+                Object.entries(groupedRecords).map(([plate, rawRecords]) => {
+                  const plateRecords = rawRecords as MaintenanceRecord[];
                   // Group by date for this plate
                   const dateGroups: Record<string, string[]> = {};
                   plateRecords.sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
@@ -5006,7 +5027,8 @@ export default function App() {
               </div>
               <button 
                 onClick={() => {
-                  const reportText = Object.entries(groupedRecords).map(([plate, plateRecords]) => {
+                  const reportText = Object.entries(groupedRecords).map(([plate, rawRecords]) => {
+                    const plateRecords = rawRecords as MaintenanceRecord[];
                     const dateGroups: Record<string, string[]> = {};
                     plateRecords.sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
                       const date = r.service_date;

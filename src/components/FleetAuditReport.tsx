@@ -1,15 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { MaintenanceRecord } from '../types';
-import { calculateAuditStats, AUDIT_CATEGORIES } from '../services/auditService';
+import { calculateAuditStats } from '../services/auditService';
 import { 
   ClipboardCheck, 
-  Calendar, 
   AlertTriangle, 
   CheckCircle2, 
   Search,
   Truck,
-  Wrench,
-  ArrowRight,
   RefreshCw
 } from 'lucide-react';
 import { 
@@ -27,7 +24,6 @@ interface FleetAuditReportProps {
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
-
 
 export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fleetRegistry, onFocusTruck, onRefresh, isRefreshing }) => {
   const [reportSearch, setReportSearch] = useState('');
@@ -71,13 +67,13 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
       }
     });
 
-    const folders = cleanRegistry.length > 0 ? cleanRegistry.sort() : Object.keys(groups).sort();
+    const folders: string[] = cleanRegistry.length > 0 ? cleanRegistry.sort() : Object.keys(groups).sort();
     
     // De-duplicate folder names just in case registry contains similar plates that normalized to same thing
-    const uniqueFolders = Array.from(new Set(folders));
+    const uniqueFolders: string[] = Array.from(new Set(folders));
     
     let results = uniqueFolders.map(folder => {
-      const truckRecords = groups[folder] || [];
+      const truckRecords: MaintenanceRecord[] = groups[folder] || [];
       const stats = calculateAuditStats(truckRecords);
 
       return {
@@ -117,10 +113,11 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
           {onRefresh && (
             <button 
+              type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
               className={cn(
-                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg transition-all",
+                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                 isRefreshing && "opacity-50 cursor-not-allowed"
               )}
             >
@@ -130,24 +127,29 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
           )}
 
           <div className="relative group w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" />
+            <label htmlFor="fleet-audit-search" className="sr-only">Search Plate Number</label>
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all pointer-events-none" />
             <input 
+              id="fleet-audit-search"
               type="text"
               placeholder="SEARCH PLATENUMBER..."
               value={reportSearch}
               onChange={(e) => setReportSearch(e.target.value)}
-              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus:bg-black/60 focus-visible:ring-2 focus-visible:ring-purple-500 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
             />
           </div>
+        </div>
       </div>
-    </div>
 
       {/* Grid of Report Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {auditData.map((truck) => (
-          <div 
+          <button
+            type="button"
             key={truck.plate}
-            className="group relative bg-surface border border-border rounded-3xl overflow-hidden hover:border-purple-500/30 transition-colors"
+            onClick={() => onFocusTruck(truck.plate)}
+            aria-label={`View maintenance history for truck ${truck.plate}`}
+            className="group relative text-left w-full bg-surface border border-border rounded-3xl overflow-hidden hover:border-purple-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-colors"
           >
             <div className="p-4 sm:p-5">
               {/* Truck Header */}
@@ -250,7 +252,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                 ))}
               </div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
