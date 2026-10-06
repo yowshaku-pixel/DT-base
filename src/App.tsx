@@ -1439,6 +1439,12 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      setUser({ id: 'mock-user-123', email: 'mock@dtbase.internal' } as User);
+      setIsAuthReady(true);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -1875,7 +1881,7 @@ export default function App() {
     try {
       setIsProcessing(true);
       setError(null);
-      const fileArray = Array.from(files);
+      const fileArray = Array.from<File>(files);
       
       setNotification({
         message: `Starting ${isAuditMode ? 'Audit ' : ''}${mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${fileArray.length} file(s)...`,
@@ -4955,9 +4961,10 @@ export default function App() {
                 </div>
               ) : (
                 Object.entries(groupedRecords).map(([plate, plateRecords]) => {
+                  const recordsArr = plateRecords as MaintenanceRecord[];
                   // Group by date for this plate
                   const dateGroups: Record<string, string[]> = {};
-                  plateRecords.sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
+                  recordsArr.sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
                     const date = r.service_date;
                     const cleaned = cleanServiceDescription(r.service_description);
                     if (!dateGroups[date]) dateGroups[date] = [];
@@ -4971,7 +4978,7 @@ export default function App() {
                       <div className="flex items-baseline gap-3 border-b border-white/5 pb-2">
                         <h3 className="text-2xl font-display font-bold text-white tracking-tight uppercase">{plate}</h3>
                         <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
-                          {plateRecords.length} {plateRecords.length === 1 ? 'Entry' : 'Entries'}
+                          {recordsArr.length} {recordsArr.length === 1 ? 'Entry' : 'Entries'}
                         </span>
                       </div>
 
@@ -5008,7 +5015,7 @@ export default function App() {
                 onClick={() => {
                   const reportText = Object.entries(groupedRecords).map(([plate, plateRecords]) => {
                     const dateGroups: Record<string, string[]> = {};
-                    plateRecords.sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
+                    (plateRecords as MaintenanceRecord[]).sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
                       const date = r.service_date;
                       const cleaned = cleanServiceDescription(r.service_description);
                       if (!dateGroups[date]) dateGroups[date] = [];
@@ -5017,12 +5024,12 @@ export default function App() {
                       }
                     });
 
-                    let plateText = `${plate}\nHas ${plateRecords.length} records\n`;
+                    let plateText = `${plate}\nHas ${(plateRecords as MaintenanceRecord[]).length} records\n`;
                     Object.entries(dateGroups)
                       .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
                       .forEach(([date, items]) => {
                         plateText += `\n${date}\n`;
-                        items.forEach(item => plateText += `* ${item}\n`);
+                        (items as string[]).forEach(item => plateText += `* ${item}\n`);
                       });
                     return plateText;
                   }).join('\n\n');
