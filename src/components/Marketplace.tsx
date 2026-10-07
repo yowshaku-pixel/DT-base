@@ -253,8 +253,9 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
         <h2 className="text-xl font-display font-black text-white mb-2 uppercase tracking-tighter">IntelCenter Restricted</h2>
         <p className="text-[10px] font-mono text-muted uppercase tracking-[0.2em] mb-6 opacity-40">Authorization Required for Fleet Intelligence</p>
         <button 
+          type="button"
           onClick={onUnlockRequest} 
-          className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-display font-black uppercase tracking-[0.3em] text-[10px] shadow-lg shadow-purple-900/40 transition-all active:scale-95"
+          className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-display font-black uppercase tracking-[0.3em] text-[10px] shadow-lg shadow-purple-900/40 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
         >
           Decrypt Access
         </button>
@@ -281,24 +282,30 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
       <div className="space-y-4 px-2">
         {/* 1. Plate Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Primary Target</label>
+          <label htmlFor="marketplace-plate-query" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Primary Target</label>
           <div className="relative group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl blur-sm opacity-5 group-hover:opacity-20 transition-all" />
-            <div className="relative bg-black/60 rounded-2xl border border-white/10 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-xl">
+            <div className="relative bg-black/60 rounded-2xl border border-white/10 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-xl focus-within:ring-2 focus-within:ring-purple-500">
               <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20 flex-shrink-0 shadow-inner">
                 <Truck className="w-4 h-4 text-purple-400" />
               </div>
               <div className="flex-1">
                 <input 
+                  id="marketplace-plate-query"
                   type="text"
                   placeholder="VEHICLE PLATE..."
-                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight"
+                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight focus:ring-0"
                   value={plateQuery}
                   onChange={(e) => setPlateQuery(e.target.value)}
                 />
               </div>
               {plateQuery && (
-                <button onClick={() => setPlateQuery('')} className="p-2 hover:bg-white/5 rounded-full text-muted/30 hover:text-white transition-colors">
+                <button
+                  type="button"
+                  aria-label="Clear vehicle plate search"
+                  onClick={() => setPlateQuery('')}
+                  className="p-2 hover:bg-white/5 rounded-full text-muted/30 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                >
                   <X className="w-4 h-4" />
                 </button>
               )}
@@ -308,10 +315,10 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
 
         {/* 2. Keyword Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Intelligence Keyword</label>
+          <label htmlFor="marketplace-keyword-query" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Intelligence Keyword</label>
           <div className="relative group">
             <div className={cn(
-              "relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 transition-all backdrop-blur-md",
+              "relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 transition-all backdrop-blur-md focus-within:ring-2 focus-within:ring-amber-500",
               !plateQuery ? "opacity-30 grayscale" : "hover:border-amber-500/30 group-hover:bg-black/60"
             )}>
               <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center border border-amber-500/20 flex-shrink-0">
@@ -319,9 +326,10 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
               </div>
               <div className="flex-1">
                 <input 
+                  id="marketplace-keyword-query"
                   type="text"
                   placeholder="COMPONENT REFERENCE..."
-                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight"
+                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight focus:ring-0"
                   value={keywordQuery}
                   onChange={(e) => setKeywordQuery(e.target.value)}
                   disabled={!plateQuery}
@@ -333,18 +341,19 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
 
         {/* 3. Price Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Market Analysis</label>
+          <label htmlFor="marketplace-price-query" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Market Analysis</label>
           <div className="relative group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-violet-600 rounded-2xl blur-sm opacity-0 group-hover:opacity-10 transition-all" />
-            <div className="relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-md">
+            <div className="relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-md focus-within:ring-2 focus-within:ring-purple-500">
               <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20 flex-shrink-0">
                 <TrendingUp className="w-4 h-4 text-purple-500" />
               </div>
               <div className="flex-1">
                 <input 
+                  id="marketplace-price-query"
                   type="text"
                   placeholder="PRICE REFERENCE..."
-                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight"
+                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight focus:ring-0"
                   value={priceQuery}
                   onChange={(e) => {
                     setPriceQuery(e.target.value);
@@ -353,9 +362,10 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
                 />
               </div>
               <button 
+                type="button"
                 onClick={() => priceQuery.trim() && setShowPriceResults(true)}
                 className={cn(
-                  "h-10 px-4 rounded-xl font-display font-black text-[10px] uppercase tracking-widest transition-all",
+                  "h-10 px-4 rounded-xl font-display font-black text-[10px] uppercase tracking-widest transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                   priceQuery.trim() ? "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20" : "bg-white/5 text-white/20 cursor-not-allowed"
                 )}
               >
@@ -473,7 +483,12 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
                     <TrendingDown className="w-2.5 h-2.5" />
                     Internal Price Reference
                   </h3>
-                  <button onClick={() => setShowPriceResults(false)} className="p-1 hover:bg-white/5 rounded">
+                  <button
+                    type="button"
+                    aria-label="Close price reference"
+                    onClick={() => setShowPriceResults(false)}
+                    className="p-1 hover:bg-white/5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                  >
                     <X className="w-2.5 h-2.5 text-muted" />
                   </button>
                 </div>
@@ -516,9 +531,10 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
                 <button 
+                  type="button"
                   onClick={() => setShowResultsList(!showResultsList)}
                   className={cn(
-                    "flex items-center gap-2 group/toggle transition-all",
+                    "flex items-center gap-2 group/toggle transition-all rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                     !showResultsList && "opacity-50"
                   )}
                 >
@@ -708,8 +724,10 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
               </div>
             </div>
             
+            <label htmlFor="marketplace-raw-sync" className="sr-only">Knowledge sync raw logs</label>
             <textarea 
-              className="w-full bg-black/40 border border-white/10 p-2 rounded-lg font-mono text-[9px] min-h-[40px] outline-none focus:neon-border-emerald transition-all text-emerald-400 placeholder:text-muted/5 selection:bg-emerald-500/30"
+              id="marketplace-raw-sync"
+              className="w-full bg-black/40 border border-white/10 p-2 rounded-lg font-mono text-[9px] min-h-[40px] outline-none focus:neon-border-emerald transition-all text-emerald-400 placeholder:text-muted/5 selection:bg-emerald-500/30 focus-visible:ring-2 focus-visible:ring-emerald-500"
               placeholder="Paste logs..."
               value={rawTextToSync}
               onChange={(e) => setRawTextToSync(e.target.value)}
@@ -717,10 +735,11 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
             
             <div className="flex items-center gap-1.5">
               <button 
+                type="button"
                 onClick={handleSyncData}
                 disabled={(syncStatus === 'parsing' || syncStatus === 'syncing' || syncStatus === 'extracting') || (!rawTextToSync.trim() && syncStatus === 'idle')}
                 className={cn(
-                  "flex-1 h-8 rounded-lg px-3 flex items-center justify-center gap-1.5 font-display font-black text-[8px] uppercase tracking-widest transition-all",
+                  "flex-1 h-8 rounded-lg px-3 flex items-center justify-center gap-1.5 font-display font-black text-[8px] uppercase tracking-widest transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
                   syncStatus === 'success' ? "bg-emerald-500 text-white" : 
                   syncStatus === 'error' ? "bg-red-500/20 text-red-500 border border-red-500/20" :
                   syncStatus === 'idle' ? "bg-emerald-600 hover:bg-emerald-500 text-white" : "bg-emerald-900/40 text-emerald-400"
@@ -751,10 +770,12 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
                 onChange={handleImageUpload}
               />
               <button 
+                type="button"
+                aria-label="Extract data from photo"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={syncStatus !== 'idle' && syncStatus !== 'success' && syncStatus !== 'error'}
                 className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-50",
+                  "w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
                   syncStatus === 'extracting' 
                     ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
                     : "bg-emerald-500/5 border border-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500"

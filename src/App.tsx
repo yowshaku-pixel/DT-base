@@ -1439,6 +1439,18 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      setUser({
+        id: 'mock-user-123',
+        app_metadata: {},
+        user_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString()
+      } as any);
+      setIsAuthReady(true);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
