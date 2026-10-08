@@ -87,7 +87,14 @@ export default function LandingPage({ onLaunchApp, onToggleTheme, theme }: Landi
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button 
-                className="w-full sm:w-auto px-10 py-5 bg-surface border border-border text-text font-display font-black uppercase tracking-[0.3em] text-xs rounded-2xl hover:bg-white/5 transition-all active:scale-95"
+                type="button"
+                onClick={() => {
+                  const featuresEl = document.getElementById('features');
+                  if (featuresEl) {
+                    featuresEl.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
+                className="w-full sm:w-auto px-10 py-5 bg-surface border border-border text-text font-display font-black uppercase tracking-[0.3em] text-xs rounded-2xl hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-all active:scale-95"
               >
                 Learn More
               </button>
