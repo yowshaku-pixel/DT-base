@@ -226,27 +226,32 @@ const PlateFolder = React.memo(({
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button 
+                      type="button"
                       onClick={() => onToggleVerify(record)}
                       className={cn(
-                        "p-2 border transition-all rounded-full flex items-center justify-center",
+                        "p-2 border transition-all rounded-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                         record.verified 
                           ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-600 dark:text-cyan-400 shadow-[0_0_10px_rgba(0,245,255,0.2)]" 
                           : "bg-surface border border-border text-muted hover:text-text hover:bg-bg/20"
                       )}
+                      aria-label={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
                       title={record.verified ? "Mark as UNVERIFIED" : "Mark as DOUBLE-CHECKED"}
                     >
                       <CheckCircle2 className={cn("w-3 h-3", record.verified && "animate-pulse")} />
                     </button>
                     <button 
+                      type="button"
                       onClick={() => onEdit(record)}
-                      className="p-2 bg-surface border border-border text-muted hover:text-text hover:bg-bg/20 transition-all rounded-full"
+                      className="p-2 bg-surface border border-border text-muted hover:text-text hover:bg-bg/20 transition-all rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                      aria-label="Edit this record"
                       title="Edit this record"
                     >
                       <Settings className="w-3 h-3" />
                     </button>
                     <button 
+                      type="button"
                       onClick={() => onViewImage(record)}
-                      className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full"
+                      className="flex-shrink-0 px-3 py-1.5 bg-purple-600/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-[9px] font-display font-bold uppercase tracking-widest hover:bg-purple-600/20 transition-all rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                       title="View the original image for this record"
                     >
                       View
