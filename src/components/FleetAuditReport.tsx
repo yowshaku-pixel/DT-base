@@ -74,9 +74,9 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
     const folders = cleanRegistry.length > 0 ? cleanRegistry.sort() : Object.keys(groups).sort();
     
     // De-duplicate folder names just in case registry contains similar plates that normalized to same thing
-    const uniqueFolders = Array.from(new Set(folders));
+    const uniqueFolders: string[] = Array.from(new Set(folders));
     
-    let results = uniqueFolders.map(folder => {
+    let results: { plate: string; isRegistry: boolean; stats: ReturnType<typeof calculateAuditStats> }[] = uniqueFolders.map(folder => {
       const truckRecords = groups[folder] || [];
       const stats = calculateAuditStats(truckRecords);
 
