@@ -395,7 +395,7 @@ const SearchFilters = React.memo(({
 
   return (
     <div className="relative group">
-      <label className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
+      <label htmlFor="plate-search-input" className="font-display font-bold uppercase tracking-[0.2em] text-[9px] opacity-40 block mb-2 ml-2">Identify Truck</label>
       <div className="flex flex-col gap-2">
         <div className="relative">
           {isSearching ? (
@@ -404,11 +404,12 @@ const SearchFilters = React.memo(({
             <Search className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-60")} />
           )}
           <input 
+            id="plate-search-input"
             type="text"
             placeholder={!isServiceUnlocked && usageStats.searches >= 15 ? "Search limit reached..." : "Plate number..."}
             className={cn(
-              "w-full bg-black/40 border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
-              !isServiceUnlocked && usageStats.searches >= 15 ? "opacity-50 cursor-not-allowed border-white/10" : isAuditMode ? "neon-border-cyan border-cyan-500/50" : "neon-border-cyan"
+              "w-full bg-black/40 border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all placeholder:opacity-30",
+              !isServiceUnlocked && usageStats.searches >= 15 ? "opacity-50 cursor-not-allowed border-white/10" : isAuditMode ? "neon-border-cyan border-cyan-500/50 focus-visible:ring-cyan-500" : "neon-border-cyan"
             )}
             value={localSearch}
             onChange={(e) => {
@@ -425,12 +426,14 @@ const SearchFilters = React.memo(({
           />
           {localSearch && (
             <button 
+              type="button"
               onClick={() => {
                 setLocalSearch('');
                 setSearchQuery('');
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
               title="Clear Search"
+              aria-label="Clear plate search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -438,13 +441,15 @@ const SearchFilters = React.memo(({
         </div>
 
         <div className="relative">
-           <Smartphone className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-40")} />
-           <input 
+          <label htmlFor="description-search-input" className="sr-only">Description keyword search</label>
+          <Smartphone className={cn("absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30", isAuditMode && "text-cyan-400 opacity-40")} />
+          <input
+            id="description-search-input"
             type="text"
             placeholder="Description keyword..."
             className={cn(
-              "w-full bg-black/40 border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none transition-all placeholder:opacity-30",
-              isAuditMode ? "border-cyan-500/30 focus:border-cyan-500/60" : "border-white/10"
+              "w-full bg-black/40 border p-2.5 pl-10 pr-10 rounded-full font-display font-medium text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all placeholder:opacity-30",
+              isAuditMode ? "border-cyan-500/30 focus:border-cyan-500/60 focus-visible:ring-cyan-500" : "border-white/10"
             )}
             value={localDesc}
             onChange={(e) => {
@@ -456,12 +461,14 @@ const SearchFilters = React.memo(({
           />
           {localDesc && (
             <button 
+              type="button"
               onClick={() => {
                 setLocalDesc('');
                 setDescriptionQuery('');
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
               title="Clear Description Filter"
+              aria-label="Clear description keyword search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -473,14 +480,16 @@ const SearchFilters = React.memo(({
           {recentSearches.map((s, i) => (
             <button 
               key={i} 
+              type="button"
               onClick={() => {
                 setLocalSearch(s);
                 setSearchQuery(s);
               }}
               className={cn(
-                "text-[8px] font-mono bg-white/5 border border-white/5 px-2 py-0.5 rounded-full opacity-40 hover:opacity-100 transition-all font-bold",
-                isAuditMode ? "hover:bg-cyan-500/20 hover:border-cyan-500/30" : "hover:bg-purple-500/20 hover:border-purple-500/30"
+                "text-[8px] font-mono bg-white/5 border border-white/5 px-2 py-0.5 rounded-full opacity-40 hover:opacity-100 transition-all font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
+                isAuditMode ? "hover:bg-cyan-500/20 hover:border-cyan-500/30 focus-visible:ring-cyan-500" : "hover:bg-purple-500/20 hover:border-purple-500/30"
               )}
+              aria-label={`Search for plate ${s}`}
             >
               {s}
             </button>
@@ -1439,6 +1448,12 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('dtbase_mock_user') === 'true') {
+      setUser({ id: 'mock-user-id', email: 'operator@dtbase.app', user_metadata: {} } as any);
+      setIsAuthReady(true);
+      return;
+    }
+
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -1875,7 +1890,7 @@ export default function App() {
     try {
       setIsProcessing(true);
       setError(null);
-      const fileArray = Array.from(files);
+      const fileArray: File[] = Array.from(files);
       
       setNotification({
         message: `Starting ${isAuditMode ? 'Audit ' : ''}${mode === 'market' ? 'Market Price' : 'Fleet Maintenance'} Scan for ${fileArray.length} file(s)...`,
@@ -2513,7 +2528,7 @@ export default function App() {
     fetchLatestImage();
   }, [filteredRecords, user, showLatestOnly]);
 
-  const groupedRecords = useMemo(() => {
+  const groupedRecords = useMemo<Record<string, MaintenanceRecord[]>>(() => {
     const groups: Record<string, MaintenanceRecord[]> = {};
     const needsReview: MaintenanceRecord[] = [];
     
@@ -4954,7 +4969,8 @@ export default function App() {
                   <p className="text-[10px] font-display font-bold uppercase tracking-[0.2em] text-white/20">No records found for this range</p>
                 </div>
               ) : (
-                Object.entries(groupedRecords).map(([plate, plateRecords]) => {
+                Object.entries(groupedRecords).map(([plate, recordsForPlate]) => {
+                  const plateRecords = recordsForPlate as MaintenanceRecord[];
                   // Group by date for this plate
                   const dateGroups: Record<string, string[]> = {};
                   plateRecords.sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
@@ -5006,7 +5022,8 @@ export default function App() {
               </div>
               <button 
                 onClick={() => {
-                  const reportText = Object.entries(groupedRecords).map(([plate, plateRecords]) => {
+                  const reportText = Object.entries(groupedRecords).map(([plate, recordsForPlate]) => {
+                    const plateRecords = recordsForPlate as MaintenanceRecord[];
                     const dateGroups: Record<string, string[]> = {};
                     plateRecords.sort((a, b) => new Date(b.service_date).getTime() - new Date(a.service_date).getTime()).forEach(r => {
                       const date = r.service_date;
