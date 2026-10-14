@@ -3051,6 +3051,10 @@ export default function App() {
     );
   }
 
+  if (typeof window !== 'undefined' && window.location.hash === '#landing') {
+    return <LandingPage onLaunchApp={() => { window.location.hash = ''; }} onToggleTheme={toggleTheme} theme={theme} />;
+  }
+
   if (!isAppUnlocked) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-4">
