@@ -1439,6 +1439,11 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (localStorage.getItem('dtbase_mock_user') === 'true') {
+      setUser({ id: 'mock-user-id', email: 'demo@dtbase.app' } as any);
+      setIsAuthReady(true);
+      return;
+    }
     if (!supabase) {
       setIsAuthReady(true);
       setError("Supabase configuration is missing. Please check your Secrets in AI Studio.");
@@ -1475,7 +1480,18 @@ export default function App() {
   };
 
   const fetchRecords = useCallback(async () => {
-    if (!user || !supabase) return;
+    if (!user) return;
+    if (!supabase) {
+      const cached = localStorage.getItem(`records_${user.id}`);
+      if (cached) {
+        try {
+          setRecords(JSON.parse(cached));
+        } catch (e) {
+          console.error("Failed to parse cached records", e);
+        }
+      }
+      return;
+    }
     setIsRefreshing(true);
     // Automatic retry helper
     async function fetchWithRetry<T>(fn: () => PromiseLike<T>, retries = 3): Promise<T> {
