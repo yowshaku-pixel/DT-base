@@ -77,11 +77,11 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
     const uniqueFolders = Array.from(new Set(folders));
     
     let results = uniqueFolders.map(folder => {
-      const truckRecords = groups[folder] || [];
+      const truckRecords = groups[folder as string] || [];
       const stats = calculateAuditStats(truckRecords);
 
       return {
-        plate: folder,
+        plate: folder as string,
         isRegistry: true,
         stats
       };
@@ -92,7 +92,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
     // Apply search filter
     if (reportSearch) {
       const query = reportSearch.toUpperCase().trim();
-      results = results.filter(truck => truck.plate.toUpperCase().includes(query));
+      results = results.filter(truck => (truck.plate as string).toUpperCase().includes(query));
     }
 
     return results;
