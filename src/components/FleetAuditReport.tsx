@@ -130,13 +130,17 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
           )}
 
           <div className="relative group w-full md:w-80">
+            <label htmlFor="fleet-audit-search" className="sr-only">
+              Search fleet audit reports by plate number
+            </label>
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" />
             <input 
+              id="fleet-audit-search"
               type="text"
               placeholder="SEARCH PLATENUMBER..."
               value={reportSearch}
               onChange={(e) => setReportSearch(e.target.value)}
-              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
             />
           </div>
       </div>
@@ -145,9 +149,11 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
       {/* Grid of Report Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {auditData.map((truck) => (
-          <div 
+          <button
             key={truck.plate}
-            className="group relative bg-surface border border-border rounded-3xl overflow-hidden hover:border-purple-500/30 transition-colors"
+            type="button"
+            onClick={() => onFocusTruck(truck.plate)}
+            className="group relative text-left w-full bg-surface border border-border rounded-3xl overflow-hidden hover:border-purple-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition-all cursor-pointer active:scale-[0.99]"
           >
             <div className="p-4 sm:p-5">
               {/* Truck Header */}
@@ -171,6 +177,9 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                       </span>
                     </div>
                   </div>
+                </div>
+                <div className="p-2 rounded-lg bg-bg border border-border opacity-60 group-hover:opacity-100 group-hover:text-purple-400 transition-all">
+                  <ArrowRight className="w-4 h-4" />
                 </div>
               </div>
 
@@ -250,7 +259,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                 ))}
               </div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
