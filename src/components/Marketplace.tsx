@@ -281,7 +281,7 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
       <div className="space-y-4 px-2">
         {/* 1. Plate Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Primary Target</label>
+          <label htmlFor="intel-plate-search" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Primary Target</label>
           <div className="relative group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl blur-sm opacity-5 group-hover:opacity-20 transition-all" />
             <div className="relative bg-black/60 rounded-2xl border border-white/10 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-xl">
@@ -290,15 +290,21 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
               </div>
               <div className="flex-1">
                 <input 
+                  id="intel-plate-search"
                   type="text"
                   placeholder="VEHICLE PLATE..."
-                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight"
+                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight focus-visible:ring-2 focus-visible:ring-purple-500 rounded-lg px-1 py-1"
                   value={plateQuery}
                   onChange={(e) => setPlateQuery(e.target.value)}
                 />
               </div>
               {plateQuery && (
-                <button onClick={() => setPlateQuery('')} className="p-2 hover:bg-white/5 rounded-full text-muted/30 hover:text-white transition-colors">
+                <button
+                  type="button"
+                  aria-label="Clear vehicle plate search"
+                  onClick={() => setPlateQuery('')}
+                  className="p-2 hover:bg-white/5 rounded-full text-muted/30 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+                >
                   <X className="w-4 h-4" />
                 </button>
               )}
@@ -308,7 +314,7 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
 
         {/* 2. Keyword Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Intelligence Keyword</label>
+          <label htmlFor="intel-keyword-search" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Intelligence Keyword</label>
           <div className="relative group">
             <div className={cn(
               "relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 transition-all backdrop-blur-md",
@@ -319,9 +325,10 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
               </div>
               <div className="flex-1">
                 <input 
+                  id="intel-keyword-search"
                   type="text"
                   placeholder="COMPONENT REFERENCE..."
-                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight"
+                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight focus-visible:ring-2 focus-visible:ring-amber-500 rounded-lg px-1 py-1"
                   value={keywordQuery}
                   onChange={(e) => setKeywordQuery(e.target.value)}
                   disabled={!plateQuery}
@@ -333,7 +340,7 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
 
         {/* 3. Price Search */}
         <div className="flex flex-col gap-2">
-          <label className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Market Analysis</label>
+          <label htmlFor="intel-price-search" className="text-[10px] font-display font-bold text-white/60 uppercase tracking-widest ml-1">Market Analysis</label>
           <div className="relative group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-violet-600 rounded-2xl blur-sm opacity-0 group-hover:opacity-10 transition-all" />
             <div className="relative bg-black/40 rounded-2xl border border-white/5 p-2.5 flex items-center gap-3 hover:border-purple-500/40 transition-all backdrop-blur-md">
@@ -342,9 +349,10 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
               </div>
               <div className="flex-1">
                 <input 
+                  id="intel-price-search"
                   type="text"
                   placeholder="PRICE REFERENCE..."
-                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight"
+                  className="w-full bg-transparent border-none outline-none font-medium text-sm text-white placeholder:text-white/20 leading-none uppercase tracking-tight focus-visible:ring-2 focus-visible:ring-purple-500 rounded-lg px-1 py-1"
                   value={priceQuery}
                   onChange={(e) => {
                     setPriceQuery(e.target.value);
@@ -353,9 +361,10 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
                 />
               </div>
               <button 
+                type="button"
                 onClick={() => priceQuery.trim() && setShowPriceResults(true)}
                 className={cn(
-                  "h-10 px-4 rounded-xl font-display font-black text-[10px] uppercase tracking-widest transition-all",
+                  "h-10 px-4 rounded-xl font-display font-black text-[10px] uppercase tracking-widest transition-all focus-visible:ring-2 focus-visible:ring-purple-500 outline-none",
                   priceQuery.trim() ? "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20" : "bg-white/5 text-white/20 cursor-not-allowed"
                 )}
               >
@@ -473,7 +482,12 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
                     <TrendingDown className="w-2.5 h-2.5" />
                     Internal Price Reference
                   </h3>
-                  <button onClick={() => setShowPriceResults(false)} className="p-1 hover:bg-white/5 rounded">
+                  <button
+                    type="button"
+                    aria-label="Close price results"
+                    onClick={() => setShowPriceResults(false)}
+                    className="p-1 hover:bg-white/5 rounded focus-visible:ring-2 focus-visible:ring-purple-500 outline-none"
+                  >
                     <X className="w-2.5 h-2.5 text-muted" />
                   </button>
                 </div>
@@ -516,9 +530,11 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
                 <button 
+                  type="button"
+                  aria-expanded={showResultsList}
                   onClick={() => setShowResultsList(!showResultsList)}
                   className={cn(
-                    "flex items-center gap-2 group/toggle transition-all",
+                    "flex items-center gap-2 group/toggle transition-all focus-visible:ring-2 focus-visible:ring-purple-500 rounded-lg outline-none",
                     !showResultsList && "opacity-50"
                   )}
                 >
@@ -751,10 +767,12 @@ CREATE POLICY "Auth Insert" ON financial_ledger FOR INSERT TO authenticated WITH
                 onChange={handleImageUpload}
               />
               <button 
+                type="button"
+                aria-label="Extract data from photo"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={syncStatus !== 'idle' && syncStatus !== 'success' && syncStatus !== 'error'}
                 className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-50",
+                  "w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none",
                   syncStatus === 'extracting' 
                     ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
                     : "bg-emerald-500/5 border border-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500"
