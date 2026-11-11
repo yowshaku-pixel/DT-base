@@ -74,7 +74,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
     const folders = cleanRegistry.length > 0 ? cleanRegistry.sort() : Object.keys(groups).sort();
     
     // De-duplicate folder names just in case registry contains similar plates that normalized to same thing
-    const uniqueFolders = Array.from(new Set(folders));
+    const uniqueFolders: string[] = Array.from(new Set(folders));
     
     let results = uniqueFolders.map(folder => {
       const truckRecords = groups[folder] || [];
@@ -117,26 +117,30 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
           {onRefresh && (
             <button 
+              type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
+              aria-label="Sync fleet audit data"
               className={cn(
-                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg transition-all",
+                "w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl text-[10px] font-display font-bold text-text uppercase tracking-widest hover:bg-bg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500",
                 isRefreshing && "opacity-50 cursor-not-allowed"
               )}
             >
-              <RefreshCw className={cn("w-3.5 h-3.5 text-purple-400", isRefreshing && "animate-spin")} />
+              <RefreshCw className={cn("w-3.5 h-3.5 text-purple-400", isRefreshing && "animate-spin")} aria-hidden="true" />
               {isRefreshing ? 'Syncing...' : 'Sync Data'}
             </button>
           )}
 
           <div className="relative group w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" />
+            <label htmlFor="fleet-audit-search" className="sr-only">Search truck plate</label>
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-30 group-focus-within:opacity-100 group-focus-within:text-purple-400 transition-all" aria-hidden="true" />
             <input 
+              id="fleet-audit-search"
               type="text"
               placeholder="SEARCH PLATENUMBER..."
               value={reportSearch}
               onChange={(e) => setReportSearch(e.target.value)}
-              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
+              className="w-full bg-black/40 border neon-border-violet rounded-full py-3.5 pl-12 pr-6 text-sm font-display font-medium text-text placeholder:text-muted/30 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:bg-black/60 transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(160,32,240,0.1)]"
             />
           </div>
       </div>
@@ -157,7 +161,7 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                     "w-10 h-10 rounded-xl border flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner",
                     truck.isRegistry ? "bg-purple-500/10 border-purple-500/20" : "bg-amber-500/10 border-amber-500/20"
                   )}>
-                    <Truck className={cn("w-5 h-5", truck.isRegistry ? "text-purple-600 dark:text-purple-400" : "text-amber-600 dark:text-amber-400")} />
+                    <Truck className={cn("w-5 h-5", truck.isRegistry ? "text-purple-600 dark:text-purple-400" : "text-amber-600 dark:text-amber-400")} aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="text-base font-display font-bold text-text tracking-tight leading-tight">{truck.plate}</h3>
@@ -172,6 +176,15 @@ export const FleetAuditReport: React.FC<FleetAuditReportProps> = ({ records, fle
                     </div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => onFocusTruck(truck.plate)}
+                  aria-label={`View maintenance log for truck ${truck.plate}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-400 text-[10px] font-display font-bold uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 active:scale-95 cursor-pointer"
+                >
+                  <span className="hidden sm:inline">View Log</span>
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
               </div>
 
               {/* Status Grid */}
